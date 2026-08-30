@@ -1084,17 +1084,29 @@ pattern in both stages, not fixed at the source) before real badge pixel data ne
 through this path.
 
 **A2. Pin-map validation.** Bring up §4.1's allocation on real RP2350A silicon: SPI0 as
-slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. This is the test
-the Metro cannot do, and the reason the Feather is the primary bench.
+slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. §4.1's GPIO0–29
+peripheral assignments are identical between RP2350A and RP2350B (only GPIO30–47 differ),
+so this test doesn't require RP2350A-specific silicon — the **Metro is used for A2**, not
+the Feather; the Feather's own GPIO21 (needed for SPI0 CS) isn't broken out on that board at
+all (internal-only, dedicated to its onboard NeoPixel), while the Metro exposes all four
+SPI0 pins (GPIO20/21/22/23) on labelled headers. The Feather remains the board for A1/A3
+(HSTX DVI), which the Metro cannot do (no HSTX peripheral broken out).
 
 **In progress (2026-08-30).** Wiring the official `emfcamp/badge-2024-hardware/hexpansion`
-devkit board to a Feather for this test surfaced and settled risk 19 (§9) — §4.1's
-SPI0/GPIO20–23 role table didn't match RP2350 silicon; corrected, and the `HS_F/G/H/I` role
-assignment (which turned out to be this project's own free choice, not a badge-side
-constraint) is now decided. Also confirmed and fixed a real error in §1.1's edge connector
-pad table (pads 4–10 were shifted by 3 positions) while cross-checking the devkit against
-the badge's own KiCad source. Full wiring table (all 20 pads, using the devkit's actual J2
-breakout header) ready; physical wiring not yet done.
+devkit board for this test surfaced and settled risk 19 (§9) — §4.1's SPI0/GPIO20–23 role
+table didn't match RP2350 silicon; corrected, and the `HS_F/G/H/I` role assignment (which
+turned out to be this project's own free choice, not a badge-side constraint) is now
+decided. Also confirmed and fixed a real error in §1.1's edge connector pad table (pads
+4–10 were shifted by 3 positions) while cross-checking the devkit against the badge's own
+KiCad source, and found the board-choice issue above (Feather → Metro) while checking pin
+accessibility. On the Metro, I2C0's exact pins (GPIO24/25) also aren't cleanly accessible
+(GPIO24 isn't broken out; GPIO25 is the onboard NeoPixel) — for this bench test only,
+I2C0 uses GPIO4/5 instead (both freely available, no onboard conflicts); §4.1's GPIO24/25
+assignment is unchanged for the real product, which has no such constraint. LS_E
+(GPIO29) is left unwired on the Metro — that pin doubles as the board's USB-A host power
+enable, an unwanted side effect for a "spare" signal with no bearing on the actual test.
+Full wiring table (all 20 badge pads, using the devkit's actual J2 breakout header) ready;
+physical wiring not yet done.
 
 **A3. 640×480 @60 DVI output — done.** Confirmed on a real monitor (Stage 1 and Stage 2
 both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
