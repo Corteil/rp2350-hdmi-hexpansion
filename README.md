@@ -611,13 +611,24 @@ is fixed by silicon and doesn't match what was assumed:
 | 22 | MISO | `spi0_sclk` (= SCK) |
 | 23 | CS | `spi0_tx` (= MISO, slave transmits to master on TX) |
 
-**Still open**: which of the badge's `HS_F`/`HS_G`/`HS_H`/`HS_I` electrically carries the
-badge's SCK output (vs. MOSI/MISO/CS) — needed to know which physical badge signal wires to
-which of the four GPIOs above. Not found in `badge-2024-software`'s driver code after a
-reasonable search; may need either more digging there or empirical determination on the
-bench (swap-and-retry is safe here — worst case is no SPI traffic, not damage, unlike
-getting a GND/3V3 connection wrong). The table below is corrected to show only the verified
-GPIO↔SPI0-role facts; it does not yet claim a specific `HS_x`↔GPIO wiring.
+**Resolved (2026-08-30):** initially thought this needed discovering a fixed badge-side
+SCK/MOSI/MISO/CS assignment for `HS_F`/`HS_G`/`HS_H`/`HS_I`, but it doesn't — per §1.2, the
+badge's HS lines are **matrix-routed (not IOMUX) on the ESP32-S3**, meaning the badge's own
+firmware can assign any SPI role to any HS pin, in software, per hexpansion. Confirmed by
+checking a real shipped example —
+[`DanNixon/ethernet-hexpansion`](https://github.com/DanNixon/ethernet-hexpansion/blob/main/docs/pins.md)
+uses `HS_G=SCK, HS_H=MOSI, HS_I=MISO, HS_F=interrupt (not SPI at all), CS=LS_2` — a
+genuinely different choice than this project's own original assumption, which only makes
+sense if the mapping is each hexpansion's free choice, not a badge-side constraint. So this
+project makes its own choice too, matched by badge-side driver code written for it (Phase
+3/4), matching physical badge pad order straight to GPIO order for simplicity:
+
+| Badge signal | RP2350 GPIO | Silicon role |
+|---|---:|---|
+| `HS_F` | 20 | MOSI (`spi0_rx`) |
+| `HS_G` | 21 | CS (`spi0_ss_n`) |
+| `HS_H` | 22 | SCK (`spi0_sclk`) |
+| `HS_I` | 23 | MISO (`spi0_tx`) |
 
 | Pin | Function |
 |------|----------|
@@ -629,7 +640,7 @@ GPIO↔SPI0-role facts; it does not yet claim a specific `HS_x`↔GPIO wiring.
 | 6, 7 | **I2C1 (hardware) → Qwiic sockets J4/J5** |
 | 8–11 | **SPI1 → microSD** (8 MISO, 9 CS, 10 SCK, 11 MOSI) |
 | **12–19** | **HSTX → 4 TMDS pairs (clock + 3 data)** — fixed by silicon |
-| 20–23 | SPI0 slave ↔ 4 of the badge's HS_F/HS_G/HS_H/HS_I lines — GPIO20=RX(MOSI), GPIO21=SS_n(CS), GPIO22=SCLK(SCK), GPIO23=TX(MISO); **which physical `HS_x` goes to which GPIO is still open, see above** |
+| 20–23 | SPI0 slave ↔ `HS_F`(MOSI)/`HS_G`(CS)/`HS_H`(SCK)/`HS_I`(MISO) — see table above |
 | 24, 25 | I2C0 target ↔ badge SDA / SCL (the emulated EEPROM) |
 | 26 | → LS_B, attention/IRQ to the badge |
 | 27 | ← LS_C, bootloader-entry request from the badge |
@@ -1077,12 +1088,13 @@ slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. This i
 the Metro cannot do, and the reason the Feather is the primary bench.
 
 **In progress (2026-08-30).** Wiring the official `emfcamp/badge-2024-hardware/hexpansion`
-devkit board to a Feather for this test surfaced risk 19 (§9) — §4.1's SPI0/GPIO20–23 role
-table didn't match RP2350 silicon, now corrected. The GND/HEXP_DET/SDA/SCL/LS_A–E wiring is
-unaffected and can proceed; the SPI/HS-line wiring is blocked on identifying which badge
-`HS_x` carries SCK (§10 "still open"). Also confirmed and fixed a real error in §1.1's edge
-connector pad table (pads 4–10 were shifted by 3 positions) while cross-checking the devkit
-against the badge's own KiCad source.
+devkit board to a Feather for this test surfaced and settled risk 19 (§9) — §4.1's
+SPI0/GPIO20–23 role table didn't match RP2350 silicon; corrected, and the `HS_F/G/H/I` role
+assignment (which turned out to be this project's own free choice, not a badge-side
+constraint) is now decided. Also confirmed and fixed a real error in §1.1's edge connector
+pad table (pads 4–10 were shifted by 3 positions) while cross-checking the devkit against
+the badge's own KiCad source. Full wiring table (all 20 pads, using the devkit's actual J2
+breakout header) ready; physical wiring not yet done.
 
 **A3. 640×480 @60 DVI output — done.** Confirmed on a real monitor (Stage 1 and Stage 2
 both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
@@ -1223,7 +1235,7 @@ primary mode.
 | 16 | RP2350-E9 pull-down erratum bites on LS/CS/I2C lines | Low | External pull resistors everywhere it matters. |
 | 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Medium (raised from Low) | **Settled by Phase 0 B1, on the Metro: rasterisation is too slow for animation** (2.9 fps typical scene, 0.7 fps worst case; ~40% of even the cheapest frame is PSRAM write bandwidth, not ctx itself — see §3.2). Affects the advanced path only; v1 mirroring depends on none of it. Occasional full-redraws of static content may still be viable; continuous/animated drawlist forwarding is not. Fallback is the bespoke command set in §3.2, which is already specified. |
 | 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. Closed by populating the Feather's unpopulated PSRAM footprint with an APS6404L (~$1.15) in Phase 0. |
-| 19 | §4.1's SPI0/GPIO20–23 role table (SCK/MOSI/MISO/CS in GPIO order) didn't match RP2350 silicon — found and corrected 2026-08-30 while preparing to wire A2 | Medium | **Partially settled.** The GPIO↔SPI0-role mapping is now verified against `RP2350.svd` (§4.1 has the corrected table). Still open: which physical badge `HS_x` signal carries SCK vs. MOSI/MISO/CS — not found in `badge-2024-software`'s driver code yet, needed before the badge-facing SPI wiring can be finalised. Low physical risk either way (a wrong guess here just means no SPI traffic on first try, not hardware damage), but blocks A2's SPI/HS-line testing until resolved. |
+| 19 | §4.1's SPI0/GPIO20–23 role table (SCK/MOSI/MISO/CS in GPIO order) didn't match RP2350 silicon — found and corrected 2026-08-30 while preparing to wire A2 | Low (settled) | **Settled.** GPIO↔SPI0-role verified against `RP2350.svd`; which badge `HS_x` carries which role turned out to be this project's own free choice (the badge's HS lines are matrix-routed on the ESP32-S3, confirmed by `DanNixon/ethernet-hexpansion` using a different mapping than originally assumed here) — §4.1 now states the chosen mapping (`HS_F`=MOSI, `HS_G`=CS, `HS_H`=SCK, `HS_I`=MISO), to be matched by badge-side driver code in Phase 3/4. |
 
 ---
 
@@ -1250,4 +1262,3 @@ primary mode.
 * **Whether the outer flat closes at 44 mm**, or the board wants the wedge outline. Decided by the placement study, not now.
 * **Whether ctx drawlist forwarding is viable** — **measured (Phase 0 B1, §3.2): not for animation** (2.9 fps typical / 0.7 fps worst case). Occasional static-content redraws still plausible; not settled. LGPL-3.0+ review still outstanding. Not on the v1 path.
 * **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant.
-* **Which badge `HS_x` signal is electrically SCK** (vs. MOSI/MISO/CS) — needed to finalise the badge-facing SPI0 wiring in §4.1 (risk 19). Not found in `badge-2024-software`'s driver code yet.
