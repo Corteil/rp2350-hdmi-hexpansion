@@ -7,6 +7,13 @@ plan](../../README.md#phase-0--de-risk-on-the-bench-23-weekends), Part B
 Board: **Adafruit Metro RP2350 with PSRAM** (RP2350B, 8 MB PSRAM, 16 MB
 flash — the PSRAM variant, not the plain Metro RP2350).
 
+See also `../phase0-feather/` — B3, the RP2350A comparison bench. It
+reuses copies of this project's `ctx_bench.c`/`psram_dma_bench.c`/
+`third_party/ctx/` (both are board-agnostic) rather than sharing a
+library between the two: this is disposable Phase 0 bench code, not the
+eventual product firmware, so two small independent copies beat coupling
+two separate bench projects together.
+
 ## Status
 
 - [x] Toolchain + custom board header bring-up: blink the onboard red LED
