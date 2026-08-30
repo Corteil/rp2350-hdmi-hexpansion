@@ -1180,31 +1180,41 @@ interrupt-vs-`resume` gotcha worked around to get them non-invasively are in §3
 §3.1 arrives as a tested patch. If you also want drawlist forwarding, prototype the capture
 hook here — one conversation upstream, two hooks.
 
-**C3. SPI link speed — done for the bench-wiring case (2026-08-30).** Swept 100 kHz–40 MHz
-over dupont-wire bench wiring (not yet the real edge connector — see below). **100 kHz–20
-MHz fully reliable**; 30/40 MHz show genuine bit errors, consistent with §1.2's ~40 MHz
-ceiling on the badge's matrix-routed HS pins. Pushed a real 115,200-byte frame (the badge's
-actual mirrored-framebuffer size) at both 10 and 20 MHz: **0 mismatches both directions at
-both rates**, wire time within 2–4% of the clock-rate theoretical minimum (98.4% efficiency
-at 10 MHz, 96.7% at 20 MHz) — **10.7 fps and 21.0 fps full-frame-equivalent**, both well
-inside C1's budget (worst real app measured: 14.3 fps, ~70 ms/frame). Full numbers,
-including a debugged false-failure (a fixed, repeatable corrupted-first-transaction artifact
-on the badge's own ESP32-S3 SPI master, not a link problem) and a bogus RP2350-side timing
-number explained, in `firmware/phase0-a2-spi/README.md`. **Still open: re-run against the
-real edge connector** (dupont wire is expected to be the pessimistic case, not the
-representative one) and confirm 30/40 MHz clean up on a PCB trace before relying on them.
+**C3. SPI link speed — done for the bench-wiring case (2026-08-30).** Rig: the official
+`emfcamp/badge-2024-hardware/hexpansion` devkit board plugged into the real badge port (so
+the actual edge connector **is** in circuit), with dupont jumpers only for the last leg from
+that devkit board's headers to the Metro. Swept 100 kHz–40 MHz: **100 kHz–20 MHz fully
+reliable**; 30/40 MHz show genuine bit errors, consistent with §1.2's ~40 MHz ceiling on the
+badge's matrix-routed HS pins. Pushed a real 115,200-byte frame (the badge's actual
+mirrored-framebuffer size) at both 10 and 20 MHz: **0 mismatches both directions at both
+rates**, wire time within 2–4% of the clock-rate theoretical minimum (98.4% efficiency at
+10 MHz, 96.7% at 20 MHz) — **10.7 fps and 21.0 fps full-frame-equivalent**, both well inside
+C1's budget (worst real app measured: 14.3 fps, ~70 ms/frame). Full numbers, including a
+debugged false-failure (a fixed, repeatable corrupted-first-transaction artifact on the
+badge's own ESP32-S3 SPI master, not a link problem) and a bogus RP2350-side timing number
+explained, in `firmware/phase0-a2-spi/README.md`. **Still open: re-run once the dupont leg
+is gone** (product PCB, no devkit-to-Metro wire at all) and confirm 30/40 MHz clean up on a
+real trace before relying on them.
 
 **C4. EEPROM emulation enumerates reliably.** Cold-plug 50 times. Measure worst-case time
 from port power-on to the badge's first I2C read against the RP2350's time-to-I2C-ready. If
 there is no clear daylight, §5's fallback becomes the primary plan and the schematic changes.
 
-**First success confirmed (2026-08-30, `firmware/phase0-a2-eeprom/`), full 50× reliability
-run not yet done.** On real hardware: badge found the emulated EEPROM, read the header, and
-continued reading past byte 32 into the (currently empty) filesystem region — meaning the
-header's magic/version/checksum all validated, since a failed check would have stopped the
-badge there. No race observed with the I2C target started as literally the first line of
-`main()`. Settles risk 1 (§9) as proven in principle; the formal 50×-cold-plug timing-margin
-measurement is still outstanding before treating this as fully closed.
+**First success confirmed (2026-08-30, `firmware/phase0-a2-eeprom/`).** On real hardware:
+badge found the emulated EEPROM, read the header, and continued reading past byte 32 into
+the (currently empty) filesystem region — meaning the header's magic/version/checksum all
+validated, since a failed check would have stopped the badge there. No race observed with
+the I2C target started as literally the first line of `main()`. Settles risk 1 (§9) as
+proven in principle.
+
+**The formal 50×-cold-plug run moves to Phase 2, not "outstanding in Phase 0."** This bench
+rig's Metro is USB-powered with badge `+3V3` deliberately left unconnected (no isolation
+circuit exists to safely tie two live 3.3V rails together), so unplugging/replugging the
+hexpansion never actually power-cycles the RP2350 — it stays running throughout, which
+defeats the point of a *cold*-plug timing measurement. Needs either the real product
+(RP2350 powered from the hexpansion's own badge-supplied +3V3) or a bench modification that
+genuinely power-cycles the RP2350 with isolation from USB — neither fits a Phase 0 bench
+check. Full note in `firmware/phase0-a2-eeprom/README.md`.
 
 #### What the bench cannot tell you
 
@@ -1212,6 +1222,9 @@ measurement is still outstanding before treating this as fully closed.
 * **Signal integrity.** Adafruit's adapter has its own buffering; our board direct-drives
   from GPIO. Functional results transfer, SI results do not.
 * **The backfeed test (§4.5)** needs the real power topology and moves to Phase 2.
+* **C4's cold-plug timing.** The bench Metro is USB-powered, not badge-powered, so
+  unplugging/replugging never power-cycles the RP2350 — moves to Phase 2 alongside the
+  backfeed check, same reason (needs the real power topology).
 * **The layout.** No bench board answers whether the outer flat closes (§4.4).
 
 Everything downstream is cheap to change now and expensive to change later. Do not skip
@@ -1236,6 +1249,11 @@ First thing on arrival, the **backfeed check** that Phase 0 could not do: with t
 powered off and USB-C live, measure the current into pads 15/16 and the voltage on the
 badge's `3V3_SYS` — both must read zero. Repeat with the badge on and the port disabled in
 software. This is the test that proves §4.5, and it is worth building a jig for.
+
+Also **C4's 50×-cold-plug enumeration timing** (§8 Part C) — the bench Metro's USB power
+meant unplugging the hexpansion never actually power-cycled the RP2350, so this measurement
+was impossible in Phase 0. The real board is badge-powered, so this becomes straightforward
+once boards exist: cold-plug 50 times, time port power-on to the badge's first I2C read.
 
 ### Phase 3 — Firmware (4–6 weeks part-time)
 

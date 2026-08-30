@@ -172,9 +172,14 @@ chosen in the main README's §4.1 are now hardware-verified, not just planned.
 
 ## C3 — SPI link speed sweep and a real 115,200-byte frame (2026-08-30, same session)
 
-Bench wiring for this run: **dupont jumpers**, not the official edge connector — expect a
-lower ceiling than a real hexpansion PCB trace would give (shorter, controlled-impedance,
-no loose contacts). No RP2350 firmware change was needed to sweep badge-side rates: in
+Bench wiring for this run: the badge's edge connector **is** in circuit — via the official
+`emfcamp/badge-2024-hardware/hexpansion` devkit board, plugged into the badge port as
+designed — but the last leg, from that devkit board's own header pins to the Metro's
+headers, is **dupont jumpers**. So this measures the real connector plus an extra, worse
+stretch of wire on top of it, not a raw badge-pin-to-Metro dupont run. Still expect a lower
+ceiling than the eventual product PCB (no devkit-to-Metro leg at all, direct short traces),
+but higher than if the connector itself were being bypassed. No RP2350 firmware change was
+needed to sweep badge-side rates: in
 slave mode the PL022 derives its bit timing from whatever SCK the master drives (`main.c`'s
 own comment), so `bringup.uf2` self-adapts across rates.
 
@@ -227,8 +232,9 @@ gets counted as transfer time. The badge's own measurement, taken only around th
 `spi.write_readinto()` call, is unaffected by this and lands within 2–4% of the
 clock-rate-only theoretical minimum both times — that's the trustworthy number.
 
-**C3 is settled for the bench-wiring case: a full mirrored frame moves in well under the
-100 ms budget C1 needs (worst real app measured: 14.3 fps → ~70 ms/frame) even at 10 MHz**,
-with headroom to spare at 20 MHz and likely beyond (30/40 MHz weren't re-tried with a full
-frame — the small-packet sweep already shows they're unreliable on this wiring). The official
-edge connector, not dupont wire, is the next thing to re-run this against once available.
+**C3 is settled for the devkit-connector-plus-dupont-leg bench case: a full mirrored frame
+moves in well under the 100 ms budget C1 needs (worst real app measured: 14.3 fps → ~70
+ms/frame) even at 10 MHz**, with headroom to spare at 20 MHz and likely beyond (30/40 MHz
+weren't re-tried with a full frame — the small-packet sweep already shows they're unreliable
+on this wiring). The product PCB (no dupont leg at all) is expected to do at least this well;
+re-run once that exists rather than treating this as the final number.

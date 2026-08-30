@@ -99,3 +99,16 @@ was provided; that wasn't this test's goal.
 literal first line of `main()`) is sufficient in practice, at least for this single test.
 Settles main README risk 1 (§9) in principle; the formal 50×-cold-plug reliability/timing
 measurement C4 calls for is still outstanding.
+
+**C4's 50×-cold-plug run cannot happen on this bench rig at all, not just "not yet done"
+(2026-08-30).** C4 needs to measure worst-case time from **port power-on** to the badge's
+first I2C read, against the RP2350's time-to-I2C-ready — but this rig's Metro is
+USB-powered, with badge `+3V3` deliberately left unconnected (see Wiring above: "no
+isolation circuit exists in this bench setup to safely tie two live 3.3V rails together").
+So unplugging/replugging the hexpansion into the badge port never power-cycles the RP2350 at
+all — it stays continuously powered and running throughout every "cold" plug, which is
+exactly the condition C4 needs to NOT be true to measure anything. Cold-plug timing needs
+either the real product (RP2350 powered from the hexpansion's own +3V3, badge-supplied,
+Phase 2) or a bench modification that actually power-cycles the RP2350 from the badge rail
+with isolation from USB during the test — out of scope for a quick Phase 0 bench check. C4
+moves to Phase 2 rather than staying an open Phase 0 item.
