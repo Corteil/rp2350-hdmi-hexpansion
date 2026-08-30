@@ -13,6 +13,7 @@
 #include "hardware/psram.h"
 #include "hardware/flash.h"
 #include "ctx_bench.h"
+#include "sd_bench.h"
 
 static bool psram_self_test(volatile uint32_t *psram, size_t words) {
     for (size_t i = 0; i < words; i++) {
@@ -75,6 +76,7 @@ int main(void) {
     }
 
     ctx_bench_run();
+    sd_bench_run();
 
     uint32_t frame = 0;
     while (true) {

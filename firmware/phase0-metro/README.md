@@ -21,7 +21,16 @@ flash — the PSRAM variant, not the plain Metro RP2350).
       typical scene, 0.7 fps worst case — too slow for animation.**
       Decomposed to find out why: see below. Main README §3.2 and risk
       17 updated with these numbers.
-- [ ] B2 — microSD (SPI0, GPIO34–40) + PSRAM-backed 640×480 16bpp scanout.
+- [x] **B2, microSD half** — SPI0 (GPIO34/35/36 SCK/MOSI/MISO, CS GPIO39)
+      via `carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico` (Apache-2.0) +
+      elm-chan's FatFs, vendored as a submodule under `third_party/`.
+      Mounts, reports capacity, writes+reads-back a test file, times a
+      bulk write. Builds clean; not yet run with a card in hand (see
+      below). Card-detect (GPIO40) deliberately unused — see below.
+- [ ] B2, PSRAM-backed scanout half — bandwidth of a DMA-driven bulk read
+      out of the PSRAM framebuffer, simulating what real HSTX scanout
+      would do (§3.3's "needs measurement" mode). B1's numbers only cover
+      CPU-driven writes *into* PSRAM; this is the read-side, DMA case.
 - [ ] B3 — run the same firmware on the RP2350A Feather (Part A) to compare.
 
 ### PSRAM: using pico-sdk's official driver, not a hand-rolled one
@@ -126,6 +135,52 @@ pixel format actually used — see the `#define`s at the top of
 ~169 KB text total vs. ~59 KB before ctx was added) — a non-issue against
 16 MB of flash.
 
+### B2: microSD
+
+`src/sd_bench.c` + `src/hw_config.c`, on top of a vendored (submodule)
+copy of `carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico` under
+`third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/` (Apache-2.0, wraps
+elm-chan's FatFs — its own permissive BSD-1-Clause-style license). Chose
+this over hand-rolling the SD-over-SPI protocol (CMD0/CMD8/ACMD41 init
+sequence, R1/R7 response parsing, CRC, the 400 kHz-then-fast-clock dance)
+for the same reason as pico-sdk's `hardware_psram`: a well-tested existing
+implementation beats a hand-written one for something this fiddly to get
+right at the protocol level.
+
+**File-API only, deliberately never raw sectors.** This runs against
+whatever card is actually inserted on the bench, which may have other
+data on it — a distinctly-named test file (`phase0test.txt`,
+`phase0bw.bin`, deleted after use) can't clobber that, a raw sector write
+could.
+
+`hw_config.c` wires the library to this board's socket: SPI0 on GPIO34
+(SCK) / 35 (MOSI) / 36 (MISO), CS on GPIO39, matching
+`boards/adafruit_metro_rp2350.h`. **Card-detect (GPIO40) is deliberately
+not wired up** — its active-high/low polarity for this specific socket
+isn't confirmed against Adafruit's schematic, and a wrong guess would
+make the code misreport "no card" rather than just letting `f_mount()`'s
+own success/failure say so.
+
+`sd_bench_run()` mounts, prints capacity/free space, runs the
+write/read-back correctness test, then (only if that passed) times
+writing a 256 KB file in 4 KB chunks for a rough file-I/O bandwidth
+number. Prints a clear "skipped" message and returns cleanly — never
+panics — if there's no card or the mount fails for any reason.
+
+**Needed a prebuilt `pioasm`, not just a matching SDK/picotool.** The
+library's CMake unconditionally builds its SDIO backend too (even though
+we only use SPI), which needs `pioasm` to compile a `.pio` file. Building
+`pioasm` from source needs a host C++ compiler, which isn't installed on
+this machine (see the PSRAM section above re: the same gap blocking a
+from-source `picotool` build). Fix: `raspberrypi/pico-sdk-tools` release
+`v2.3.0-1`'s `pico-sdk-tools-2.3.0-x64-win.zip` bundle has a prebuilt
+`pioasm.exe`, installed at `~/.pico-sdk/tools/2.3.0/pioasm/`. `CMakeLists.txt`
+points at it by default (`pioasm_DIR`) so this is transparent on rebuild.
+
+**Not yet run against real hardware with a card inserted** — builds
+clean, but the actual mount/read/write/bandwidth results are still
+untested on the bench.
+
 ## Board header
 
 `boards/adafruit_metro_rp2350.h` is a hand-written board header — Adafruit
@@ -139,9 +194,16 @@ pin, same PSRAM idiom).
 
 ## Build
 
+This repo has a submodule (the SD/FatFs library); clone or update it first:
+
+```bash
+git submodule update --init third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
+```
+
 Uses the pico-sdk toolchain already cached by the Raspberry Pi Pico VS Code
-extension at `~/.pico-sdk` (SDK 2.3.0 and matching picotool 2.3.0 were
-added there for this project — see above). From this directory:
+extension at `~/.pico-sdk` (SDK 2.3.0, matching picotool 2.3.0, and a
+prebuilt `pioasm` were added there for this project — see above). From
+this directory:
 
 ```bash
 export PICO_SDK_PATH="$HOME/.pico-sdk/sdk/2.3.0"
@@ -168,7 +230,12 @@ picotool load -f build/bringup.uf2
 ## Expected result
 
 On boot, the USB CDC serial port prints PSRAM detection (size, CS pin),
-the self-test result (PASS/FAIL, time, throughput), then the B1 ctx
-benchmark's two scene timings, once. Then the red LED (next to
-BOOT/RESET) blinks at 1 Hz with a `phase0-metro alive: tick N` heartbeat
-every 500 ms.
+the self-test result (PASS/FAIL, time, throughput), the B1 ctx
+benchmark's scene timings, then the B2 SD card result (capacity,
+write/read-back PASS/FAIL, bandwidth — or a clear "skipped" line if no
+card is inserted), once. Then the red LED (next to BOOT/RESET) blinks at
+1 Hz with a `phase0-metro alive: tick N` heartbeat every 500 ms.
+
+An SD card is optional for this firmware to run — if none is inserted
+(or FatFs can't mount it), B2 just prints why and moves on to the
+heartbeat loop like everything else did.
