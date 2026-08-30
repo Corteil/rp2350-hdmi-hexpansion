@@ -24,9 +24,9 @@ flash — the PSRAM variant, not the plain Metro RP2350).
 - [x] **B2, microSD half** — SPI0 (GPIO34/35/36 SCK/MOSI/MISO, CS GPIO39)
       via `carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico` (Apache-2.0) +
       elm-chan's FatFs, vendored as a submodule under `third_party/`.
-      Mounts, reports capacity, writes+reads-back a test file, times a
-      bulk write. Builds clean; not yet run with a card in hand (see
-      below). Card-detect (GPIO40) deliberately unused — see below.
+      **Measured on hardware: mount, capacity report, and write/read-back
+      all PASS** (FAT32, ~7.5 GB card). Card-detect (GPIO40) deliberately
+      unused — see below.
 - [ ] B2, PSRAM-backed scanout half — bandwidth of a DMA-driven bulk read
       out of the PSRAM framebuffer, simulating what real HSTX scanout
       would do (§3.3's "needs measurement" mode). B1's numbers only cover
@@ -177,9 +177,28 @@ from-source `picotool` build). Fix: `raspberrypi/pico-sdk-tools` release
 `pioasm.exe`, installed at `~/.pico-sdk/tools/2.3.0/pioasm/`. `CMakeLists.txt`
 points at it by default (`pioasm_DIR`) so this is transparent on rebuild.
 
-**Not yet run against real hardware with a card inserted** — builds
-clean, but the actual mount/read/write/bandwidth results are still
-untested on the bench.
+#### Measured results (Metro RP2350 with PSRAM, ~7.5 GB FAT32 card, 2026-08-30)
+
+```
+mounted: 7503.9 MB total, 7503.9 MB free, FAT type 3
+write/read-back test (phase0test.txt): PASS
+write bandwidth: 262144 bytes in 287.75 ms (~0.87 MB/s)
+```
+
+Mount, capacity reporting, and the write/read-back correctness test all
+passed cleanly — confirms the SPI wiring, chip select, and FatFs stack
+all work on real hardware. FAT type 3 = FAT32, as expected for a card
+this size.
+
+**0.87 MB/s is a deliberately conservative number, not a driver
+limitation.** `hw_config.c` set `baud_rate` to 12.5 MHz for first
+bring-up (reliability over speed); at that clock, 1.5 MB/s is the
+single-bit-SPI theoretical ceiling, so ~0.87 MB/s (58% of that) is in
+the range expected once per-block command/response overhead is
+accounted for. Raising the SPI clock (common SD-over-SPI cards handle
+20-25 MHz) is the obvious next tuning step if this number ends up
+mattering, but wasn't necessary to prove B2's actual question — does
+this stack work at all on this board — which it does.
 
 ## Board header
 

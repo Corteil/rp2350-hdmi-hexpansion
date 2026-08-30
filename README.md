@@ -970,8 +970,13 @@ target does not fit in 520 KB of SRAM, which is why this needed the Metro's PSRA
 *Alternative on the Feather:* rasterise at **8 bpp palette** — 307 KB, fits in SRAM, and is
 already a listed mode in §3.3, so the number is directly useful rather than a proxy.
 
-**B2. microSD** on SPI, and PSRAM-backed 640×480 16 bpp scanout — the mode §3.3 rates
-"Medium, needs measurement".
+**B2. microSD** on SPI — **done**, on the Metro (`firmware/phase0-metro/`): mount,
+capacity report, and a write/read-back correctness test all pass on real hardware
+(FAT32, via `carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico` + FatFs, not a hand-rolled SD-SPI
+driver). **PSRAM-backed 640×480 16 bpp scanout — still open**: the mode §3.3 rates
+"Medium, needs measurement" is about DMA-driven *reads* out of a PSRAM framebuffer
+(simulating HSTX scanout); B1 only measured CPU-driven *writes* into PSRAM, which is a
+different number.
 
 **B3. The RP2350B experiment.** Run the same firmware on both boards. If the A map brings up
 cleanly on the Feather, stay with the A; the B is the fallback, not the plan (§4.1).
