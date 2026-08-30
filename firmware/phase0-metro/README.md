@@ -27,10 +27,12 @@ flash — the PSRAM variant, not the plain Metro RP2350).
       **Measured on hardware: mount, capacity report, and write/read-back
       all PASS** (FAT32, ~7.5 GB card). Card-detect (GPIO40) deliberately
       unused — see below.
-- [ ] B2, PSRAM-backed scanout half — bandwidth of a DMA-driven bulk read
-      out of the PSRAM framebuffer, simulating what real HSTX scanout
-      would do (§3.3's "needs measurement" mode). B1's numbers only cover
-      CPU-driven writes *into* PSRAM; this is the read-side, DMA case.
+- [x] **B2, PSRAM-backed scanout half** — DMA-driven bulk reads out of
+      the PSRAM framebuffer (`src/psram_dma_bench.c`), simulating what
+      real HSTX scanout would do (§3.3's "needs measurement" mode, target
+      ~37 MB/s). B1's numbers only covered CPU-driven writes *into*
+      PSRAM; this is the read side, DMA case — a materially different
+      access pattern. Builds clean; not yet run on hardware (see below).
 - [ ] B3 — run the same firmware on the RP2350A Feather (Part A) to compare.
 
 ### PSRAM: using pico-sdk's official driver, not a hand-rolled one
@@ -134,6 +136,36 @@ pixel format actually used — see the `#define`s at the top of
 `ctx_bench.c`. Adds ~110 KB to the flash image (`arm-none-eabi-size`:
 ~169 KB text total vs. ~59 KB before ctx was added) — a non-issue against
 16 MB of flash.
+
+### B2: PSRAM-backed scanout (DMA reads)
+
+`src/psram_dma_bench.c` measures the opposite direction from B1: DMA
+engine reads *out of* the PSRAM framebuffer, rather than ctx's CPU-driven
+writes into it. This is what real HSTX scanout would actually be doing —
+§3.3 rates this mode "Medium — needs measurement", target ~37 MB/s for
+640×480@60. Two shapes, mirroring B1's bulk-vs-decomposed approach:
+
+- **bulk** — one 256 KB DMA transfer, PSRAM into a static SRAM buffer.
+  The achievable ceiling, no per-transaction setup cost.
+- **per-line** — 480 separate DMA transfers of one 1280-byte
+  (640×RGB565) scanline each, back to back, totalling one frame's worth
+  of bytes. Closer to how real chained per-line HSTX descriptors would
+  actually drive this (§3.4) — captures per-transaction setup overhead
+  the bulk number doesn't.
+
+Reads via the PSRAM **uncached** XIP alias (`XIP_NOCACHE_NOALLOC_BASE`,
+not the `XIP_BASE`-relative one main.c/ctx_bench.c use) deliberately: real
+scanout reads different framebuffer content every frame, so it should
+never hit in the small on-chip XIP cache. Using the cached alias here
+could make repeated timing iterations look faster than a real streaming
+scanout would be — same spirit as B1's raw-write/solid-fill decomposition,
+measure the thing that's actually representative rather than whatever's
+convenient.
+
+DMA channel is claimed with `dma_claim_unused_channel`, so this coexists
+fine with anything else on the board that also uses DMA (SD card SPI
+DMA, USB). Skips itself if PSRAM isn't available or no DMA channel is
+free.
 
 ### B2: microSD
 
@@ -250,10 +282,11 @@ picotool load -f build/bringup.uf2
 
 On boot, the USB CDC serial port prints PSRAM detection (size, CS pin),
 the self-test result (PASS/FAIL, time, throughput), the B1 ctx
-benchmark's scene timings, then the B2 SD card result (capacity,
-write/read-back PASS/FAIL, bandwidth — or a clear "skipped" line if no
-card is inserted), once. Then the red LED (next to BOOT/RESET) blinks at
-1 Hz with a `phase0-metro alive: tick N` heartbeat every 500 ms.
+benchmark's scene timings, the B2 PSRAM-scanout DMA read timings, then
+the B2 SD card result (capacity, write/read-back PASS/FAIL, bandwidth —
+or a clear "skipped" line if no card is inserted), once. Then the red
+LED (next to BOOT/RESET) blinks at 1 Hz with a `phase0-metro alive: tick
+N` heartbeat every 500 ms.
 
 An SD card is optional for this firmware to run — if none is inserted
 (or FatFs can't mount it), B2 just prints why and moves on to the

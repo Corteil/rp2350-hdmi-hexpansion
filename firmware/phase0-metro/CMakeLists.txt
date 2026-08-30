@@ -32,6 +32,7 @@ add_executable(bringup
     src/ctx_bench.c
     src/sd_bench.c
     src/hw_config.c
+    src/psram_dma_bench.c
 )
 
 target_include_directories(bringup PRIVATE third_party/ctx)
@@ -41,6 +42,7 @@ target_compile_definitions(bringup PRIVATE USE_PRINTF)
 target_link_libraries(bringup
     pico_stdlib
     hardware_psram
+    hardware_dma
     no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
 )
 
