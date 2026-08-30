@@ -23,16 +23,24 @@
 //     radius -- matching what the badge's own round display would show.
 //     By symmetry the extra black this adds on each side of the visible
 //     content is always equal (see build_row_table's comment).
-//   - Per active row, the command list now has three phases instead of
-//     Stage 1's two: left black fill (pillarbox + mask), real pixel
-//     data, right black fill. Each phase is its own DMA-into-FIFO
-//     transfer, so completing a row takes 3 IRQ calls instead of 2 --
-//     see the state machine in dma_irq_handler. This is MORE IRQ
-//     overhead than Stage 1, on top of Stage 1's own "simpler than the
-//     real design's ring-buffer mechanism" starting point -- the CPU
-//     load percentage measured and printed at boot should be read with
-//     that in mind, as an upper bound rather than what a more optimised
-//     implementation would show.
+//   - Per active row, the command list now has four DMA phases instead
+//     of Stage 1's two (command list, left black fill, real pixel data,
+//     right black fill) -- but critically only ONE HSTX command word
+//     total per row (vactive_line's single TMDS|640), matching Stage 1
+//     exactly; see the state machine in dma_irq_handler and vactive_line's
+//     comment for why that distinction matters. An earlier version of
+//     this file used three separate TMDS/TMDS_REPEAT *commands* per row
+//     (not just DMA phases) and got "no signal" on real hardware --
+//     likely from the extra command-boundary stalls the RP2350 datasheet
+//     describes (section 12.11.5), breaking the constant per-line
+//     duration a monitor needs to lock horizontal sync to. Reverted to
+//     this single-command structure, confirmed structurally identical
+//     to Stage 1's proven design. Completing a row now takes 4 IRQ calls
+//     instead of Stage 1's 2 -- more IRQ overhead than Stage 1, on top of
+//     Stage 1's own "simpler than the real design's ring-buffer
+//     mechanism" starting point -- the CPU load percentage measured and
+//     printed at boot should be read with that in mind, as an upper
+//     bound rather than what a more optimised implementation would show.
 //   - CPU load measurement: a tight busy-loop is timed for a fixed
 //     window before HSTX/DMA starts (baseline) and again after (loaded).
 //     The difference is printed over USB CDC. Adding USB CDC here (Stage
@@ -169,48 +177,57 @@ static uint32_t vblank_line_vsync_on[] = {
     HSTX_CMD_NOP
 };
 
-// Per-channel scratch for the two active-row command segments that vary
-// per row (left black fill + preamble, and right black fill). Dedicated
-// per DMA channel (indexed by which channel is being armed), not shared
-// across channels or rows -- the IRQ handler only ever writes the buffer
-// belonging to the channel that JUST finished (guaranteed idle), the
-// same discipline the channel ping-pong itself relies on. A single
-// shared buffer would race: the other channel could still be mid-DMA-read
-// from it while this one gets overwritten for the next row.
-// Words 0-7: preamble (constant). Word 8-9: TMDS_REPEAT|count + black word
-// (the left pillarbox+mask fill). Word 10: HSTX_CMD_TMDS|visible_pixels --
-// appended here (rather than as a separate phase) so it prefixes the
-// pixel-data DMA transfer that follows in phase 1: the command expander
-// treats the FIFO as one continuous stream, so this command word arriving
-// via phase 0's transfer correctly primes it to TMDS-encode the pixel
-// words phase 1 pushes afterward, with no command word needed there.
-// Unused (left as 0, ignored) on fully-masked rows, which use only
-// words 0-9 with a 640-wide TMDS_REPEAT instead.
-#define LEFT_CMD_WORDS 11
-static uint32_t active_left[2][LEFT_CMD_WORDS] = {
-    {
-        HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH, SYNC_V1_H1,
-        HSTX_CMD_NOP,
-        HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH, SYNC_V1_H0,
-        HSTX_CMD_NOP,
-        HSTX_CMD_RAW_REPEAT | MODE_H_BACK_PORCH, SYNC_V1_H1,
-        0, 0, 0  // filled in per row
-    },
-    {
-        HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH, SYNC_V1_H1,
-        HSTX_CMD_NOP,
-        HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH, SYNC_V1_H0,
-        HSTX_CMD_NOP,
-        HSTX_CMD_RAW_REPEAT | MODE_H_BACK_PORCH, SYNC_V1_H1,
-        0, 0, 0
-    },
+// vactive_line: byte-for-byte Stage 1's proven command list -- ONE
+// HSTX_CMD_TMDS command covering the full 640-pixel active width, same
+// as Stage 1's own vactive_line. Deliberately NOT extended with extra
+// TMDS_REPEAT commands for the black fill (an earlier version of this
+// file did that, and got "no signal" on real hardware): per RP2350
+// datasheet section 12.11.5, "the command expander cannot output data on
+// the cycle where it pops a command from the FIFO, so the expansion
+// shift register is empty for at least one cycle" -- every extra command
+// boundary costs a stall Stage 1's proven timing doesn't have, breaking
+// the constant per-line duration a monitor needs to lock horizontal sync
+// to. Instead, the black fill for pillarbox/mask is sourced as plain
+// DATA (from zero_buf below), under this SAME single TMDS command's
+// declared 640-pixel/320-word consumption -- no extra commands, so no
+// extra stalls, exactly matching Stage 1's structure.
+static uint32_t vactive_line[] = {
+    HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
+    SYNC_V1_H1,
+    HSTX_CMD_NOP,
+    HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH,
+    SYNC_V1_H0,
+    HSTX_CMD_NOP,
+    HSTX_CMD_RAW_REPEAT | MODE_H_BACK_PORCH,
+    SYNC_V1_H1,
+    HSTX_CMD_TMDS       | MODE_H_ACTIVE_PIXELS
 };
-static uint32_t active_right[2][2];  // TMDS_REPEAT|count, black word
+
+// All-zero source for the black pillarbox/mask fill -- DMA reads
+// (auto-incrementing) whatever number of words it needs from here; since
+// every word is zero regardless of offset, no explicit length tracking
+// or wraparound is needed, just "don't ask for more than
+// ZERO_BUF_WORDS". Sized for the worst case: max black run in one row is
+// PILLARBOX + DBL_W/2 = 80+240 = 320 pixels = 160 words (right at the
+// edge of the visible circle, one pixel-row before full mask).
+//
+// Deliberately NOT `const` (which would place it in flash/XIP) --
+// vactive_line and framebuf are both plain SRAM, and reading DMA source
+// data for the timing-critical active-scanout path from two different
+// memory technologies (SRAM with deterministic access vs. flash behind
+// an XIP cache) is an avoidable variable in a mechanism that's already
+// proven finicky about timing. Costs nothing (640 bytes) to keep
+// everything in SRAM uniformly.
+#define ZERO_BUF_WORDS 160
+static uint32_t zero_buf[ZERO_BUF_WORDS] = {0};
 
 // ----------------------------------------------------------------------------
 // DMA logic -- two channels ping-ponging via chain_to, same as Stage 1.
-// Active rows now take 3 phases (left fill / pixel data / right fill)
-// instead of Stage 1's 2 (command list / pixel data) -- see phase.
+// Active rows now take 4 phases (command list / left fill / pixel data /
+// right fill) instead of Stage 1's 2 (command list / pixel data) -- but
+// critically only ONE HSTX command word total per active row, same as
+// Stage 1 -- see vactive_line's comment above for why that distinction
+// matters. Phases 1/3 (black fill) are pure data, no commands.
 
 #define DMACH_PING 0
 #define DMACH_PONG 1
@@ -239,42 +256,42 @@ void __scratch_x("") dma_irq_handler(void) {
         return;
     }
 
+    // Active video. Four phases per row, but only phase 0 carries any
+    // HSTX command word (vactive_line's single TMDS|640) -- phases 1-3
+    // are pure data, sourced from up to three different memory regions,
+    // all consumed under that one command's declared 320-word budget.
+    // This mirrors Stage 1's structure exactly (one command, one
+    // contiguous logical pixel run) -- see the comments on vactive_line
+    // and zero_buf above for why that match matters.
+    //
+    // left_words/right_words are never zero (PILLARBOX=80 alone is
+    // already 40 words), so phases 0/1/3 always run every active row;
+    // only phase 2 (real pixel data) can be zero-length, on fully-masked
+    // rows near the very top/bottom of the circle -- a zero-length DMA
+    // transfer is harmless (completes immediately, fires its IRQ, moves
+    // straight to phase 3), so no special-casing is needed for that.
     uint v_active = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
     uint half_width = row_half_width[v_active];      // pixels; visible span is 2*half_width
     uint left_black = PILLARBOX + (DBL_W / 2 - half_width);
-    uint right_black = left_black;  // always equal -- see row_half_width comment
+    uint right_black = left_black;                   // always equal -- see row_half_width comment
 
     if (active_phase == 0) {
-        uint32_t *buf = active_left[buf_idx];
-        if (half_width == 0) {
-            // Fully masked row: no visible content, no right-fill phase --
-            // one command covers the entire 640px active line.
-            buf[8] = HSTX_CMD_TMDS_REPEAT | MODE_H_ACTIVE_PIXELS;
-            buf[9] = 0x00000000u;
-            ch->read_addr = (uintptr_t)buf;
-            ch->transfer_count = 10;  // preamble(8) + this command(2)
-            active_phase = 0;
-            v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
-        } else {
-            buf[8]  = HSTX_CMD_TMDS_REPEAT | left_black;
-            buf[9]  = 0x00000000u;                          // black RGB565 pair
-            buf[10] = HSTX_CMD_TMDS | (2 * half_width);      // primes phase 1's pixel data
-            ch->read_addr = (uintptr_t)buf;
-            ch->transfer_count = LEFT_CMD_WORDS;
-            active_phase = 1;
-        }
+        ch->read_addr = (uintptr_t)vactive_line;
+        ch->transfer_count = count_of(vactive_line);
+        active_phase = 1;
     } else if (active_phase == 1) {
+        ch->read_addr = (uintptr_t)zero_buf;
+        ch->transfer_count = left_black / 2;
+        active_phase = 2;
+    } else if (active_phase == 2) {
         uint src_row = (v_active / 2) % SRC_ROWS;  // vertical 2x
         uint col_word_offset = (DBL_W / 2 - half_width) / 2;
         ch->read_addr = (uintptr_t)(&framebuf[src_row][col_word_offset]);
-        ch->transfer_count = half_width;  // 2*half_width pixels / 2 pixels-per-word = half_width words
-        active_phase = 2;
+        ch->transfer_count = half_width;  // 2*half_width pixels / 2 px-per-word = half_width words
+        active_phase = 3;
     } else {
-        uint32_t *buf = active_right[buf_idx];
-        buf[0] = HSTX_CMD_TMDS_REPEAT | right_black;
-        buf[1] = 0x00000000u;
-        ch->read_addr = (uintptr_t)buf;
-        ch->transfer_count = 2;
+        ch->read_addr = (uintptr_t)zero_buf;
+        ch->transfer_count = right_black / 2;
         active_phase = 0;
         v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
     }
@@ -400,7 +417,7 @@ int main(void) {
     printf("  CPU load with DVI running: %lu busy-loop iterations / 200ms\n", (unsigned long)loaded);
     printf("  -> approx %.1f%% of one core spent servicing the DVI scanout IRQ\n", load_pct);
     printf("  (design's estimate for the real, more efficient mechanism: 2-5%%; this\n");
-    printf("   stage uses a simpler 3-phase-per-row IRQ scheme, and USB CDC adds its\n");
+    printf("   stage uses a 4-DMA-phase-per-row IRQ scheme, and USB CDC adds its\n");
     printf("   own overhead -- read this as an upper bound, not the final number)\n");
 
     bool led_on = false;

@@ -30,10 +30,10 @@ adapter and a monitor.
 ## Known limitations of this measurement (read before trusting the number)
 
 - **Per-row IRQ overhead is higher here than the design's target
-  mechanism.** Each active row now takes 3 DMA-completion IRQs (left
-  black fill / pixel data / right black fill) instead of Stage 1's 2, on
-  top of Stage 1's own already-simpler-than-the-real-design starting
-  point (two-channel per-scanline IRQ, not the CPU-efficient
+  mechanism.** Each active row now takes 4 DMA-completion IRQs (command
+  list / left black fill / pixel data / right black fill) instead of
+  Stage 1's 2, on top of Stage 1's own already-simpler-than-the-real-design
+  starting point (two-channel per-scanline IRQ, not the CPU-efficient
   one-IRQ-per-*frame* ring-buffer mechanism the actual product firmware
   should use — see Stage 1's README). **Treat the measured CPU load as an
   upper bound**, not the number the real design will achieve.
@@ -47,35 +47,45 @@ adapter and a monitor.
   to sanity-check "is this in the same ballpark as 2-5%, or way off,"
   not a precise profiler.
 
-## Command-list structure (why 3 phases, not 2)
+## Command-list structure — one HSTX command per row, not three
 
-Stage 1's active rows had 2 DMA transfers: one static command-list buffer,
-then one straight read of a full 640-wide pre-doubled row. Here the
-*visible* width varies per row (from `row_half_width[]`), so each active
-row's command list is now:
+**First hardware attempt at this stage used three separate
+`HSTX_CMD_TMDS`/`TMDS_REPEAT` *commands* per active row (left fill,
+pixel-data-priming, right fill) and got "no signal" on the monitor** —
+the board stayed alive (LED heartbeat, CPU-load measurement both
+completed fine), but no valid picture, worse than Stage 1's "out of
+range." Root cause: RP2350 datasheet §12.11.5 — "the command expander
+cannot output data on the cycle where it pops a command from the FIFO,
+so the expansion shift register is empty for at least one cycle."
+Stage 1's proven active line has exactly **one** command word
+(`HSTX_CMD_TMDS|640`); the three-command version added two extra
+command-boundary stalls per active row that blanking lines don't have,
+almost certainly breaking the constant per-line duration a monitor needs
+to lock horizontal sync to.
 
-1. **Left fill** — front porch / hsync / back porch preamble (unchanged
-   from Stage 1) + `HSTX_CMD_TMDS_REPEAT` for `left_black` pixels of pure
-   black + `HSTX_CMD_TMDS` priming the expander for the pixel data that
-   follows in phase 2. (RP2350 datasheet §12.11.5 confirms the command
-   expander treats the FIFO as one continuous stream, so a command word
-   arriving via this transfer correctly primes it for the *next* DMA
-   transfer's raw pixel words — no command word needed in phase 2 itself.)
-2. **Pixel data** — `half_width` words read directly from `framebuf`, at
+**Fixed by restructuring to match Stage 1's command shape exactly**: one
+`HSTX_CMD_TMDS|640` command per active row (`vactive_line`, byte-for-byte
+Stage 1's version), consuming its declared 320-word budget across up to
+three separate DMA *data* transfers with no command words in between:
+
+1. **Command phase** — `vactive_line`'s single `TMDS|640` command
+   (unchanged from Stage 1).
+2. **Left fill** — `left_black/2` words of pure black, read from
+   `zero_buf` (a static all-zero SRAM buffer, sized for the worst case —
+   see its comment for why it's deliberately *not* `const`/flash-resident).
+3. **Pixel data** — `half_width` words read directly from `framebuf`, at
    a per-row column offset so the visible span is horizontally centred.
-3. **Right fill** — `HSTX_CMD_TMDS_REPEAT` for `right_black` pixels.
+4. **Right fill** — `right_black/2` words, also from `zero_buf`.
 
-`left_black` and `right_black` are always equal by construction — the
-mask is centred, so whatever's cut from the visible span splits evenly.
-Fully-masked rows (`half_width == 0`, near the very top/bottom) skip
-phases 2 and 3 entirely — one `TMDS_REPEAT` command covers the whole
-640px line.
-
-Per-channel scratch buffers (`active_left[2][]`, `active_right[2][]`,
-indexed by which of the two ping-pong DMA channels is being armed) avoid
-a race: the IRQ handler only ever writes the buffer belonging to the
-channel that just finished (guaranteed idle by the ping-pong discipline
-itself), never a buffer the other channel might still be mid-read from.
+`left_black` and `right_black` are always equal by construction (the mask
+is centred), and — since `PILLARBOX` alone is 80px — always nonzero, so
+phases 2 and 4 always run for every active row; only phase 3 (real pixel
+data) can be zero-length, on fully-masked rows near the very top/bottom
+of the circle (a zero-length DMA transfer completes immediately and is
+harmless, no special-casing needed). The word budget always sums to
+exactly 320 (`left_black/2 + half_width + right_black/2` — the pixel-level
+identity `left_black + 2·half_width + right_black = 640` divided by 2),
+matching `vactive_line`'s declared consumption precisely.
 
 ## Test pattern
 
