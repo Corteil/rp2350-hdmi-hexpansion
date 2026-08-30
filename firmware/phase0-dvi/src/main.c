@@ -33,6 +33,7 @@
 // (learn.adafruit.com/adafruit-feather-rp2350/pinouts) -- different from
 // the Pico DVI Sock pinout pico-examples' own comment describes.
 
+#include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
@@ -190,6 +191,16 @@ void __scratch_x("") dma_irq_handler(void) {
 // ----------------------------------------------------------------------------
 
 int main(void) {
+    // clk_hstx follows clk_sys undivided by default (see the CSR comment
+    // in the HSTX setup below), and the real pixel clock is fixed at
+    // clk_hstx/5 by our N_SHIFTS=5 DDR scheme. 640x480@60 needs a 25.2 MHz
+    // pixel clock, i.e. clk_sys = 126 MHz -- confirmed against
+    // Panda381/DispHSTX's own tested video mode table (vmodetime_640x480,
+    // Unlicense), which explicitly uses "system clock 126 MHz" for this
+    // exact mode. The stock default (150 MHz) was the root cause of the
+    // "out of range" result on first bring-up.
+    set_sys_clock_khz(126000, true);
+
     // Heartbeat/diagnostic LED (GPIO7, board default) -- this firmware has
     // no USB serial and video-or-nothing is a useless signal for telling
     // *where* a problem is. Blink 3x fast now (proves boot + GPIO work at
