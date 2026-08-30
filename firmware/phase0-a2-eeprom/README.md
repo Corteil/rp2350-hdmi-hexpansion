@@ -74,6 +74,28 @@ Hold BOOT, tap RESET, copy `build/bringup.uf2` onto `RPI-RP2`.
    filesystem is present past the header, and `vid`/`pid` are placeholders), but it should
    at minimum detect *something* answering at `0x50`.
 
-## Results
+## Results (2026-08-30, Metro RP2350, real badge)
 
-Not yet run on hardware.
+**Worked on the first attempt — no bugs found.**
+
+```
+phase0-a2-eeprom: I2C0 target 0x50 running (started before stdio/USB init)
+  Plug the hexpansion into the badge now, or run the badge's Hexpansions app
+  to trigger a scan. Watching for reads/writes below.
+
+  I2C activity: 632 bytes read, 0 bytes written (total)
+  *** Header (byte 0) has been read -- badge has scanned this EEPROM ***
+  I2C activity: 664 bytes read, 0 bytes written (total)
+```
+
+The badge found the EEPROM and read well past the 32-byte header (632, then 664 bytes) —
+strong evidence the header **validated correctly** (magic `THEX`, manifest `2026`, checksum
+all passed), since a failed check would have made the badge stop at byte 32. The extra reads
+are almost certainly the badge attempting to mount a LittleFS filesystem at `fs_offset=64`
+(§1.4, 512-byte blocks) and finding nothing there — expected, since no real filesystem image
+was provided; that wasn't this test's goal.
+
+**No enumeration race observed** — confirms §5's mitigation #1 (I2C target started as the
+literal first line of `main()`) is sufficient in practice, at least for this single test.
+Settles main README risk 1 (§9) in principle; the formal 50×-cold-plug reliability/timing
+measurement C4 calls for is still outstanding.

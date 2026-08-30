@@ -1116,8 +1116,10 @@ I2C0 uses GPIO4/5 instead (both freely available, no onboard conflicts); §4.1's
 assignment is unchanged for the real product, which has no such constraint. LS_E
 (GPIO29) is left unwired on the Metro — that pin doubles as the board's USB-A host power
 enable, an unwanted side effect for a "spare" signal with no bearing on the actual test.
-Full wiring table (all 20 badge pads, using the devkit's actual J2 breakout header) ready;
-physical wiring not yet done.
+Physically wired and **I2C0-target half confirmed working** — see C4 below, same firmware
+and wiring session. **SPI0-slave half not yet tested** — needs badge-side driver code to
+actually drive the HS lines as SPI master, unlike I2C0 (which the badge scans passively on
+its own).
 
 **A3. 640×480 @60 DVI output — done.** Confirmed on a real monitor (Stage 1 and Stage 2
 both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
@@ -1181,6 +1183,14 @@ with the real edge connector in circuit. Record the highest reliable rate, then 
 from port power-on to the badge's first I2C read against the RP2350's time-to-I2C-ready. If
 there is no clear daylight, §5's fallback becomes the primary plan and the schematic changes.
 
+**First success confirmed (2026-08-30, `firmware/phase0-a2-eeprom/`), full 50× reliability
+run not yet done.** On real hardware: badge found the emulated EEPROM, read the header, and
+continued reading past byte 32 into the (currently empty) filesystem region — meaning the
+header's magic/version/checksum all validated, since a failed check would have stopped the
+badge there. No race observed with the I2C target started as literally the first line of
+`main()`. Settles risk 1 (§9) as proven in principle; the formal 50×-cold-plug timing-margin
+measurement is still outstanding before treating this as fully closed.
+
 #### What the bench cannot tell you
 
 * **PSRAM on an RP2350A** — see above; populating the Feather's footprint closes this.
@@ -1240,7 +1250,7 @@ primary mode.
 
 | # | Risk | Severity | Mitigation |
 |--:|------|----------|------------|
-| 1 | EEPROM emulation loses the enumeration race at power-on | **High** | Fast-boot I2C target; clock stretching; DNP 24C64 fallback footprint. Proven or disproven in Phase 0. |
+| 1 | EEPROM emulation loses the enumeration race at power-on | Low (was High) | **Proven in Phase 0 C4, on real hardware.** Badge found and successfully read the header (validated — it kept reading past byte 32, which a failed checksum/magic would have stopped) with no race observed. Fast-boot I2C target (started before `stdio`/USB/anything else) worked as intended. DNP 24C64 fallback footprint remains as insurance but is no longer load-bearing for this specific risk. |
 | 2 | Outer flat does not close — 25.5 mm of connectors on a 25.4 mm flat | **High** | Placement study is the first task in Phase 1. Fallbacks in order: drop microSD and move USB-C to a side flat; then the radial wedge outline (§4.4). |
 | 3 | USB backfeed reaches the badge's 3V3 rail | **High** | TPS2116 priority mux with reverse blocking on both inputs; `VBUS` confined to the USB domain; HDMI 5 V never muxed with `VBUS`. Proven on the first prototype boards in Phase 2 — the Metro cannot exercise the real power topology. |
 | 4 | **`display.get_fb()` never lands upstream**, so nothing can read the badge framebuffer | **High** | Ask in week 1 with a tested patch from Phase 0; it is ~10 lines of C at a single choke point. If it is refused, the product falls back to display-list mode only — still a working graphics card, but it loses the "every app for free" property that makes mirroring the headline. Do not discover this late. |
