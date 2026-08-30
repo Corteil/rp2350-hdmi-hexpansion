@@ -167,6 +167,28 @@ fine with anything else on the board that also uses DMA (SD card SPI
 DMA, USB). Skips itself if PSRAM isn't available or no DMA channel is
 free.
 
+#### Measured results (Metro RP2350 with PSRAM, 2026-08-30)
+
+```
+bulk     256 KB in one transfer   min   9.21 ms  avg   9.22 ms  max   9.27 ms  [~27.13 MB/s]
+per-line 480 x 1280 B (one frame)   min  21.64 ms  avg  21.65 ms  max  21.68 ms  [~27.07 MB/s, 46.2 fps]
+```
+
+DMA is a real win over B1's CPU-scalar path — ~3.3× B1's raw-write
+number (27.1 vs 8.3 MB/s) — and bulk vs. per-line being nearly identical
+confirms per-transaction DMA setup overhead isn't the bottleneck; this
+is close to the actual sustained hardware ceiling for whatever clock
+PSRAM is running at.
+
+**But 27 MB/s falls short of the ~37 MB/s continuous 640×480@60 scanout
+actually needs** (not a target to merely beat — that's the literal
+sustained byte rate a fixed 60 Hz signal demands: 640×480×2 bytes ×
+60 fps ≈ 35.2 MB/s). A ~27% shortfall. Added a diagnostic to `main.c`'s
+PSRAM section (`clk_sys` frequency + the QMI M1 CLKDIV register value)
+to find out whether this is simply a conservative default clock divisor
+(fixable) before concluding anything stronger — not yet run against
+hardware.
+
 ### B2: microSD
 
 `src/sd_bench.c` + `src/hw_config.c`, on top of a vendored (submodule)

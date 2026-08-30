@@ -12,6 +12,8 @@
 #include "pico/stdlib.h"
 #include "hardware/psram.h"
 #include "hardware/flash.h"
+#include "hardware/clocks.h"
+#include "hardware/structs/qmi.h"
 #include "ctx_bench.h"
 #include "sd_bench.h"
 #include "psram_dma_bench.h"
@@ -74,6 +76,17 @@ int main(void) {
                (unsigned)words, ok ? "PASS" : "FAIL");
         printf("  %.2f ms total, ~%.2f MB/s (write+read combined)\n",
                us / 1000.0, (2.0 * size) / (us / 1e6) / (1024 * 1024));
+
+        // What clock is PSRAM actually running at? hardware_psram picks a
+        // divisor targeting PICO_DEFAULT_PSRAM_MAX_FREQ (133 MHz default)
+        // via clk_sys / divisor -- worth knowing exactly, rather than
+        // assuming, when interpreting the B1/B2 bandwidth numbers below.
+        uint32_t clk_sys_hz = clock_get_hz(clk_sys);
+        uint32_t divisor = qmi_hw->m[1].timing & QMI_M1_TIMING_CLKDIV_BITS;
+        printf("  clk_sys %.1f MHz, PSRAM QMI CLKDIV %u -> PSRAM clock ~%.1f MHz "
+               "(quad SPI, theoretical read ceiling ~%.1f MB/s)\n",
+               clk_sys_hz / 1e6, divisor, clk_sys_hz / (double)divisor / 1e6,
+               (clk_sys_hz / (double)divisor) * 4.0 / 8.0 / (1024 * 1024));
     }
 
     ctx_bench_run();
