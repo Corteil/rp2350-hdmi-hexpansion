@@ -137,6 +137,16 @@ horizontal quantisation needed for word-aligned DMA reads (documented
 above, not a bug) — geometry and colours otherwise correct, stable (no
 flicker/rolling/sync loss).
 
+**Colour path since changed (2026-08-30):** the above run used Stage 1's
+empirically-compensated `bar_colours[]`/`expand_tmds` (correct-looking
+output, root cause not yet found). Both are now replaced with the actual
+root-cause fix — see `expand_tmds`'s comment in `src/main.c` and
+[`../phase0-dvi-colorfix/README.md`](../phase0-dvi-colorfix/README.md).
+Builds cleanly with the new values; not yet re-flashed on the physical
+Feather to re-confirm visually (the fix is board-independent register
+math, already hardware-confirmed on a Metro RP2350, so this is a
+formality rather than an open question — but genuinely not yet done).
+
 **CPU load measurement**:
 
 ```

@@ -4,9 +4,12 @@
 //
 // Builds on firmware/phase0-dvi (Stage 1, confirmed working on hardware:
 // see its README for the three real bugs found there -- flipped cable,
-// wrong pixel clock, rotated colour channels. All three fixes/facts
-// carry over unchanged here: clk_sys=126MHz, the Feather pin/lane
-// mapping, and the empirically-corrected bar_colours[] table).
+// wrong pixel clock, rotated colour channels, the last since root-caused
+// and fixed at the source rather than compensated -- see phase0-dvi's
+// src/main.c). All three fixes/facts carry over unchanged here:
+// clk_sys=126MHz, the Feather pin/lane mapping, and the corrected
+// expand_tmds/bar_colours[] (root cause fixed 2026-08-30, verified on
+// Metro RP2350 in firmware/phase0-dvi-colorfix/).
 //
 // New in this stage:
 //   - 240x240 source (not 320x240), pre-doubled horizontally in software
@@ -106,11 +109,18 @@
 
 static uint32_t framebuf[SRC_ROWS][DBL_WORDS];
 
-// Same 8-bar pattern and empirically-corrected colour order as Stage 1
-// (see phase0-dvi/README.md for how these values were derived) -- now
-// 60px/bar (480/8) instead of 80px/bar (640/8).
+// Same 8-bar pattern as Stage 1, TRUE/intended RGB565 values (see
+// phase0-dvi/src/main.c's expand_tmds comment for the root-cause fix
+// derivation) -- now 60px/bar (480/8) instead of 80px/bar (640/8).
 static const uint16_t bar_colours[8] = {
-    0xFFFF, 0x07FF, 0xF81F, 0x001F, 0xFFE0, 0x07E0, 0xF800, 0x0000,
+    0xFFFF, // white   R+G+B
+    0xFFE0, // yellow  R+G
+    0x07FF, // cyan    G+B
+    0x07E0, // green   G
+    0xF81F, // magenta R+B
+    0xF800, // red     R
+    0x001F, // blue    B
+    0x0000, // black
 };
 
 static void fill_test_pattern(void) {
@@ -343,15 +353,18 @@ int main(void) {
     printf("  CPU load baseline (DVI not yet running): %lu busy-loop iterations / 200ms\n",
            (unsigned long)baseline);
 
-    // Configure HSTX's TMDS encoder for RGB565 -- unchanged from Stage 1,
-    // see its README/file header for where these values came from.
+    // Configure HSTX's TMDS encoder for RGB565 -- root-cause-fixed
+    // values, unchanged from Stage 1; see its src/main.c for the full
+    // derivation (L0=Blue/L1=Green/L2=Red, ROT computed from each
+    // channel's actual bit position, validated against pico-examples'
+    // own RGB332 sample).
     hstx_ctrl_hw->expand_tmds =
-        4  << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB |
-        0  << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB   |
-        5  << HSTX_CTRL_EXPAND_TMDS_L1_NBITS_LSB |
-        27 << HSTX_CTRL_EXPAND_TMDS_L1_ROT_LSB   |
-        4  << HSTX_CTRL_EXPAND_TMDS_L0_NBITS_LSB |
-        21 << HSTX_CTRL_EXPAND_TMDS_L0_ROT_LSB;
+        4  << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB |  // Red:   5 bits
+        8  << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB   |
+        5  << HSTX_CTRL_EXPAND_TMDS_L1_NBITS_LSB |  // Green: 6 bits
+        3  << HSTX_CTRL_EXPAND_TMDS_L1_ROT_LSB   |
+        4  << HSTX_CTRL_EXPAND_TMDS_L0_NBITS_LSB |  // Blue:  5 bits
+        29 << HSTX_CTRL_EXPAND_TMDS_L0_ROT_LSB;
 
     hstx_ctrl_hw->expand_shift =
         2  << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB |

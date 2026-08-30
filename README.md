@@ -1090,9 +1090,20 @@ correctly pillarboxed, circular-masked, coloured circle (some pixel-level edge s
 expected from 2px horizontal quantisation for word-aligned DMA reads — not a bug), stable.
 Full writeup in `firmware/phase0-dvi2/README.md`.
 
-**Still open**: root-causing the colour channel rotation (currently compensated in the test
-pattern in both stages, not fixed at the source) before real badge pixel data needs to flow
-through this path.
+**Colour channel rotation — root-caused and fixed at the source (2026-08-30).** Not a simple
+lane swap: the `expand_tmds` values both stages copied from Adafruit's PicoDVI driver assumed
+the wrong TMDS lane order (L0=Red — the real DVI/HDMI convention is L0=Blue, L1=Green,
+L2=Red, not alphabetical) *and* didn't decode to a clean bit-field under RP2350's own
+documented `ROT`/`NBITS` register semantics for this project's actual RGB565 packing.
+Recomputed from scratch (`ROT = (channel_MSB_bit_index − 7) mod 32`, derived from pico-sdk's
+own register header docs) and validated against `raspberrypi/pico-examples`' own RGB332
+sample before trusting it — confirmed correct on real hardware in
+`firmware/phase0-dvi-colorfix/` (built for a Metro RP2350; the fix is pure register-level
+TMDS math, board-independent) and backported unchanged into both `phase0-dvi/` and
+`phase0-dvi2/`, replacing their empirical compensation tables with the true RGB565 values.
+Both rebuild cleanly; Stage 2 not yet re-flashed on the physical Feather to visually
+re-confirm (only the Metro was connected this session) — expected to be a formality given no
+board-specific mechanism remains in the fix, but genuinely outstanding.
 
 **A2. Pin-map validation.** Bring up §4.1's allocation on real RP2350A silicon: SPI0 as
 slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. §4.1's GPIO0–29
@@ -1100,8 +1111,14 @@ peripheral assignments are identical between RP2350A and RP2350B (only GPIO30–
 so this test doesn't require RP2350A-specific silicon — the **Metro is used for A2**, not
 the Feather; the Feather's own GPIO21 (needed for SPI0 CS) isn't broken out on that board at
 all (internal-only, dedicated to its onboard NeoPixel), while the Metro exposes all four
-SPI0 pins (GPIO20/21/22/23) on labelled headers. The Feather remains the board for A1/A3
-(HSTX DVI), which the Metro cannot do (no HSTX peripheral broken out).
+SPI0 pins (GPIO20/21/22/23) on labelled headers. The Feather was the board originally used
+for A1/A3 (HSTX DVI) — **the Metro can do HSTX DVI too, corrected 2026-08-30**: it has its
+own dedicated 22-pin HSTX connector breaking out GPIO12–19 (D0P/D0N/D1P/D1N/D2P/D2N/CKP/CKN,
+confirmed from Adafruit's own Metro RP2350 pinout page), the identical silicon-fixed mapping
+the Feather uses (HSTX bit index `n` is always GPIO `12+n`, regardless of RP2350A/B package)
+— used in practice for the A1 colour-rotation root-cause fix (`firmware/phase0-dvi-colorfix/`)
+when only the Metro was connected. The Feather remains the board A1/A3's own firmware
+(`phase0-dvi`, `phase0-dvi2`) targets by default, not because the Metro is incapable.
 
 **In progress (2026-08-30).** Wiring the official `emfcamp/badge-2024-hardware/hexpansion`
 devkit board for this test surfaced and settled risk 19 (§9) — §4.1's SPI0/GPIO20–23 role

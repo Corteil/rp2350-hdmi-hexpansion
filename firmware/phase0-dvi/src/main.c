@@ -20,9 +20,14 @@
 //     confirmed working on hardware, since core-load is what A1 actually
 //     needs to measure, just not yet.
 //
-// RGB565 TMDS expand config and the RGB565+BSWAP-during-DMA idea are
-// taken from Adafruit's driver (same silicon, proven on real HSTX+DVI
-// hardware) -- see the comment above vactive_line's expand_tmds setup.
+// RGB565 TMDS expand config: derived from first principles against
+// RP2350's own EXPAND_TMDS register semantics and validated against
+// raspberrypi/pico-examples' own RGB332 sample -- see the comment above
+// expand_tmds's setup for the full derivation. (An earlier version of
+// this file copied Adafruit's PicoDVI driver's RGB565 values verbatim;
+// those assumed a different lane order than this project's own RGB565
+// packing actually needs, producing a clean 3-way colour rotation on
+// hardware -- root-caused and replaced, not compensated for.)
 // Video timing (640x480@60, V_BACK_PORCH=33) is the official/spec-correct
 // CEA-861 VIC 1 numbers from pico-examples and this design's own README
 // section 3.3, not Adafruit's driver (whose MODE_640 constants use a
@@ -95,23 +100,23 @@ static uint32_t framebuf[SRC_ROWS][ROW_WORDS];
 // sharp and evenly spaced) and colour channel wiring (each bar is a known
 // colour) at once.
 //
-// First hardware run showed a clean channel rotation, not a scramble --
-// white and black round-tripped correctly (invariant under any channel
-// reorder), and each other colour came out as a fixed, consistent
-// substitute (sent yellow -> displayed purple, sent cyan -> displayed
-// yellow, sent green -> displayed red, sent magenta -> displayed cyan,
-// sent red -> displayed blue, sent blue -> displayed green). That
-// confirmed the doubling/timing/DMA mechanism is correct -- only the R/G/B
-// channel assumption (from Adafruit's expand_tmds ROT values combined
-// with this file's own 32-bit pixel-pair packing) was off. Values below
-// are empirically corrected (inverting the observed substitution table)
-// so the *displayed* order is white/yellow/cyan/green/magenta/red/blue/
-// black as intended. This is a test-pattern-level fix, not a root-cause
-// one -- real badge pixel data (Stage 2) can't be pre-rotated like this
-// in software for free, so the actual expand_tmds/lane-mapping bug still
-// needs finding before then.
+// TRUE/intended RGB565 values -- NOT a compensation table. The first
+// hardware run on this board showed a clean 3-way channel rotation
+// (displayed_R = sent_G, displayed_G = sent_B, displayed_B = sent_R),
+// root-caused and fixed at the source in expand_tmds below (see that
+// comment for the full derivation) rather than compensated here in
+// software -- confirmed correct on real hardware in
+// firmware/phase0-dvi-colorfix/ (Metro RP2350; register-level fix,
+// board-independent, backported here unchanged).
 static const uint16_t bar_colours[8] = {
-    0xFFFF, 0x07FF, 0xF81F, 0x001F, 0xFFE0, 0x07E0, 0xF800, 0x0000,
+    0xFFFF, // white   R+G+B
+    0xFFE0, // yellow  R+G
+    0x07FF, // cyan    G+B
+    0x07E0, // green   G
+    0xF81F, // magenta R+B
+    0xF800, // red     R
+    0x001F, // blue    B
+    0x0000, // black
 };
 
 static void fill_test_pattern(void) {
@@ -238,15 +243,48 @@ int main(void) {
 
     // Configure HSTX's TMDS encoder for RGB565. NBITS fields are
     // encoded as (true bit count - 1) -- 4/5/4 here means 5/6/5 bits,
-    // matching RGB565's actual layout. Values from Adafruit's PicoDVI
-    // driver (MIT, adafruit/circuitpython) -- see file header.
+    // matching RGB565's actual layout.
+    //
+    // Root-caused and fixed here (2026-08-30, verified on Metro RP2350 in
+    // firmware/phase0-dvi-colorfix/) -- replaces the values originally
+    // copied from Adafruit's PicoDVI driver (MIT, adafruit/circuitpython)
+    // under the assumption L0=Red/L1=Green/L2=Blue, which produced a
+    // clean 3-way channel rotation on hardware (see bar_colours[] above)
+    // rather than correct colour.
+    //
+    // Per pico-sdk's hardware/regs/hstx_ctrl.h (straight from the SVD):
+    // ROT is a RIGHT-ROTATE applied to the current 32-bit shifter word
+    // before that lane's encoder; NBITS is the valid-bit count "starting
+    // from bit 7 of the rotated data". So a channel's own MSB must land
+    // exactly on bit 7 after rotation: ROT = (channel_MSB_bit_index - 7)
+    // mod 32. Validated against a known-good reference before trusting
+    // it: raspberrypi/pico-examples' own hstx/dvi_out_hstx_encoder RGB332
+    // sample (L0 NBITS=1/ROT=26, L1 NBITS=2/ROT=29, L2 NBITS=2/ROT=0)
+    // decodes EXACTLY to L0=Blue, L1=Green, L2=Red under this formula,
+    // matching RGB332's known bit layout -- confirming both the formula
+    // and that L0=Blue/L1=Green/L2=Red is the real lane order (the
+    // DVI/HDMI spec's own TMDS-channel convention: Channel 0=Blue,
+    // Channel 1=Green, Channel 2=Red -- not alphabetical, a common trap,
+    // and the opposite of what was originally assumed here).
+    //
+    // For this file's own RGB565 packing (two pixels/word, earlier pixel
+    // in the low 16 bits, standard R[15:11]/G[10:5]/B[4:0] layout):
+    //   R: MSB at bit 15 (5 bits) -> ROT=8,  NBITS field=4
+    //   G: MSB at bit 10 (6 bits) -> ROT=3,  NBITS field=5
+    //   B: MSB at bit 4  (5 bits) -> ROT=29, NBITS field=4
+    // expand_shift's ENC_SHIFT=16 (below) right-rotates the whole word by
+    // 16 between the two packed pixels, bringing the second pixel down
+    // into the same low-16-bit position the first started in -- so these
+    // same fixed ROT values correctly decode both pixels, the same way
+    // pico-examples' single fixed set works across all 4 sub-pixels of
+    // its RGB332 case.
     hstx_ctrl_hw->expand_tmds =
-        4  << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB |
-        0  << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB   |
-        5  << HSTX_CTRL_EXPAND_TMDS_L1_NBITS_LSB |
-        27 << HSTX_CTRL_EXPAND_TMDS_L1_ROT_LSB   |
-        4  << HSTX_CTRL_EXPAND_TMDS_L0_NBITS_LSB |
-        21 << HSTX_CTRL_EXPAND_TMDS_L0_ROT_LSB;
+        4  << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB |  // Red:   5 bits
+        8  << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB   |
+        5  << HSTX_CTRL_EXPAND_TMDS_L1_NBITS_LSB |  // Green: 6 bits
+        3  << HSTX_CTRL_EXPAND_TMDS_L1_ROT_LSB   |
+        4  << HSTX_CTRL_EXPAND_TMDS_L0_NBITS_LSB |  // Blue:  5 bits
+        29 << HSTX_CTRL_EXPAND_TMDS_L0_ROT_LSB;
 
     // Pixels (TMDS) come in 2 16-bit pixels per 32-bit word for RGB565.
     // Control symbols (RAW) are an entire 32-bit word.

@@ -130,15 +130,21 @@ path) — the only thing to check is the monitor.
    [`Panda381/DispHSTX`](https://github.com/Panda381/DispHSTX)'s own
    tested video mode table, which explicitly uses "system clock 126 MHz"
    for 640×480@60.
-3. **Colour channels rotated** — see the comment above `bar_colours[]` in
-   `src/main.c`. White and black round-tripped correctly (colour-order
-   invariant), every other colour came out as a fixed, consistent
-   substitute — a clean 3-way rotation, not a scramble. Fixed by
-   empirically inverting the observed substitution in the test pattern's
-   colour table. **This is a test-pattern-level fix, not a root-cause
-   one** — real badge pixel data can't be pre-rotated like this for free,
-   so the actual `expand_tmds`/lane-mapping bug this is compensating for
-   still needs finding before Stage 2.
+3. **Colour channels rotated** — white and black round-tripped correctly
+   (colour-order invariant), every other colour came out as a fixed,
+   consistent substitute — a clean 3-way rotation, not a scramble.
+   **Root-caused and fixed at the source (2026-08-30)** — see the
+   `expand_tmds` comment in `src/main.c` and
+   [`../phase0-dvi-colorfix/README.md`](../phase0-dvi-colorfix/README.md)
+   for the full derivation and hardware confirmation (on a Metro RP2350 —
+   the fix is pure register-level TMDS math, board-independent, and was
+   backported here unchanged). Not a lane swap: Adafruit's PicoDVI driver
+   values this project originally copied assumed the wrong lane order
+   (L0=Red instead of the real DVI/HDMI convention L0=Blue) *and* didn't
+   decode to a clean bit-field under RP2350's own documented `ROT`/`NBITS`
+   semantics for this project's RGB565 packing — recomputed from scratch
+   instead, and validated against `pico-examples`' own RGB332 sample
+   before trusting the result.
 
 **Fully confirmed on hardware, including the colour fix**: 8 sharp,
 evenly-spaced, correctly-coloured vertical bars (white/yellow/cyan/green/
