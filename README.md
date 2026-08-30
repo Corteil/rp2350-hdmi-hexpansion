@@ -1130,8 +1130,16 @@ sweep below in `firmware/phase0-a2-spi/README.md`.
 both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
 estimate holds in practice, once `clk_sys` is correctly set to 126 MHz (see A1 above).
 
-**A4. Current draw** under load, validating the first rows of §4.7. The boost, badge-port
-and Qwiic rows cannot be checked here.
+**A4. Current draw under load — cannot happen on this bench rig at all, same reason as C4
+(2026-08-30).** Not just "not yet measured": this rig's boards run off USB with their own
+onboard regulators, not the product's own power architecture (buck/boost/TPS2116 mux,
+§4.5), and — like C4 — there is no badge-supplied `3V3_BADGE` in the loop at all (badge
+`+3V3` deliberately left disconnected, no isolation circuit to safely tie two live rails).
+So there's no representative rail to put a meter on for §4.7's badge-port-budget rows, and a
+USB-side reading on the dev board would be measuring the dev board's own support circuitry
+overhead as much as the RP2350/HSTX load the budget actually cares about — not a number
+that transfers to the product. Moves to Phase 2 alongside C4 and the backfeed check, same
+underlying cause: this bench rig's power topology isn't the product's.
 
 **A5. Optional: the pillarbox bezel** (§3.4), and Qwiic + SWD bring-up.
 
@@ -1225,6 +1233,10 @@ check. Full note in `firmware/phase0-a2-eeprom/README.md`.
 * **C4's cold-plug timing.** The bench Metro is USB-powered, not badge-powered, so
   unplugging/replugging never power-cycles the RP2350 — moves to Phase 2 alongside the
   backfeed check, same reason (needs the real power topology).
+* **A4's current draw under load.** Same reason again: the bench boards run off USB through
+  their own onboard regulators, not the product's buck/boost/mux chain, and have no
+  badge-supplied rail in the loop either — no representative rail exists here to measure.
+  Moves to Phase 2 with the other two.
 * **The layout.** No bench board answers whether the outer flat closes (§4.4).
 
 Everything downstream is cheap to change now and expensive to change later. Do not skip
@@ -1254,6 +1266,12 @@ Also **C4's 50×-cold-plug enumeration timing** (§8 Part C) — the bench Metro
 meant unplugging the hexpansion never actually power-cycled the RP2350, so this measurement
 was impossible in Phase 0. The real board is badge-powered, so this becomes straightforward
 once boards exist: cold-plug 50 times, time port power-on to the badge's first I2C read.
+
+And **A4's current-draw-under-load measurement** (§8 Part A) — same cause, the bench boards'
+USB power and onboard regulators aren't the product's power architecture. Once boards exist,
+measure against §4.7's actual budget rows: badge-port draw with the port switched on in
+software, boost/`V5_HDMI` draw with an HDMI sink attached, and Qwiic-device draw — the rows
+Phase 0 flagged as uncheckable from the start, now joined by the RP2350/HSTX/TMDS rows too.
 
 ### Phase 3 — Firmware (4–6 weeks part-time)
 
