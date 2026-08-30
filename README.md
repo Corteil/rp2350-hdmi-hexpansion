@@ -1182,13 +1182,16 @@ ceiling at the stock `clk_sys` 150 MHz (75 MHz PSRAM clock, the fastest divisor 
 at that `clk_sys`) — short of the ~35-37 MB/s continuous 640×480@60 16bpp scanout actually
 needs, and no config change at that clock closes the gap. Full writeup in §3.3.
 
-**B3. The RP2350B experiment. Run, on the real Feather — inconclusive.** This Feather
-doesn't have PSRAM populated (ships DNP), so B1/B2 can't run a comparison against the
+**B3. The RP2350B experiment — accepted as inconclusive, closed (2026-08-30).** This Feather
+doesn't have PSRAM populated (ships DNP), so B1/B2 couldn't run a comparison against the
 Metro's numbers on this specific board; both skip cleanly, confirming toolchain/board
 bring-up on RP2350A silicon but nothing about RP2350A vs. RP2350B PSRAM/ctx performance.
-Needs either populating the DNP footprint with an APS6404L (~$1.15) or accepting the gap.
-If the A map brings up cleanly on the Feather, stay with the A; the B is the fallback,
-not the plan (§4.1).
+**Decision: not populating the DNP footprint** — the ~$1.15 APS6404L and the soldering
+aren't worth it for a comparison this project doesn't need: the A map (§4.1) is already the
+plan, the B is only ever the documented fallback, and A2/A1/A3/A4 have all separately
+confirmed the A map brings up cleanly on real RP2350A silicon (Metro/Feather bench tests).
+Risk 18 (§9) stays open rather than closing via this path — its own mitigation (documented
+pinmux option, not exotic) already covers it without needing this measurement.
 
 A1 and B1 are the two highest-value tests and use different boards, so they run in parallel.
 
@@ -1368,7 +1371,7 @@ primary mode.
 | 15 | VID/PID not assigned in time | Low | Ask in week 1; costs nothing. |
 | 16 | RP2350-E9 pull-down erratum bites on LS/CS/I2C lines | Low | External pull resistors everywhere it matters. |
 | 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Medium (raised from Low) | **Settled by Phase 0 B1, on the Metro: rasterisation is too slow for animation** (2.9 fps typical scene, 0.7 fps worst case; ~40% of even the cheapest frame is PSRAM write bandwidth, not ctx itself — see §3.2). Affects the advanced path only; v1 mirroring depends on none of it. Occasional full-redraws of static content may still be viable; continuous/animated drawlist forwarding is not. Fallback is the bespoke command set in §3.2, which is already specified. |
-| 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. Closed by populating the Feather's unpopulated PSRAM footprint with an APS6404L (~$1.15) in Phase 0. |
+| 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. **Stays open through Phase 0** — Phase 0 B3 (§8) decided against populating the Feather's DNP PSRAM footprint to close this measurement (not worth the cost for a documented, non-exotic pinmux option); closes properly once Phase 1/2 schematic+prototype boards exist with the real RP2350A+PSRAM configuration. |
 | 19 | §4.1's SPI0/GPIO20–23 role table (SCK/MOSI/MISO/CS in GPIO order) didn't match RP2350 silicon — found and corrected 2026-08-30 while preparing to wire A2 | Low (settled) | **Settled.** GPIO↔SPI0-role verified against `RP2350.svd`; which badge `HS_x` carries which role turned out to be this project's own free choice (the badge's HS lines are matrix-routed on the ESP32-S3, confirmed by `DanNixon/ethernet-hexpansion` using a different mapping than originally assumed here) — §4.1 now states the chosen mapping (`HS_F`=MOSI, `HS_G`=CS, `HS_H`=SCK, `HS_I`=MISO), to be matched by badge-side driver code in Phase 3/4. |
 
 ---
@@ -1386,7 +1389,7 @@ primary mode.
 | LEDs | **Power (always on) + status on GPIO1**, plus an optional SK6805 RGB. |
 | Qwiic | **Two JST-SH 4-pin sockets in parallel** on hardware I2C1 (GPIO6/7), with jumper-removable 4k7 pull-ups. Both on side flat A. |
 | Badge power | **The hexpansion never powers the badge** — not in normal use, not during hot-plug, not under a single-component failure. Enforced by the TPS2116 mux and firmware tri-stating, not by convention. |
-| MCU variant | **RP2350A (QFN-60).** The B halves the pin pressure but doubles package area on a board with no slack, and adds no peripherals. Recorded as the fallback, proven either way on the bench in Phase 0. |
+| MCU variant | **RP2350A (QFN-60).** The B halves the pin pressure but doubles package area on a board with no slack, and adds no peripherals. Recorded as the fallback, not pursued further — Phase 0 B3 deliberately skipped populating the Feather's PSRAM footprint to run a direct A-vs-B comparison (§8), a decision made rather than an oversight, since A2/A1/A3/A4 already confirm the A map works on real silicon and the B was only ever the fallback. |
 | Board size | **44 mm across flats** (was the 32 mm template). Smallest size where mini-HDMI and USB-C fit on the outer flat. Costs ~$2/board. |
 | microSD | **Back in**, on SPI1 GPIO8–11, on the second side flat. First thing to cut if the placement study fails. |
 
