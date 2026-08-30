@@ -35,8 +35,19 @@ int main(void) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    // Let USB CDC enumerate before the interesting output scrolls past.
-    sleep_ms(2000);
+    // Wait for a terminal to actually open the USB CDC port before printing
+    // anything: bytes sent before that are simply dropped, not buffered, so
+    // no terminal app can recover them after the fact -- a fixed sleep_ms()
+    // just gambles on how fast the terminal gets opened. Blink fast while
+    // waiting for visible feedback, but give up after 10s so the board
+    // still runs standalone (e.g. on USB power with nothing attached).
+    absolute_time_t wait_until = make_timeout_time_ms(10000);
+    while (!stdio_usb_connected() && !time_reached(wait_until)) {
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(100);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+        sleep_ms(100);
+    }
 
     printf("\nphase0-metro: PSRAM bring-up\n");
     if (!psram_is_available()) {
