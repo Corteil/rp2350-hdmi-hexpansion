@@ -25,15 +25,22 @@ Pads 1–10 are on the bottom copper, 11–20 on the top copper.
 | 1 | GND | 11 | GND |
 | 2 | LS_A | 12 | HS_F |
 | 3 | LS_B | 13 | HS_G |
-| 7 | SDA | 14 | GND |
-| 8 | SCL | 15 | +3V3 |
-| 9 | HEXP_DET | 16 | +3V3 |
-| 10 | LS_C | 17 | GND |
-| 11 | LS_D | 18 | HS_H |
-| 12 | LS_E | 19 | HS_I |
-| 13 | GND | 20 | GND |
+| 4 | SDA | 14 | GND |
+| 5 | SCL | 15 | +3V3 |
+| 6 | HEXP_DET | 16 | +3V3 |
+| 7 | LS_C | 17 | GND |
+| 8 | LS_D | 18 | HS_H |
+| 9 | LS_E | 19 | HS_I |
+| 10 | GND | 20 | GND |
 
-Source: `hexpansion/hexpansion.kicad_sch` + `tildagon.pretty/hexpansion-edge-connector.kicad_mod`.
+Source: `hexpansion/hexpansion.kicad_sch` (`emfcamp/badge-2024-hardware`), the
+`hexpansion-edge-connector_1_1` symbol's own pin definitions — re-verified
+2026-08-30 directly against that file after the table previously here had pads
+4–10 shifted by 3 positions from the real schematic (an error introduced at
+some earlier point in this document, not caught until cross-checked against
+source while preparing to physically wire a protoboard hexpansion). If wiring
+anything to this connector, trust this table and the cited source file over
+any other copy of this pinout that may exist in older notes.
 
 ### 1.2 What each signal is worth to us
 
@@ -587,6 +594,31 @@ Every peripheral group below was checked against the RP2350's pin-mux tables —
 and I2C0/I2C1 can only appear on fixed pin groups, and that, not pin count, is what
 constrains this map.
 
+**Correction (2026-08-30):** the SPI0/GPIO20–23 row below originally listed a role
+assignment (SCK/MOSI/MISO/CS in GPIO order) that turned out not to match RP2350 silicon.
+Found while preparing to physically wire a hexpansion devkit for Phase 0 A2, and verified
+against the authoritative source — the `FUNCSEL` enum values in `RP2350.svd` (Raspberry
+Pi's own machine-generated register definitions, ships with pico-sdk) — not the datasheet
+PDF's Table 3, which is easy to misread by eye across its multi-line row continuations (a
+mistake made once already while checking this). GPIO20–23 is still a valid, complete SPI0
+group (every pin there does have *some* SPI0 role), but the specific role each pin plays
+is fixed by silicon and doesn't match what was assumed:
+
+| GPIO | Previously assumed | Actual silicon role (`RP2350.svd` FUNCSEL=1) |
+|-----:|---------------------|-----------------------------------------------|
+| 20 | SCK | `spi0_rx` (= MOSI, since the RP2350 is the SPI *slave* here — RX is whichever direction receives, and the slave receives from the master on MOSI) |
+| 21 | MOSI | `spi0_ss_n` (= CS) |
+| 22 | MISO | `spi0_sclk` (= SCK) |
+| 23 | CS | `spi0_tx` (= MISO, slave transmits to master on TX) |
+
+**Still open**: which of the badge's `HS_F`/`HS_G`/`HS_H`/`HS_I` electrically carries the
+badge's SCK output (vs. MOSI/MISO/CS) — needed to know which physical badge signal wires to
+which of the four GPIOs above. Not found in `badge-2024-software`'s driver code after a
+reasonable search; may need either more digging there or empirical determination on the
+bench (swap-and-retry is safe here — worst case is no SPI traffic, not damage, unlike
+getting a GND/3V3 connection wrong). The table below is corrected to show only the verified
+GPIO↔SPI0-role facts; it does not yet claim a specific `HS_x`↔GPIO wiring.
+
 | Pin | Function |
 |------|----------|
 | 0 | PSRAM chip select (QMI CS1 — GPIO0/8/19 are the only options on RP2350A, and 19 is taken by HSTX) |
@@ -597,7 +629,7 @@ constrains this map.
 | 6, 7 | **I2C1 (hardware) → Qwiic sockets J4/J5** |
 | 8–11 | **SPI1 → microSD** (8 MISO, 9 CS, 10 SCK, 11 MOSI) |
 | **12–19** | **HSTX → 4 TMDS pairs (clock + 3 data)** — fixed by silicon |
-| 20–23 | SPI0 slave ↔ HS_F(SCK) / HS_G(MOSI) / HS_H(MISO) / HS_I(CS) |
+| 20–23 | SPI0 slave ↔ 4 of the badge's HS_F/HS_G/HS_H/HS_I lines — GPIO20=RX(MOSI), GPIO21=SS_n(CS), GPIO22=SCLK(SCK), GPIO23=TX(MISO); **which physical `HS_x` goes to which GPIO is still open, see above** |
 | 24, 25 | I2C0 target ↔ badge SDA / SCL (the emulated EEPROM) |
 | 26 | → LS_B, attention/IRQ to the badge |
 | 27 | ← LS_C, bootloader-entry request from the badge |
@@ -1044,6 +1076,14 @@ through this path.
 slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. This is the test
 the Metro cannot do, and the reason the Feather is the primary bench.
 
+**In progress (2026-08-30).** Wiring the official `emfcamp/badge-2024-hardware/hexpansion`
+devkit board to a Feather for this test surfaced risk 19 (§9) — §4.1's SPI0/GPIO20–23 role
+table didn't match RP2350 silicon, now corrected. The GND/HEXP_DET/SDA/SCL/LS_A–E wiring is
+unaffected and can proceed; the SPI/HS-line wiring is blocked on identifying which badge
+`HS_x` carries SCK (§10 "still open"). Also confirmed and fixed a real error in §1.1's edge
+connector pad table (pads 4–10 were shifted by 3 positions) while cross-checking the devkit
+against the badge's own KiCad source.
+
 **A3. 640×480 @60 DVI output — done.** Confirmed on a real monitor (Stage 1 and Stage 2
 both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
 estimate holds in practice, once `clk_sys` is correctly set to 126 MHz (see A1 above).
@@ -1183,6 +1223,7 @@ primary mode.
 | 16 | RP2350-E9 pull-down erratum bites on LS/CS/I2C lines | Low | External pull resistors everywhere it matters. |
 | 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Medium (raised from Low) | **Settled by Phase 0 B1, on the Metro: rasterisation is too slow for animation** (2.9 fps typical scene, 0.7 fps worst case; ~40% of even the cheapest frame is PSRAM write bandwidth, not ctx itself — see §3.2). Affects the advanced path only; v1 mirroring depends on none of it. Occasional full-redraws of static content may still be viable; continuous/animated drawlist forwarding is not. Fallback is the bespoke command set in §3.2, which is already specified. |
 | 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. Closed by populating the Feather's unpopulated PSRAM footprint with an APS6404L (~$1.15) in Phase 0. |
+| 19 | §4.1's SPI0/GPIO20–23 role table (SCK/MOSI/MISO/CS in GPIO order) didn't match RP2350 silicon — found and corrected 2026-08-30 while preparing to wire A2 | Medium | **Partially settled.** The GPIO↔SPI0-role mapping is now verified against `RP2350.svd` (§4.1 has the corrected table). Still open: which physical badge `HS_x` signal carries SCK vs. MOSI/MISO/CS — not found in `badge-2024-software`'s driver code yet, needed before the badge-facing SPI wiring can be finalised. Low physical risk either way (a wrong guess here just means no SPI traffic on first try, not hardware damage), but blocks A2's SPI/HS-line testing until resolved. |
 
 ---
 
@@ -1209,3 +1250,4 @@ primary mode.
 * **Whether the outer flat closes at 44 mm**, or the board wants the wedge outline. Decided by the placement study, not now.
 * **Whether ctx drawlist forwarding is viable** — **measured (Phase 0 B1, §3.2): not for animation** (2.9 fps typical / 0.7 fps worst case). Occasional static-content redraws still plausible; not settled. LGPL-3.0+ review still outstanding. Not on the v1 path.
 * **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant.
+* **Which badge `HS_x` signal is electrically SCK** (vs. MOSI/MISO/CS) — needed to finalise the badge-facing SPI0 wiring in §4.1 (risk 19). Not found in `badge-2024-software`'s driver code yet.
