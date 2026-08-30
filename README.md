@@ -252,17 +252,41 @@ schedule, and mirroring does not exist without it. See risk 4.
 | Half the screen changed | 57,600 | 87 fps | 43 fps |
 | Typical static UI, ~10% dirty | 11,520 | 434 fps | 217 fps |
 
-**But the link is almost certainly not the ceiling.** Mirroring cannot show more frames
-than the badge draws, and a ctx-rendered MicroPython app on an ESP32-S3 is unlikely to be
-doing forty. The firmware already tracks this — `st3m_gfx_fps()`, exposed as
-`display.get_fps()` — so Phase 0 measures it across real apps rather than guessing. Expect
-**the badge's own render rate to be what you see**, and design the link to stay out of
-the way rather than to chase a number.
+**The link is not the ceiling — measured.** Mirroring cannot show more frames than the
+badge draws, and a ctx-rendered MicroPython app on an ESP32-S3 is unlikely to be doing
+forty. **Phase 0 C1: `display.get_fps()` sampled across three real installed apps on a
+real badge**, watched passively over USB serial rather than guessed:
+
+| App | fps range | What it's doing |
+|-----|-----------|------------------|
+| GPS clock (Corteil) | ~9.1–13.0 | varies by face — analog/setup/tide/sun/digital |
+| Sponsor logos (emfcamp) | ~10.2–14.3 | image slideshow with crossfade transitions |
+| EMF badge map (futureshape) | ~2.2–4.8 | PNG tile decode + network fetch — the heaviest of the three |
+
+**Every app measured came in under the ~15 fps threshold** this section originally used as
+the dividing line for "the link has enormous headroom and the mirror design gets
+simpler" — nowhere near the ~40 fps threshold where dirty-rect tracking would need to
+move into v1. Confirms the prediction: **the badge's own render rate is the bottleneck,
+not the link**, comfortably. Even the worst case here (map app, ~2.5 fps, 115,200
+bytes/frame) needs under 300 KB/s — a small fraction of what §1.2 says the HS pins can
+carry (2.5–5 MB/s).
 
 Dirty-rectangle updates still help, but note the badge does not track dirty regions — ctx
 redraws the whole frame. Finding them means a block-`memcmp` against a second copy of the
 buffer, which is cheap in MicroPython (comparing `memoryview` slices drops into C) but
-needs another 115 KB on the badge. Worth having; not worth having in v1.
+needs another 115 KB on the badge. **Confirmed not worth having in v1** — C1's numbers
+close the door on this being needed for the primary mode; revisit only if a much
+heavier-drawing app turns up later.
+
+**Getting this measurement required working around a real gotcha**: any `mpremote`
+serial command (even with `resume`) sends an unconditional Ctrl-C before running
+anything, which kills whatever app is in the foreground — `resume` only skips the
+*following* soft-reset, not the interrupt itself. Interactively querying
+`display.get_fps()` this way freezes the badge until it's manually reset. The
+non-invasive method that worked: temporarily patch a periodic `print("C1_FPS", ...)`
+into each app's own `draw()` (removed afterward), launch the app normally from the
+badge's own UI, then watch passively with `mpremote connect COMx repl` — a pure
+terminal pass-through that never sends the interrupt.
 
 #### Scaling
 
@@ -1021,9 +1045,12 @@ A1 and B1 are the two highest-value tests and use different boards, so they run 
 
 #### Part C — badge required
 
-**C1. `display.get_fps()` across a handful of real apps.** Badge only, no hexpansion needed.
-Around 15 fps means the link has enormous headroom and the mirror design gets simpler; near
-40 and dirty-rect support moves into v1. **This bounds the whole primary mode.**
+**C1. `display.get_fps()` across a handful of real apps — done.** Badge only, no hexpansion
+needed. **Measured ~2.2-14.3 fps across 3 real installed apps** (GPS clock, sponsor logos,
+map) — comfortably under the ~15 fps "link has enormous headroom" threshold, nowhere near
+the ~40 fps dirty-rect threshold. Bounds the whole primary mode: confirmed the badge's own
+render rate is the bottleneck, not the link. Full numbers and the `mpremote`
+interrupt-vs-`resume` gotcha worked around to get them non-invasively are in §3.1.
 
 **C2. Prototype `display.get_fb()`** against a local firmware build, so the upstream ask in
 §3.1 arrives as a tested patch. If you also want drawlist forwarding, prototype the capture
@@ -1107,7 +1134,7 @@ primary mode.
 | 9 | Neighbouring hexpansion sits 4.1 mm away, blocking side-flat cables | Medium | Fat-cable connectors are all on the outer flat by design; Qwiic and SD documented as needing the adjacent bay free. |
 | 10 | Cable strain on the edge connector — worse on an 89% larger board | Medium | Both M2 mounting holes populated; strain-relief loop documented for users. Mini-HDMI reduces leverage but has lower retention force than Type A. |
 | 11 | Badge battery life halves when the card runs on badge power | Medium | USB-C input with the TPS2116 mux — on USB the badge supplies nothing at all. |
-| 12 | Badge renders too slowly for mirroring to look good | Low | Inherent: you see what the badge draws, and no link speed changes that. Measured in Phase 0; document the expectation rather than engineering against it. |
+| 12 | Badge renders too slowly for mirroring to look good | Low | Inherent: you see what the badge draws, and no link speed changes that. **Measured (Phase 0 C1): ~2.2-14.3 fps across 3 real apps** — inherently modest, not a link/hexpansion problem to solve. Document the expectation rather than engineering against it. |
 | 13 | SPI link slower than 40 MHz in practice | Low | Mirroring needs 115 KB/frame and is bounded by the badge anyway; the display-list path already assumes 2.5 MB/s. |
 | 14 | TMDS signal integrity on a 1.0 mm 4-layer board | Low | Short runs, controlled impedance, proven direct-drive topology. |
 | 15 | VID/PID not assigned in time | Low | Ask in week 1; costs nothing. |
