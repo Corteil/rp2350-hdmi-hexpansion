@@ -55,6 +55,18 @@ static uint32_t bench_rand(uint32_t *seed) {
     return *seed >> 8;
 }
 
+// Cheapest possible ctx draw call: one opaque, axis-aligned, full-canvas
+// rectangle. No gradient evaluation, no partial-coverage AA edge pixels
+// beyond the four canvas edges. Used to isolate "cost of one full-canvas
+// pass through ctx's rasteriser" from the gradient/shape-heavy scenes
+// above, since dropping AA level 15->5 barely moved their timings and
+// that needed explaining rather than guessing at.
+static void draw_solid_fill_scene(Ctx *ctx) {
+    ctx_rectangle(ctx, 0, 0, BENCH_W, BENCH_H);
+    ctx_set_rgba(ctx, 0.2f, 0.2f, 0.2f, 1.0f);
+    ctx_fill(ctx);
+}
+
 static void draw_typical_scene(Ctx *ctx) {
     ctx_rectangle(ctx, 0, 0, BENCH_W, BENCH_H);
     ctx_set_rgba(ctx, 0.08f, 0.08f, 0.10f, 1.0f);
@@ -137,6 +149,35 @@ static void run_timed(const char *name, Ctx *ctx, scene_fn scene) {
            name, min_us / 1000.0, avg_us / 1000.0, 1e6 / avg_us, max_us / 1000.0);
 }
 
+// Raw sequential scalar write to the same PSRAM region, same byte count
+// as one full-canvas pass, as an upper-bound reference: if ctx's own
+// solid-fill time is close to this, PSRAM write bandwidth is what's
+// dominating scene time, not ctx's rasteriser. volatile so the compiler
+// can't fold this into something that doesn't reflect real per-word
+// store cost (same reasoning as the PSRAM self-test in main.c).
+static void bench_raw_psram_write(volatile uint16_t *fb) {
+    size_t pixels = (size_t)BENCH_W * BENCH_H;
+    int64_t total_us = 0, min_us = -1, max_us = 0;
+
+    for (int i = 0; i < BENCH_ITERATIONS; i++) {
+        absolute_time_t start = get_absolute_time();
+        for (size_t p = 0; p < pixels; p++) {
+            fb[p] = (uint16_t)(0x2104u + i);
+        }
+        int64_t us = absolute_time_diff_us(start, get_absolute_time());
+
+        total_us += us;
+        if (min_us < 0 || us < min_us) min_us = us;
+        if (us > max_us) max_us = us;
+    }
+
+    double avg_us = (double)total_us / BENCH_ITERATIONS;
+    printf("  %-11s min %7.2f ms  avg %7.2f ms (%5.1f fps)  max %7.2f ms"
+           "  [~%.2f MB/s]\n",
+           "raw write", min_us / 1000.0, avg_us / 1000.0, 1e6 / avg_us,
+           max_us / 1000.0, (double)BENCH_FB_BYTES / (avg_us / 1e6) / (1024 * 1024));
+}
+
 void ctx_bench_run(void) {
     printf("\nphase0-metro: B1 ctx rasterisation benchmark\n");
 
@@ -155,6 +196,8 @@ void ctx_bench_run(void) {
 
     printf("  %dx%d RGB565_BYTESWAPPED, %d iterations per scene\n",
            BENCH_W, BENCH_H, BENCH_ITERATIONS);
+    bench_raw_psram_write((volatile uint16_t *)fb);
+    run_timed("solid fill", ctx, draw_solid_fill_scene);
     run_timed("typical", ctx, draw_typical_scene);
     run_timed("worst case", ctx, draw_worst_case_scene);
 

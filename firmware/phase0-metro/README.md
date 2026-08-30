@@ -60,10 +60,23 @@ alongside the existing 2.2.0-a4 (kept, in case other projects still target
 RGB565_BYTESWAPPED framebuffer in PSRAM, 10 iterations each, timed with
 min/avg/max and derived fps:
 
+- **raw write** — not a ctx scene: a plain sequential scalar write of the
+  same byte count straight to the PSRAM framebuffer pointer. Reference
+  upper bound for "solid fill" below.
+- **solid fill** — the cheapest possible ctx draw call: one opaque,
+  axis-aligned, full-canvas rectangle. Isolates "cost of one full-canvas
+  pass through ctx's rasteriser" from gradient/shape cost.
 - **typical** — a handful of rounded-rect cards with icon circles and a
   header gradient, roughly the complexity of a simple Tildagon app screen.
 - **worst case** — ~160 overlapping translucent circles/rects plus a
   full-screen radial gradient, to stress alpha-compositing and AA hard.
+
+The first measurement run used ctx's own default `CTX_RASTERIZER_AA`
+(15) instead of the badge's actual setting (5); fixed, but the fix only
+changed timing by ~7% — nowhere near the 3x expected — which is why
+**raw write** and **solid fill** were added: to find out what's actually
+dominating (PSRAM write bandwidth vs. ctx's own rasterisation cost)
+instead of guessing.
 
 These are **not** a drawlist captured from a real badge app — that needs
 the badge itself plus the `display.get_fb()` upstream patch (Phase 0 Part
