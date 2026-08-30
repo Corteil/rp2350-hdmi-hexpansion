@@ -25,6 +25,11 @@
 // here), no XML/parser/formatter/events (desktop-oriented features), and
 // only the one pixel format this benchmark actually uses.
 #define CTX_IMPLEMENTATION
+// Match the badge firmware's own ctx_config.h (see ../../README.md
+// section 1.5) rather than ctx.h's own default of 15 -- otherwise this
+// benchmark measures 3x the scanline supersampling the real hardware
+// actually runs, and the timing numbers aren't comparable to anything.
+#define CTX_RASTERIZER_AA              5
 #define CTX_BACKEND_TEXT               0
 #define CTX_XML                        0
 #define CTX_PARSER                     0
