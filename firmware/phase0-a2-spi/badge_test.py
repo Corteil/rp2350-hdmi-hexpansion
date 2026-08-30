@@ -11,11 +11,25 @@
 # If the hexpansion is in a different port, recompute from the port
 # table before running this.
 #
-# Run via: mpremote connect COMx exec "$(cat badge_test.py)"
-# or copy to the badge and mpremote run it -- either interrupts whatever
-# app is currently in the foreground (expected/fine, this is a
-# deliberate test run, not a passive watch -- see the mpremote-gotcha
-# memory note for the distinction).
+# Run via: mpremote connect COMx run badge_test.py
+# (NOT exec "$(cat ...)" -- PowerShell mangles that form; see the
+# mpremote-gotcha memory note.) Interrupts whatever app is currently in
+# the foreground (expected/fine, this is a deliberate test run, not a
+# passive watch).
+#
+# v3: CS held low continuously for the whole burst (like v1), but using
+# SPI mode 3 (CPOL=1, CPHA=1) instead of mode 0.
+#
+# Per the ARM PL022 spec itself (quoted in
+# https://github.com/raspberrypi/pico-sdk/issues/941): CPHA=0 requires CS
+# to pulse high between EVERY byte for back-to-back transfers (that's
+# what v2 tried); CPHA=1 is the opposite -- CS stays low continuously for
+# the whole burst, same as normal SPI, and the peripheral only returns to
+# idle after the final bit of the last word. v2 kept per-byte CS toggling
+# while switching to mode 3 (CPHA=1) on the RP2350 side -- combining the
+# two mismatched recipes, which is why it still didn't work. This is the
+# correct pairing for CPHA=1. RP2350 firmware (src/main.c) already uses
+# spi_set_format(..., SPI_CPOL_1, SPI_CPHA_1, ...) to match.
 
 from machine import SPI, Pin
 import time
@@ -27,16 +41,14 @@ MISO_PIN = 48
 
 XFER_LEN = 16
 
-spi = SPI(1, baudrate=100000, polarity=0, phase=0,
+spi = SPI(1, baudrate=100000, polarity=1, phase=1,
           sck=Pin(SCK_PIN), mosi=Pin(MOSI_PIN), miso=Pin(MISO_PIN))
 cs = Pin(CS_PIN, Pin.OUT, value=1)
 
-# Ascending pattern -- the RP2350 firmware's console will show this
-# arriving on its "Received from badge (MOSI)" line if the link works.
 tx_buf = bytearray(range(XFER_LEN))
 rx_buf = bytearray(XFER_LEN)
 
-print("SPI0 link test: sending", XFER_LEN, "bytes, 3 rounds, 500ms apart")
+print("SPI0 link test v3: sending", XFER_LEN, "bytes, CS held low for the whole burst, mode 3")
 for round_num in range(3):
     cs.value(0)
     spi.write_readinto(tx_buf, rx_buf)

@@ -51,6 +51,13 @@ int main(void) {
     // not from this value. Passed anyway since spi_init() requires it.
     spi_init(SPI_PORT, 1000 * 1000);
     spi_set_slave(SPI_PORT, true);
+    // Mode 3 (CPOL=1, CPHA=1), not the SPI-conventional mode 0 -- a real,
+    // documented RP2350/Pico2 PL022-slave-mode limitation (confirmed by
+    // other users hitting this same "slave never receives anything"
+    // symptom on the Raspberry Pi forums) requires non-default
+    // polarity/phase for the slave RX path to work at all. Badge side
+    // (badge_test.py) must match.
+    spi_set_format(SPI_PORT, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
     gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
