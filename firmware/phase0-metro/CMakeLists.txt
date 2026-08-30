@@ -17,6 +17,7 @@ add_executable(bringup
 
 target_link_libraries(bringup
     pico_stdlib
+    hardware_psram
 )
 
 pico_enable_stdio_usb(bringup 1)

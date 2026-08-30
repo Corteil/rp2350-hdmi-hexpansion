@@ -38,8 +38,6 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #endif
 
 // --- BOARD SPECIFIC ---
-#define ADAFRUIT_METRO_RP2350_PSRAM_CS_PIN 47
-
 #define ADAFRUIT_METRO_RP2350_NEOPIXEL_PIN 25
 
 #define ADAFRUIT_METRO_RP2350_SD_SCK_PIN 34
@@ -104,6 +102,20 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 pico_board_cmake_set_default(PICO_FLASH_SIZE_BYTES, (16 * 1024 * 1024))
 #ifndef PICO_FLASH_SIZE_BYTES
 #define PICO_FLASH_SIZE_BYTES (16 * 1024 * 1024)
+#endif
+
+// --- PSRAM ---
+// This is the "with PSRAM" variant of the Metro RP2350, but Adafruit also
+// sells one without, so — same idiom Raspberry Pi's own
+// adafruit_feather_rp2350.h board header uses for the same reason —
+// pin the CS GPIO (fixed by the RP2350B's QMI silicon, not board routing;
+// see firmware/phase0-metro/README.md) and auto-detect the size rather
+// than assume 8 MB is fitted.
+#ifndef PICO_PSRAM_CS_PIN
+#define PICO_PSRAM_CS_PIN 47
+#endif
+#ifndef PICO_AUTO_DETECT_PSRAM_SIZE
+#define PICO_AUTO_DETECT_PSRAM_SIZE 1
 #endif
 
 #endif
