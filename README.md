@@ -1184,9 +1184,42 @@ the ~40 fps dirty-rect threshold. Bounds the whole primary mode: confirmed the b
 render rate is the bottleneck, not the link. Full numbers and the `mpremote`
 interrupt-vs-`resume` gotcha worked around to get them non-invasively are in §3.1.
 
-**C2. Prototype `display.get_fb()`** against a local firmware build, so the upstream ask in
-§3.1 arrives as a tested patch. If you also want drawlist forwarding, prototype the capture
-hook here — one conversation upstream, two hooks.
+**C2. Prototype `display.get_fb()` — patch written and reviewed, not yet compiled/flashed
+(2026-08-30).** The actual patch (`drivers/gc9a01/display.c` in a local
+`emfcamp/badge-2024-software` clone): a `get_fb()` MicroPython function returning
+`mp_obj_new_memoryview(BYTEARRAY_TYPECODE, sizeof(tildagon_fb), tildagon_fb)` — a zero-copy
+view onto the same `tildagon_fb` §3.1 already describes, registered alongside `get_ctx()` in
+the `display` module table. This is not a new pattern: `mp_uctx.c`'s own
+`mp_ctx_set_pixels()` already does the identical `mp_obj_new_memoryview(BYTEARRAY_TYPECODE,
+...)` call for the same purpose (handing pixel-buffer bytes to MicroPython), just from a C
+callback instead of a direct binding — confirmed against the vendored `micropython` submodule
+headers (`py/obj.h`, `py/binary.h`) that the signature and `BYTEARRAY_TYPECODE` constant are
+exactly what's used.
+
+**Blocked on compiling/flashing it, by a pre-existing build-toolchain issue, not the patch
+itself.** Following the repo's own documented Docker build path
+(`ghcr.io/emfcamp/esp_idf:v5.5.1`, their own CI's exact image) fails during MicroPython's
+qstr-scan step with `ctx_config.h: No such file or directory` compiling `display.c` and
+`mp_uctx.c` — a transitive-include-propagation gap (the failing preprocessor invocation's
+assembled `-I` list includes `st3m`'s own include dir but not `ctx`'s, a dependency *of*
+st3m, even though `st3m`'s `CMakeLists.txt` correctly declares `REQUIRES ... ctx ...`).
+**Confirmed unrelated to this patch**: reproduces identically (a) with the patch fully
+reverted against unmodified upstream `display.c`, and (b) on both the tip of `main` and the
+latest tagged release `v2.2.0`. A direct workaround (adding `ctx`'s include dir straight to
+the `usermod_display` CMake target) had no effect on the assembled command line at all,
+showing the qstr-scan include list isn't sourced from that target's own properties —
+diagnosing the real mechanism would mean reading MicroPython's ESP32-port build scripts in
+depth, a separate task from this patch. Also noted in passing: the repo's own committed
+component lockfile (`micropython/ports/esp32/lockfiles/dependencies.lock.esp32s3`) is
+missing an `espressif/nghttp` entry that `components/tildagon/idf_component.yml` itself
+declares as a dependency — real drift, but a red herring for this specific failure (CMake
+only warns about it, doesn't fail the build on it).
+
+**Net effect: the code change is ready and matches an already-proven pattern in the same
+file; it just hasn't been proven to compile in this environment.** Treat it as reviewed, not
+verified — flashing and testing `get_fb()` live on the badge needs either a working local
+ESP-IDF/component-manager combination for this repo, or raising the upstream ask (§3.1) and
+letting EMF's own CI build it.
 
 **C3. SPI link speed — done for the bench-wiring case (2026-08-30).** Rig: the official
 `emfcamp/badge-2024-hardware/hexpansion` devkit board plugged into the real badge port (so
