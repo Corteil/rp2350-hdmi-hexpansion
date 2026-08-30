@@ -13,7 +13,10 @@ pico_sdk_init()
 
 add_executable(bringup
     src/main.c
+    src/ctx_bench.c
 )
+
+target_include_directories(bringup PRIVATE third_party/ctx)
 
 target_link_libraries(bringup
     pico_stdlib

@@ -12,6 +12,7 @@
 #include "pico/stdlib.h"
 #include "hardware/psram.h"
 #include "hardware/flash.h"
+#include "ctx_bench.h"
 
 static bool psram_self_test(volatile uint32_t *psram, size_t words) {
     for (size_t i = 0; i < words; i++) {
@@ -72,6 +73,8 @@ int main(void) {
         printf("  %.2f ms total, ~%.2f MB/s (write+read combined)\n",
                us / 1000.0, (2.0 * size) / (us / 1e6) / (1024 * 1024));
     }
+
+    ctx_bench_run();
 
     uint32_t frame = 0;
     while (true) {

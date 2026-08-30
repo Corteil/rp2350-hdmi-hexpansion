@@ -14,10 +14,11 @@ flash — the PSRAM variant, not the plain Metro RP2350).
 - [x] **PSRAM bring-up** (GPIO47, QMI CS1) via pico-sdk's official
       `hardware_psram` library. Auto-detects size and self-tests by
       writing/reading back a pattern across the whole chip, timed.
-- [ ] **B1 — ctx rasterisation benchmark at 640×480** (the highest-value
-      Phase 0 measurement — see README §8). Needs ctx vendored
-      (single-header C, LGPL-3.0-or-later) and a representative drawlist.
-      Now unblocked — PSRAM works, and a 614 KB 16bpp framebuffer needs it.
+- [x] **B1 — ctx rasterisation benchmark at 640×480** (the highest-value
+      Phase 0 measurement — see README §8). `ctx` vendored under
+      `third_party/ctx/` (single-header C, LGPL-3.0-or-later — see
+      `third_party/ctx/VENDORED.md`). Builds clean; timing numbers not
+      yet captured on hardware (see below).
 - [ ] B2 — microSD (SPI0, GPIO34–40) + PSRAM-backed 640×480 16bpp scanout.
 - [ ] B3 — run the same firmware on the RP2350A Feather (Part A) to compare.
 
@@ -52,6 +53,32 @@ ships in picotool's own GitHub releases (source tarball only), but
 `picotool-2.3.0-x64-win.zip`, installed at `~/.pico-sdk/picotool/2.3.0/`
 alongside the existing 2.2.0-a4 (kept, in case other projects still target
 2.2.0).
+
+### B1: ctx benchmark
+
+`src/ctx_bench.c` renders two hand-built scenes into a 640×480
+RGB565_BYTESWAPPED framebuffer in PSRAM, 10 iterations each, timed with
+min/avg/max and derived fps:
+
+- **typical** — a handful of rounded-rect cards with icon circles and a
+  header gradient, roughly the complexity of a simple Tildagon app screen.
+- **worst case** — ~160 overlapping translucent circles/rects plus a
+  full-screen radial gradient, to stress alpha-compositing and AA hard.
+
+These are **not** a drawlist captured from a real badge app — that needs
+the badge itself plus the `display.get_fb()` upstream patch (Phase 0 Part
+C, not started). They're a reasonable stand-in for "how fast can this
+chip rasterise ctx content" until a real captured drawlist exists; see
+`third_party/ctx/VENDORED.md` for the caveats. `ctx_bench_run()` skips
+itself (prints why) if PSRAM isn't available or is too small for the
+framebuffer.
+
+ctx was configured stripped down for this target: no text/fonts, no
+XML/parser/formatter/events (desktop-oriented features), and only the one
+pixel format actually used — see the `#define`s at the top of
+`ctx_bench.c`. Adds ~110 KB to the flash image (`arm-none-eabi-size`:
+~169 KB text total vs. ~59 KB before ctx was added) — a non-issue against
+16 MB of flash.
 
 ## Board header
 
@@ -94,7 +121,8 @@ picotool load -f build/bringup.uf2
 
 ## Expected result
 
-On boot, the USB CDC serial port prints PSRAM detection (size, CS pin) and
-the self-test result (PASS/FAIL, time, throughput) once. Then the red LED
-(next to BOOT/RESET) blinks at 1 Hz with a `phase0-metro alive: tick N`
-heartbeat every 500 ms.
+On boot, the USB CDC serial port prints PSRAM detection (size, CS pin),
+the self-test result (PASS/FAIL, time, throughput), then the B1 ctx
+benchmark's two scene timings, once. Then the red LED (next to
+BOOT/RESET) blinks at 1 Hz with a `phase0-metro alive: tick N` heartbeat
+every 500 ms.
