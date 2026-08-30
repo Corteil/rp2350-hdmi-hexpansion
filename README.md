@@ -642,8 +642,8 @@ project makes its own choice too, matched by badge-side driver code written for 
 | **12–19** | **HSTX → 4 TMDS pairs (clock + 3 data)** — fixed by silicon |
 | 20–23 | SPI0 slave ↔ `HS_F`(MOSI)/`HS_G`(CS)/`HS_H`(SCK)/`HS_I`(MISO) — see table above |
 | 24, 25 | I2C0 target ↔ badge SDA / SCL (the emulated EEPROM) |
-| 26 | → LS_B, attention/IRQ to the badge |
-| 27 | ← LS_C, bootloader-entry request from the badge |
+| 26 | → LS_B, attention/IRQ to the badge (proposed use of a spare line — see note) |
+| 27 | ← LS_C, proposed as a bootloader-entry request from the badge (see note) |
 | 28, 29 | ← LS_D / LS_E, spare |
 | RUN pin | ← LS_A (badge-controlled reset) **and** SW2 reset button |
 | SWCLK / SWDIO | → J3, Raspberry Pi 3-pin debug connector |
@@ -652,6 +652,17 @@ project makes its own choice too, matched by badge-side driver code written for 
 
 Note the mapping trades JTAG on port 1 (GPIO39–42 are the ESP32's JTAG pins) — use
 port 2 or 6 during badge-side debugging.
+
+**On `LS_B`/`LS_C`'s roles (2026-08-30):** unlike `LS_A`, which the badge's own hardware
+fixes as a reset line (confirmed on both this project's connector schematic and
+`DanNixon/ethernet-hexpansion`'s independent design), `LS_B`–`LS_E` are just generic,
+badge-provided slow I/O-expander lines with **no fixed protocol meaning** — checked against
+two real hexpansions (`DanNixon/ethernet-hexpansion`, `sammachin/rp2040-hexpansion`), and
+neither uses an LS line for anything resembling "attention" or "bootloader entry." The
+attention/IRQ use for `LS_B` and the bootloader-entry idea for `LS_C` above are **this
+project's own proposed uses of two otherwise-spare lines**, not a badge requirement — free
+to keep, drop, or repurpose without any badge-compatibility consequence, same as the
+`HS_x` SPI role question above.
 
 **Why the RP2350A and not the B.** The B (QFN-80, 10×10 mm, 48 GPIO) would relax this map —
 PSRAM CS moves to GPIO47, the canonical pin every reference example uses, and UART0 comes
