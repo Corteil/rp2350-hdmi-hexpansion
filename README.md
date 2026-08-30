@@ -1009,10 +1009,13 @@ ceiling at the stock `clk_sys` 150 MHz (75 MHz PSRAM clock, the fastest divisor 
 at that `clk_sys`) — short of the ~35-37 MB/s continuous 640×480@60 16bpp scanout actually
 needs, and no config change at that clock closes the gap. Full writeup in §3.3.
 
-**B3. The RP2350B experiment.** Run the same firmware on both boards.
-`firmware/phase0-feather/` is built (reuses the Metro's board-agnostic PSRAM/ctx
-benchmarks) and ready to flash; results not yet captured. If the A map brings up cleanly
-on the Feather, stay with the A; the B is the fallback, not the plan (§4.1).
+**B3. The RP2350B experiment. Run, on the real Feather — inconclusive.** This Feather
+doesn't have PSRAM populated (ships DNP), so B1/B2 can't run a comparison against the
+Metro's numbers on this specific board; both skip cleanly, confirming toolchain/board
+bring-up on RP2350A silicon but nothing about RP2350A vs. RP2350B PSRAM/ctx performance.
+Needs either populating the DNP footprint with an APS6404L (~$1.15) or accepting the gap.
+If the A map brings up cleanly on the Feather, stay with the A; the B is the fallback,
+not the plan (§4.1).
 
 A1 and B1 are the two highest-value tests and use different boards, so they run in parallel.
 

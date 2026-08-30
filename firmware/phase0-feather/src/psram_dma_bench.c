@@ -98,7 +98,7 @@ static void run_per_line(int chan, const uint8_t *psram_base) {
 }
 
 void psram_dma_bench_run(void) {
-    printf("\nphase0-metro: B2 PSRAM-backed scanout (DMA read) benchmark\n");
+    printf("\nphase0-feather: B2 PSRAM-backed scanout (DMA read) benchmark\n");
 
     if (!psram_is_available()) {
         printf("  skipped: PSRAM not available\n");

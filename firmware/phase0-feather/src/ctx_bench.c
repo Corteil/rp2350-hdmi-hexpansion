@@ -179,7 +179,7 @@ static void bench_raw_psram_write(volatile uint16_t *fb) {
 }
 
 void ctx_bench_run(void) {
-    printf("\nphase0-metro: B1 ctx rasterisation benchmark\n");
+    printf("\nphase0-feather: B1 ctx rasterisation benchmark\n");
 
     if (!psram_is_available() || psram_get_size() < BENCH_FB_BYTES) {
         printf("  skipped: need >= %u bytes of PSRAM for a %dx%d "

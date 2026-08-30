@@ -71,6 +71,30 @@ diagnostic, the B1 ctx benchmark, then the B2 PSRAM-scanout DMA
 benchmark — once. Then the LED (GPIO7) blinks at 1 Hz with a
 `phase0-feather alive: tick N` heartbeat every 500 ms.
 
-## Results
+## Results (2026-08-30)
 
-Not yet run on hardware.
+```
+phase0-feather: PSRAM bring-up
+PSRAM: not detected (CS GPIO 8) - expected if this board's
+PSRAM footprint hasn't been populated (it ships DNP).
+
+phase0-feather: B1 ctx rasterisation benchmark
+  skipped: need >= 614400 bytes of PSRAM for a 640x480 framebuffer, have 0
+
+phase0-feather: B2 PSRAM-backed scanout (DMA read) benchmark
+  skipped: PSRAM not available
+```
+
+**This specific Feather doesn't have PSRAM populated.** Everything else
+worked as designed: toolchain/board bring-up on real RP2350A silicon,
+USB-CDC-wait logic, and both benchmarks skipping themselves cleanly with
+a clear reason rather than hanging or crashing. No RP2350A vs. RP2350B
+PSRAM/ctx comparison numbers without either populating the DNP PSRAM
+footprint with an APS6404L (~$1.15, BOM line 3 — see main README §8's
+Phase 0 rig note) or accepting that this comparison isn't available on
+this board as-is.
+
+(An initial run of this firmware mislabelled both benchmarks'
+output as "phase0-metro" — a copy-paste artifact in the duplicated
+`ctx_bench.c`/`psram_dma_bench.c`, since fixed. The output above is from
+the corrected build.)
