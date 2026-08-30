@@ -142,6 +142,10 @@ runs the app it finds there. Block size is 512 bytes for EEPROMs ≥ 8 KiB.
 VID/PID have to be requested from the badge team ("UHB-IF") — **do this early**, it is
 the one item with an external dependency and zero cost.
 
+**Assigned (2026-08-30): VID `0x1969`, PID `0x4544`.** In use since — see `firmware/testcard/`
+for the first firmware built around the real identity, confirmed enumerating correctly on
+real hardware.
+
 ---
 
 ### 1.5 The badge's graphics stack
@@ -1295,6 +1299,22 @@ check. Full note in `firmware/phase0-a2-eeprom/README.md`.
 Everything downstream is cheap to change now and expensive to change later. Do not skip
 this phase.
 
+#### Beyond Phase 0: the first end-to-end link demonstration
+
+**Done (2026-08-30), `firmware/testcard/`.** With VID/PID assigned, built the first firmware
+combining every proven Phase 0 piece into one image and one demonstration: badge inserts a
+hexpansion → discovers the emulated EEPROM with the real identity (I2C0, A2/C4's proven
+mechanics) → mounts a real LittleFS filesystem living inside it → auto-launches the packed
+badge-side app → that app sends commands over the proven SPI0 link (A2/C3) → the RP2350
+applies them and the monitor changes over HDMI (A1/A3, colour-correct). **Confirmed working
+end to end on real hardware, first attempt** — exact VID/PID, exact computed LittleFS block
+count, a real mounted filesystem with a real app, and all 4 test patterns visibly cycling on
+the monitor in step with badge-side commands. Full writeup in `firmware/testcard/README.md`.
+
+This isn't a Phase 0 deliverable — it's the first proof that the individually-validated
+pieces actually compose into the product's real contract, done early because the last
+blocking dependency (VID/PID) cleared.
+
 ### Phase 1 — Schematic + layout (3–4 weeks part-time)
 
 Start from `emfcamp/badge-2024-hardware/hexpansion` so the outline, tab, and mounting
@@ -1368,7 +1388,7 @@ primary mode.
 | 12 | Badge renders too slowly for mirroring to look good | Low | Inherent: you see what the badge draws, and no link speed changes that. **Measured (Phase 0 C1): ~2.2-14.3 fps across 3 real apps** — inherently modest, not a link/hexpansion problem to solve. Document the expectation rather than engineering against it. |
 | 13 | SPI link slower than 40 MHz in practice | Low | Mirroring needs 115 KB/frame and is bounded by the badge anyway; the display-list path already assumes 2.5 MB/s. |
 | 14 | TMDS signal integrity on a 1.0 mm 4-layer board | Low | Short runs, controlled impedance, proven direct-drive topology. |
-| 15 | VID/PID not assigned in time | Low | Ask in week 1; costs nothing. |
+| 15 | VID/PID not assigned in time | Low | **Settled (2026-08-30): assigned, `0x1969`/`0x4544`.** In use in `firmware/testcard/`, confirmed on real hardware. |
 | 16 | RP2350-E9 pull-down erratum bites on LS/CS/I2C lines | Low | External pull resistors everywhere it matters. |
 | 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Medium (raised from Low) | **Settled by Phase 0 B1, on the Metro: rasterisation is too slow for animation** (2.9 fps typical scene, 0.7 fps worst case; ~40% of even the cheapest frame is PSRAM write bandwidth, not ctx itself — see §3.2). Affects the advanced path only; v1 mirroring depends on none of it. Occasional full-redraws of static content may still be viable; continuous/animated drawlist forwarding is not. Fallback is the bespoke command set in §3.2, which is already specified. |
 | 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. **Stays open through Phase 0** — Phase 0 B3 (§8) decided against populating the Feather's DNP PSRAM footprint to close this measurement (not worth the cost for a documented, non-exotic pinmux option); closes properly once Phase 1/2 schematic+prototype boards exist with the real RP2350A+PSRAM configuration. |
