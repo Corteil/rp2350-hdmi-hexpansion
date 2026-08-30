@@ -190,6 +190,23 @@ void __scratch_x("") dma_irq_handler(void) {
 // ----------------------------------------------------------------------------
 
 int main(void) {
+    // Heartbeat/diagnostic LED (GPIO7, board default) -- this firmware has
+    // no USB serial and video-or-nothing is a useless signal for telling
+    // *where* a problem is. Blink 3x fast now (proves boot + GPIO work at
+    // all), then the main loop blinks continuously at ~1Hz once HSTX/DMA
+    // setup below has completed -- so "no blinking at all" means it never
+    // got here, "3 blinks then stuck" means it hung during HSTX/DMA setup,
+    // and "continuous blinking, still no picture" means the code runs fine
+    // and the bug is specifically in the video config/timing/wiring.
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    for (int i = 0; i < 3; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(150);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+        sleep_ms(150);
+    }
+
     fill_test_pattern();
 
     // Configure HSTX's TMDS encoder for RGB565. NBITS fields are
@@ -275,7 +292,14 @@ int main(void) {
 
     dma_channel_start(DMACH_PING);
 
+    // Continuous ~1Hz heartbeat: reaching here means HSTX/DMA setup above
+    // completed without hanging. Plain sleep_ms() rather than __wfi(), so
+    // the blink rate is a clean ~1Hz regardless of how often the scanline
+    // IRQ wakes this core.
+    bool led_on = false;
     while (1) {
-        __wfi();
+        led_on = !led_on;
+        gpio_put(PICO_DEFAULT_LED_PIN, led_on);
+        sleep_ms(500);
     }
 }
