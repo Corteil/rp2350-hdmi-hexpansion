@@ -123,6 +123,34 @@ port to see the CPU-load measurement print once at boot.
 3. **On the USB serial console**: the CPU load percentage. Sanity-check
    against the caveats above rather than the raw design target.
 
-## Results
+## Results (2026-08-30, Adafruit Feather RP2350 with HSTX)
 
-Not yet run on hardware.
+**Working, after one real bug found and fixed on hardware** (see the
+"Command-list structure" section above for the full story — first
+attempt used three separate HSTX commands per active row and got "no
+signal"; fixed by restructuring to Stage 1's proven single-command shape).
+
+**Confirmed on the monitor**: a circle of 8 coloured bars, correctly
+pillarboxed and circular-masked, centred in the 640×480 frame. The
+circle's outline shows some pixel-level stepping — expected, from the 2px
+horizontal quantisation needed for word-aligned DMA reads (documented
+above, not a bug) — geometry and colours otherwise correct, stable (no
+flicker/rolling/sync loss).
+
+**CPU load measurement**:
+
+```
+CPU load baseline (DVI not yet running): 1399971 busy-loop iterations / 200ms
+CPU load with DVI running: 1304061 busy-loop iterations / 200ms
+-> approx 6.9% of one core spent servicing the DVI scanout IRQ
+```
+
+**6.9% is close to the design's own 2–5% estimate** (main README §3.4),
+despite this stage deliberately using a less efficient mechanism than the
+real design calls for (4 DMA-completion IRQs per active row instead of
+the target one-IRQ-per-*frame* ring-buffer approach, plus USB CDC's own
+interrupt overhead present in this measurement but not in a console-free
+build). A more optimised implementation should land inside the original
+estimate. **This is a strong validation of the whole mirroring
+architecture's core CPU-budget assumption** — the thing A1 exists to
+check.

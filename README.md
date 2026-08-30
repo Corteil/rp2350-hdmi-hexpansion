@@ -497,6 +497,12 @@ cycles.
 The 2–5% is the only real number, and it depends on whether scanout is fully DMA-chained
 or takes a per-line IRQ. Treat it as single-digit percent of one core and the rest as free.
 
+**Measured (Phase 0 A1 Stage 2, `firmware/phase0-dvi2/`): ~6.9% of one core**, with a
+per-line (in fact per-line-*phase*, 4 IRQs/row) mechanism deliberately less efficient than
+the one-IRQ-per-frame ring-buffer approach assumed above, plus USB CDC overhead present in
+the measurement. Single-digit percent, as estimated — a genuinely more efficient scanout
+mechanism should land inside the original 2–5% range.
+
 | Resource | Used by mirroring | Free |
 |----------|-------------------|------|
 | Core 0 | ~5% | ~95% |
@@ -994,32 +1000,53 @@ confirming the choice is deliberate.
 Runs today, unmodified. **Mirroring never touches PSRAM** (§3.4: 230 KB double-buffered in
 SRAM), so the Feather covers the entire primary mode on the right silicon.
 
-**A1. Scale-during-scanout.** 240×240 source in SRAM, HSTX doing horizontal doubling, DMA
-re-reading each source line vertically, per-line descriptor table for the circular mask and
-pillarbox. Feed it a static test image — ideally a real badge screenshot. Measure actual
-core load against §3.4's estimated 2–5%. **This validates the whole mirroring architecture.**
+**A1. Scale-during-scanout — done, measured on real hardware.** 240×240 source in SRAM,
+HSTX doing horizontal doubling, DMA re-reading each source line vertically, per-line
+descriptor table for the circular mask and pillarbox. **Measured core load: ~6.9% of one
+core**, close to this section's own 2–5% estimate despite Stage 2's deliberately
+less-efficient IRQ mechanism (see below) — **this validates the whole mirroring
+architecture**, the thing A1 exists to check.
 
-**Stage 1 done, fully confirmed on real hardware (`firmware/phase0-dvi/`).** A deliberately simplified
-first step — 320×240 doubled to fill 640×480 exactly (no pillarbox/mask needed, since
-320×2=640 and 240×2=480 land exactly), horizontal doubling done by pre-expanding in SRAM
-rather than the HSTX pixel-duplication trick, and the simpler two-channel per-scanline-IRQ
-DMA mechanism from the official `pico-examples` rather than the CPU-efficient
-one-IRQ-per-frame ring-buffer approach Adafruit's own PicoDVI driver uses. Confirmed on a
-real monitor: 8 sharp, evenly-spaced, stable bars filling the screen — three real bugs
-found and fixed along the way (flipped ribbon cable, wrong pixel clock — `clk_hstx`
-follows `clk_sys` undivided by default, needed `set_sys_clock_khz(126000, true)`, not a
-`CSR.CLKDIV` change — and a rotated colour channel mapping, currently compensated in the
-test pattern rather than root-caused). Full writeup in `firmware/phase0-dvi/README.md`.
-The real pillarboxed/circular-masked/CPU-load-measured A1 is the next step, along with
-root-causing the colour channel rotation before real badge pixel data needs to flow
+**Stage 1 (`firmware/phase0-dvi/`) — basic 640×480@60 output, confirmed on real hardware.**
+A deliberately simplified first step — 320×240 doubled to fill 640×480 exactly (no
+pillarbox/mask needed, since 320×2=640 and 240×2=480 land exactly), horizontal doubling
+done by pre-expanding in SRAM rather than the HSTX pixel-duplication trick, and the
+simpler two-channel per-scanline-IRQ DMA mechanism from the official `pico-examples`
+rather than the CPU-efficient one-IRQ-per-frame ring-buffer approach Adafruit's own
+PicoDVI driver uses. Confirmed on a real monitor: 8 sharp, evenly-spaced, stable, correctly
+coloured bars filling the screen — three real bugs found and fixed along the way (flipped
+ribbon cable, wrong pixel clock — `clk_hstx` follows `clk_sys` undivided by default, needed
+`set_sys_clock_khz(126000, true)`, not a `CSR.CLKDIV` change — and a rotated colour channel
+mapping, compensated in the test pattern rather than root-caused). Full writeup in
+`firmware/phase0-dvi/README.md`.
+
+**Stage 2 (`firmware/phase0-dvi2/`) — the real A1 target, confirmed on real hardware.**
+240×240 source, pillarboxed, circular-masked (`row_half_width[]`, a per-output-row
+half-width table computed once at init from the circle equation — "the per-line descriptor
+table for the circular mask" this section describes). **First attempt got "no signal"**:
+used three separate HSTX TMDS commands per active row (left fill / pixel-priming / right
+fill), which — per RP2350 datasheet §12.11.5 ("the command expander cannot output data on
+the cycle where it pops a command... the expansion shift register is empty for at least one
+cycle") — added command-boundary stalls Stage 1's proven single-command active line doesn't
+have, breaking the constant per-line duration a monitor needs to lock horizontal sync to.
+**Fixed by restructuring to exactly match Stage 1's single-command shape** — one
+`HSTX_CMD_TMDS|640` per row, with the black pillarbox/mask fill sourced as plain DMA *data*
+(not separate commands) under that same command's word budget. Confirmed on the monitor: a
+correctly pillarboxed, circular-masked, coloured circle (some pixel-level edge stepping,
+expected from 2px horizontal quantisation for word-aligned DMA reads — not a bug), stable.
+Full writeup in `firmware/phase0-dvi2/README.md`.
+
+**Still open**: root-causing the colour channel rotation (currently compensated in the test
+pattern in both stages, not fixed at the source) before real badge pixel data needs to flow
 through this path.
 
 **A2. Pin-map validation.** Bring up §4.1's allocation on real RP2350A silicon: SPI0 as
 slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. This is the test
 the Metro cannot do, and the reason the Feather is the primary bench.
 
-**A3. 640×480 @60 DVI output.** Confirm the timings and that real monitors accept the
-signal — §3.3 puts it at 84% of the HSTX rating; check that holds in practice.
+**A3. 640×480 @60 DVI output — done.** Confirmed on a real monitor (Stage 1 and Stage 2
+both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
+estimate holds in practice, once `clk_sys` is correctly set to 126 MHz (see A1 above).
 
 **A4. Current draw** under load, validating the first rows of §4.7. The boost, badge-port
 and Qwiic rows cannot be checked here.
