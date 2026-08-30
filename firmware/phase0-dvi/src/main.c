@@ -229,22 +229,29 @@ int main(void) {
         1  << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB |
         0  << HSTX_CTRL_EXPAND_SHIFT_RAW_SHIFT_LSB;
 
-    // Serial output config: clock period of 5 cycles, pop from command
-    // expander every 5 cycles, shift the output shiftreg by 2 every
-    // cycle. Unchanged from both reference implementations -- this is
-    // about TMDS symbol serialisation, not pixel format.
+    // Serial output config. N_SHIFTS=5, SHIFT=2 (5*2=10 bits/cycle group)
+    // is fixed by the TMDS symbol width and unchanged from both reference
+    // implementations. CLKDIV sets the pixel clock: pixel_clock =
+    // clk_hstx / CLKDIV. Both references assumed clk_hstx defaults to
+    // 125 MHz and used CLKDIV=5 (-> ~25 MHz, close to the 25.2 MHz 640x480
+    // @60 needs). That assumption is wrong on this SDK/board: clk_hstx
+    // actually defaults to clk_sys undivided (pico-sdk's
+    // runtime_init_clocks, clock_configure_undivided with AUXSRC=CLK_SYS),
+    // which measured 150 MHz on this board (see firmware/phase0-metro's
+    // clk_sys/PSRAM diagnostic) -- CLKDIV=5 would give a ~30 MHz pixel
+    // clock, ~19% over spec, which a monitor will reject outright as
+    // "out of range" rather than just look slightly wrong. Confirmed by
+    // testing: exactly what happened on first bring-up. CLKDIV=6 gives
+    // 150/6 = 25.0 MHz, 0.8% under the 25.2 MHz standard -- close enough
+    // to lock on real hardware, without needing to touch clk_hstx's own
+    // configuration at all.
     hstx_ctrl_hw->csr = 0;
     hstx_ctrl_hw->csr =
         HSTX_CTRL_CSR_EXPAND_EN_BITS |
-        5u << HSTX_CTRL_CSR_CLKDIV_LSB |
+        6u << HSTX_CTRL_CSR_CLKDIV_LSB |
         5u << HSTX_CTRL_CSR_N_SHIFTS_LSB |
         2u << HSTX_CTRL_CSR_SHIFT_LSB |
         HSTX_CTRL_CSR_EN_BITS;
-
-    // Leaving the HSTX clock at the SDK default (125 MHz): 250 Mbps/lane,
-    // close to the 252 MHz true bit clock for 480p60. Same approximation
-    // both reference implementations use; a later refinement if a
-    // specific monitor turns out to be picky about it.
 
     // Clock pair always on GPIO14/15 (silicon-fixed: HSTX bit index n is
     // always GPIO 12+n, so bit[2]/bit[3] is always the 14/15 pair).
