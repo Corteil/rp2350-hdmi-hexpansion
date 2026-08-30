@@ -30,9 +30,10 @@ flash — the PSRAM variant, not the plain Metro RP2350).
 - [x] **B2, PSRAM-backed scanout half** — DMA-driven bulk reads out of
       the PSRAM framebuffer (`src/psram_dma_bench.c`), simulating what
       real HSTX scanout would do (§3.3's "needs measurement" mode, target
-      ~37 MB/s). B1's numbers only covered CPU-driven writes *into*
-      PSRAM; this is the read side, DMA case — a materially different
-      access pattern. Builds clean; not yet run on hardware (see below).
+      ~37 MB/s). **Measured on hardware: ~27.1 MB/s — short of the ~37
+      MB/s target, root-caused to the PSRAM clock ceiling (75 MHz is the
+      fastest reachable at stock `clk_sys` 150 MHz), not a config bug.**
+      See below and main README §3.3.
 - [ ] B3 — run the same firmware on the RP2350A Feather (Part A) to compare.
 
 ### PSRAM: using pico-sdk's official driver, not a hand-rolled one
@@ -183,11 +184,38 @@ PSRAM is running at.
 **But 27 MB/s falls short of the ~37 MB/s continuous 640×480@60 scanout
 actually needs** (not a target to merely beat — that's the literal
 sustained byte rate a fixed 60 Hz signal demands: 640×480×2 bytes ×
-60 fps ≈ 35.2 MB/s). A ~27% shortfall. Added a diagnostic to `main.c`'s
-PSRAM section (`clk_sys` frequency + the QMI M1 CLKDIV register value)
-to find out whether this is simply a conservative default clock divisor
-(fixable) before concluding anything stronger — not yet run against
-hardware.
+60 fps ≈ 35.2 MB/s). A ~24% shortfall.
+
+**Root cause, confirmed by a `clk_sys`/QMI CLKDIV diagnostic added to
+`main.c`'s PSRAM section:**
+
+```
+clk_sys 150.0 MHz, PSRAM QMI CLKDIV 2 -> PSRAM clock ~75.0 MHz
+(quad SPI, theoretical read ceiling ~35.8 MB/s)
+```
+
+27.1 MB/s achieved is ~76% of that 35.8 MB/s theoretical ceiling —
+ordinary QSPI protocol overhead (command/address/dummy cycles, periodic
+chip-select toggling for PSRAM page refresh), not a bug.
+
+**This isn't a config problem to tune away — 75 MHz is already the
+fastest PSRAM clock reachable at `clk_sys` 150 MHz.** `hardware_psram`'s
+driver won't use divisor 1 above 100 MHz (safety margin below the
+PSRAM's 133 MHz rating), and 150/2 is the only other integer divisor.
+So even a hypothetical zero-overhead read at this clock (35.8 MB/s)
+still falls short of the ~35-37 MB/s requirement. Closing the gap needs
+a higher `clk_sys` — an RP2350 overclock (e.g. ~266 MHz would allow a
+divisor-2 133 MHz PSRAM clock, the chip's full rating) — which is a real
+hardware/reliability decision for a later phase, not a Phase 0 firmware
+change. Full writeup, including what this means for the design, in the
+main README §3.3.
+
+**Doesn't affect v1** — mirroring's framebuffer lives entirely in SRAM,
+never touches PSRAM. Combined with B1's finding (ctx rasterisation into
+this same buffer is too slow for animation), the PSRAM-backed 16bpp
+advanced display mode looks suited to occasional/static content at
+stock clocks, not continuous animated use — two independent
+measurements pointing the same direction.
 
 ### B2: microSD
 

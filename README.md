@@ -410,12 +410,42 @@ So the practical mode list is short:
 | 240×240 ×2 → 480×480 pillarboxed in 640×480 @60 | mirror | 16 bpp | 2×115 KB in SRAM | **High — v1 primary** |
 | 320×240 doubled to 640×480 @60 | display list | 16 bpp | 2×150 KB in SRAM | High |
 | 640×480 @60 | display list | 8 bpp palette | 307 KB SRAM + PSRAM back buffer | High |
-| 640×480 @60 | display list | 16 bpp | PSRAM-backed, line-buffer DMA ~37 MB/s | Medium — needs measurement, but no longer gates v1 |
+| 640×480 @60 | display list | 16 bpp | PSRAM-backed, line-buffer DMA ~37 MB/s | **Measured short: ~27 MB/s achieved, see below** |
 | 800×600 @60 | display list | 8 bpp palette | PSRAM-backed | Low — 33% HSTX overclock, out of spec |
 
 640×480 is not merely the safe choice; it is very nearly the only standard mode the
 peripheral can reach. That is fine for the primary product — 480×480 fits its vertical
 resolution exactly.
+
+**Measured on the Metro bench (Phase 0 B2, `firmware/phase0-metro/`):** DMA-driven reads
+out of PSRAM (what real HSTX scanout would do) reach **~27.1 MB/s**, both as one big
+bulk transfer and as 480 separate per-line transfers back to back — the two being nearly
+identical rules out DMA setup overhead as the cause. That's ~76% of a measured **35.8 MB/s
+theoretical ceiling** (`clk_sys` 150 MHz, QMI CLKDIV 2 → 75 MHz PSRAM clock, quad SPI), the
+missing 24% being ordinary QSPI protocol overhead (command/address/dummy cycles, periodic
+chip-select toggling for PSRAM page refresh) — not a bug.
+
+**The more important number is the 35.8 MB/s ceiling itself, not the 76% efficiency.**
+75 MHz is the *fastest* PSRAM clock reachable at `clk_sys` 150 MHz — `hardware_psram`'s
+driver won't use divisor 1 above 100 MHz (safety margin below the PSRAM's 133 MHz rating),
+and 150 MHz/2 is the only other integer divisor available. So even a hypothetical
+zero-overhead read at this clock (35.8 MB/s) would still fall short of the ~35-37 MB/s
+that continuous 640×480@60 16bpp scanout actually requires (640×480×2 bytes × 60 fps ≈
+35.2 MB/s) — there is no configuration tweak at `clk_sys` 150 MHz that closes this gap.
+Reaching it needs a higher `clk_sys` (RP2350 overclock — e.g. ~266 MHz would allow a
+divisor-2 133 MHz PSRAM clock, the chip's full rating, well clear of the requirement even
+at 76% efficiency), which is a real hardware/reliability decision for a later phase, not
+a Phase 0 config change.
+
+**This affects the PSRAM-backed 16bpp display-list mode only — not v1.** Mirroring's
+framebuffer lives entirely in SRAM (§3.4: 2×115 KB, never touches PSRAM), so this finding
+doesn't touch the primary product. It does mean the PSRAM-backed 640×480 16bpp advanced
+mode, as measured at stock clocks, cannot sustain continuous full-frame scanout — on top of
+B1's finding that ctx rasterisation into that same buffer is also too slow for animation.
+Both point the same direction: at stock clocks, this mode suits occasional/static content,
+not continuous animated full-frame use. The 8bpp palette mode one row up (307 KB, fits in
+SRAM + a PSRAM back buffer) doesn't have this ceiling and is worth preferring if the
+advanced mode is pursued further.
 
 ### 3.4 What is left over
 
@@ -973,10 +1003,11 @@ already a listed mode in §3.3, so the number is directly useful rather than a p
 **B2. microSD** on SPI — **done**, on the Metro (`firmware/phase0-metro/`): mount,
 capacity report, and a write/read-back correctness test all pass on real hardware
 (FAT32, via `carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico` + FatFs, not a hand-rolled SD-SPI
-driver). **PSRAM-backed 640×480 16 bpp scanout — still open**: the mode §3.3 rates
-"Medium, needs measurement" is about DMA-driven *reads* out of a PSRAM framebuffer
-(simulating HSTX scanout); B1 only measured CPU-driven *writes* into PSRAM, which is a
-different number.
+driver). **PSRAM-backed 640×480 16 bpp scanout — done, measured short.** DMA-driven reads
+out of PSRAM (simulating HSTX scanout) reach ~27.1 MB/s against a 35.8 MB/s theoretical
+ceiling at the stock `clk_sys` 150 MHz (75 MHz PSRAM clock, the fastest divisor available
+at that `clk_sys`) — short of the ~35-37 MB/s continuous 640×480@60 16bpp scanout actually
+needs, and no config change at that clock closes the gap. Full writeup in §3.3.
 
 **B3. The RP2350B experiment.** Run the same firmware on both boards. If the A map brings up
 cleanly on the Feather, stay with the A; the B is the fallback, not the plan (§4.1).
