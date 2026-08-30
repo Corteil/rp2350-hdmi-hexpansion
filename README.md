@@ -999,7 +999,7 @@ re-reading each source line vertically, per-line descriptor table for the circul
 pillarbox. Feed it a static test image — ideally a real badge screenshot. Measure actual
 core load against §3.4's estimated 2–5%. **This validates the whole mirroring architecture.**
 
-**Stage 1 working on real hardware (`firmware/phase0-dvi/`).** A deliberately simplified
+**Stage 1 done, fully confirmed on real hardware (`firmware/phase0-dvi/`).** A deliberately simplified
 first step — 320×240 doubled to fill 640×480 exactly (no pillarbox/mask needed, since
 320×2=640 and 240×2=480 land exactly), horizontal doubling done by pre-expanding in SRAM
 rather than the HSTX pixel-duplication trick, and the simpler two-channel per-scanline-IRQ

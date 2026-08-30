@@ -140,11 +140,12 @@ path) — the only thing to check is the monitor.
    so the actual `expand_tmds`/lane-mapping bug this is compensating for
    still needs finding before Stage 2.
 
-**Confirmed on hardware**: 8 sharp, evenly-spaced vertical bars filling
-the full 640×480 screen, stable (no flicker/rolling/sync loss) — the
-doubling math, DMA read addressing, and TMDS/HSTX/DMA/timing chain are
-all validated. The colour-table fix (point 3 above) is applied but not
-yet re-confirmed on hardware — next step.
+**Fully confirmed on hardware, including the colour fix**: 8 sharp,
+evenly-spaced, correctly-coloured vertical bars (white/yellow/cyan/green/
+magenta/red/blue/black, left to right), stable (no flicker/rolling/sync
+loss). Black bars either side on a widescreen monitor are expected —
+640×480 is a 4:3 signal, shown at native size on a 16:9 panel rather than
+stretched. **Stage 1 is done.**
 
 ## Next: the real A1
 
