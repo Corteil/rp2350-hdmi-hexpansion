@@ -327,11 +327,43 @@ What it needs before it can be committed to:
 |-------------|--------|
 | A firmware hook to capture the drawlist | A **second** upstream ask, beyond `display.get_fb()` |
 | ctx built for RP2350 | Portable single-header C, but 84k lines — a real dependency |
-| **Rasterisation performance at 640×480 on an RP2350** | **Open question.** §3.4 says there is a free core and 8 MB of PSRAM to spend, but nobody has measured it |
+| **Rasterisation performance at 640×480 on an RP2350** | **Measured, negative for animation.** See below. |
 | LGPL-3.0-or-later review | Fine for firmware, but a deliberate decision rather than an assumption |
 
-None of that gates v1 — mirroring does not depend on any of it. Treat drawlist forwarding
-as the intended direction for the advanced path, to be confirmed once the mirror works.
+None of that gates v1 — mirroring does not depend on any of it.
+
+**Measured on the Metro RP2350 bench (Phase 0 B1, see
+`firmware/phase0-metro/`):** a hand-built "typical app screen" scene
+(cards, icons, a header gradient) rasterises at **343 ms/frame (2.9
+fps)**; a deliberately shape-heavy "worst case" scene (~160 overlapping
+translucent shapes plus a full-screen radial gradient) at **1426 ms/frame
+(0.7 fps)**. Both into a 640×480 RGB565_BYTESWAPPED framebuffer in PSRAM,
+`CTX_RASTERIZER_AA` matched to the badge's own config (5, not ctx's
+default of 15 — dropping AA only bought ~7%, so AA isn't what's slow
+here).
+
+Decomposed to find out what *is* slow: a raw sequential scalar write of
+614 KB straight to the PSRAM framebuffer (no ctx involved) takes **70.6
+ms** on its own — already a ~14 fps ceiling for *any* full-frame update
+into PSRAM by CPU store instructions, before ctx does anything. ctx's
+cheapest possible draw call (one opaque full-canvas rect, no gradient)
+takes **169 ms** — about 2.4× the raw-write floor, i.e. roughly 40% of
+even the *cheapest* frame's cost is PSRAM write bandwidth itself, not
+ctx's rasteriser. The gradient- and shape-heavy scenes scale up from
+there (typical ≈ 2× the solid-fill cost, worst case ≈ 8.4×).
+
+**What this means:** full-frame ctx drawlist forwarding is not viable for
+anything that redraws continuously or animates — 2.9 fps best case is
+well below usable. It may still be viable for **occasional full redraws
+of largely-static screens** (e.g. a settings menu redrawn once on
+navigation, tolerating a few hundred ms of latency), which is a real and
+still-useful mode, just not "every app gets a live 640×480 canvas for
+free" the way mirroring is. This wasn't tested with DMA-driven writes,
+but that wouldn't help ctx specifically — ctx's rasteriser fills spans
+with ordinary C stores, not DMA, regardless of where the target buffer
+lives; DMA only helps the *scanout* (HSTX) side, which is unrelated to
+this cost. Treat "drawlist forwarding for static/occasional content, not
+animation" as the finding rather than "drawlist forwarding" unqualified.
 
 #### The command set that remains either way
 
@@ -927,11 +959,13 @@ and Qwiic rows cannot be checked here.
 
 #### Part B — Metro, the PSRAM and SD bench
 
-**B1. ctx rasterisation at 640×480 — the highest-value single measurement.** ctx is portable
-single-header C; build it under the Pico SDK, feed it a drawlist representative of a real
-badge app, record milliseconds per frame for a typical scene and a worst case. **Settles
-risk 17 and decides the shape of §3.2.** A 614 KB 16 bpp target does not fit in 520 KB of
-SRAM, which is why this needs the Metro's PSRAM.
+**B1. ctx rasterisation at 640×480 — the highest-value single measurement. Done**, on real
+Metro RP2350 hardware (`firmware/phase0-metro/`, hand-built scenes rather than a drawlist
+captured from a real app — Part C, capturing one, hasn't happened yet). **Result: 2.9 fps
+typical scene, 0.7 fps worst case — too slow for animation.** Decomposed against a raw
+PSRAM-write floor and ctx's own cheapest-possible draw call to find out why (§3.2 has the
+full numbers and what they mean for the advanced path). Settles risk 17. A 614 KB 16 bpp
+target does not fit in 520 KB of SRAM, which is why this needed the Metro's PSRAM.
 
 *Alternative on the Feather:* rasterise at **8 bpp palette** — 307 KB, fits in SRAM, and is
 already a listed mode in §3.3, so the number is directly useful rather than a proxy.
@@ -1037,7 +1071,7 @@ primary mode.
 | 14 | TMDS signal integrity on a 1.0 mm 4-layer board | Low | Short runs, controlled impedance, proven direct-drive topology. |
 | 15 | VID/PID not assigned in time | Low | Ask in week 1; costs nothing. |
 | 16 | RP2350-E9 pull-down erratum bites on LS/CS/I2C lines | Low | External pull resistors everywhere it matters. |
-| 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Low | **Settled by Phase 0 A1**, which needs only the Metro. Affects the advanced path only; v1 mirroring depends on none of it. Fallback is the bespoke command set in §3.2, which is already specified. |
+| 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Medium (raised from Low) | **Settled by Phase 0 B1, on the Metro: rasterisation is too slow for animation** (2.9 fps typical scene, 0.7 fps worst case; ~40% of even the cheapest frame is PSRAM write bandwidth, not ctx itself — see §3.2). Affects the advanced path only; v1 mirroring depends on none of it. Occasional full-redraws of static content may still be viable; continuous/animated drawlist forwarding is not. Fallback is the bespoke command set in §3.2, which is already specified. |
 | 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. Closed by populating the Feather's unpopulated PSRAM footprint with an APS6404L (~$1.15) in Phase 0. |
 
 ---
@@ -1063,5 +1097,5 @@ primary mode.
 
 * **Run size.** The fixed-cost curve in §7 says 50 if there is any chance of 50.
 * **Whether the outer flat closes at 44 mm**, or the board wants the wedge outline. Decided by the placement study, not now.
-* **Whether ctx drawlist forwarding is viable** — needs a rasterisation benchmark on RP2350 hardware and an LGPL-3.0+ review. Not on the v1 path.
+* **Whether ctx drawlist forwarding is viable** — **measured (Phase 0 B1, §3.2): not for animation** (2.9 fps typical / 0.7 fps worst case). Occasional static-content redraws still plausible; not settled. LGPL-3.0+ review still outstanding. Not on the v1 path.
 * **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant.

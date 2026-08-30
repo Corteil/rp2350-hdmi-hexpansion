@@ -17,8 +17,10 @@ flash — the PSRAM variant, not the plain Metro RP2350).
 - [x] **B1 — ctx rasterisation benchmark at 640×480** (the highest-value
       Phase 0 measurement — see README §8). `ctx` vendored under
       `third_party/ctx/` (single-header C, LGPL-3.0-or-later — see
-      `third_party/ctx/VENDORED.md`). Builds clean; timing numbers not
-      yet captured on hardware (see below).
+      `third_party/ctx/VENDORED.md`). **Measured on hardware: 2.9 fps
+      typical scene, 0.7 fps worst case — too slow for animation.**
+      Decomposed to find out why: see below. Main README §3.2 and risk
+      17 updated with these numbers.
 - [ ] B2 — microSD (SPI0, GPIO34–40) + PSRAM-backed 640×480 16bpp scanout.
 - [ ] B3 — run the same firmware on the RP2350A Feather (Part A) to compare.
 
@@ -85,6 +87,37 @@ chip rasterise ctx content" until a real captured drawlist exists; see
 `third_party/ctx/VENDORED.md` for the caveats. `ctx_bench_run()` skips
 itself (prints why) if PSRAM isn't available or is too small for the
 framebuffer.
+
+#### Measured results (Metro RP2350 with PSRAM, 2026-08-30)
+
+```
+raw write   min   69.69 ms  avg   70.63 ms ( 14.2 fps)   [~8.70 MB/s]
+solid fill  min  169.29 ms  avg  169.38 ms (  5.9 fps)
+typical     min  343.10 ms  avg  343.21 ms (  2.9 fps)
+worst case  min 1426.38 ms  avg 1426.57 ms (  0.7 fps)
+```
+
+Reading the decomposition: **raw write** (70.6 ms) is a hard floor —
+even a hypothetically free rasteriser can't beat it, because that's just
+what it costs to push 614 KB into PSRAM one scalar store at a time. ctx's
+**solid fill** (169 ms, the cheapest possible draw call) is ~2.4× that
+floor, meaning roughly 40% of even the cheapest frame's cost is PSRAM
+write bandwidth rather than ctx's own rasterisation work. **typical**
+(343 ms) is ~2× solid-fill; **worst case** (1426 ms) is ~8.4× solid-fill,
+reflecting the full-screen radial gradient (expensive per-pixel
+evaluation) plus 160 shapes with alpha blending.
+
+DMA wasn't tried and wouldn't help here regardless: ctx's rasteriser
+fills spans with plain C stores, not DMA, no matter where the target
+buffer lives. DMA only helps the *scanout* (HSTX) side, which this
+benchmark doesn't touch.
+
+**Conclusion:** full-frame ctx drawlist forwarding can't support
+animation on this chip (2.9 fps best case, hand-built scene). It may
+still work for occasional full redraws of static screens (e.g. a
+settings menu redrawn once on navigation) where a few hundred ms of
+latency is acceptable. See the main README §3.2 and risk 17 for what
+this means for the design.
 
 ctx was configured stripped down for this target: no text/fonts, no
 XML/parser/formatter/events (desktop-oriented features), and only the one
