@@ -74,3 +74,19 @@ pico_enable_stdio_usb(spi_lbm 1)
 pico_enable_stdio_uart(spi_lbm 0)
 
 pico_add_extra_outputs(spi_lbm)
+
+# Phase 0 C3: one real 115,200-byte frame, timed end to end -- see
+# src/spi_frame_test.c header comment.
+add_executable(spi_frame
+    src/spi_frame_test.c
+)
+
+target_link_libraries(spi_frame
+    pico_stdlib
+    hardware_spi
+)
+
+pico_enable_stdio_usb(spi_frame 1)
+pico_enable_stdio_uart(spi_frame 0)
+
+pico_add_extra_outputs(spi_frame)

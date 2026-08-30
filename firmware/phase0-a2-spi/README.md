@@ -169,3 +169,66 @@ pad, cold joint) rather than a systemic issue.
 CPHA=1), CS held low for the whole burst, matching A2's I2C0-target half
 (`../phase0-a2-eeprom/`, already confirmed working). Both halves of the SPI0 role mapping
 chosen in the main README's §4.1 are now hardware-verified, not just planned.
+
+## C3 — SPI link speed sweep and a real 115,200-byte frame (2026-08-30, same session)
+
+Bench wiring for this run: **dupont jumpers**, not the official edge connector — expect a
+lower ceiling than a real hexpansion PCB trace would give (shorter, controlled-impedance,
+no loose contacts). No RP2350 firmware change was needed to sweep badge-side rates: in
+slave mode the PL022 derives its bit timing from whatever SCK the master drives (`main.c`'s
+own comment), so `bringup.uf2` self-adapts across rates.
+
+### Speed sweep (`spi_speed_sweep.py`, 5 rounds/rate, 16-byte known pattern)
+
+| Rate | Result |
+|-----:|--------|
+| 100 kHz | 5/5 clean |
+| 250 kHz – 20 MHz | 4/5 clean — **always the same deterministic corruption on round 0 only** |
+| 30 MHz | 0/5 — genuinely corrupted, different garbage each round |
+| 40 MHz | 1/5 — genuinely corrupted, different garbage each round |
+
+**The 250 kHz–20 MHz "failures" are not a link problem.** Every one of them shows the exact
+same 16 bytes (`41 43 45 47 49 4b 4d 4f 51 53 55 57 59 5b 5d 5e` — `[65, 67, 69, ... 94]`
+decimal) on round 0, and only round 0, regardless of rate — a fixed, repeatable pattern, not
+noise. A first run of `badge_test.py` on its own showed the identical signature: round 0
+corrupted, rounds 1–2 clean, on a link already independently proven working. That points at
+the **badge's own ESP32-S3 SPI master peripheral producing a corrupted first transaction
+right after `machine.SPI(...)` is constructed** — every subsequent transfer on the same
+object is clean — rather than anything wrong with the RP2350 slave, the wiring, or the mode.
+The sweep script builds a fresh `SPI` object per rate, so it hits this once per rate; a
+script that reuses one `SPI` object and only reconfigures baudrate would likely avoid it
+entirely, but wasn't necessary to draw the conclusion here.
+
+30 MHz and 40 MHz are different in kind — different garbage every round, no fixed pattern —
+consistent with genuine bit errors from dupont-wire signal integrity at that speed, matching
+the main README §1.2 expectation that the badge's matrix-routed (non-IOMUX) HS pins top out
+around 40 MHz even in the best case.
+
+**Conclusion: 100 kHz–20 MHz is fully reliable** (after the first, discardable transaction on
+a freshly constructed master object); real degradation starts at 30 MHz, over dupont wire.
+
+### Real frame push (`src/spi_frame_test.c` + `spi_frame_timing.py`)
+
+One 115,200-byte transfer (240×240 RGB565 — the badge's actual mirrored-framebuffer size,
+main README §3.1), preceded by one small discarded warmup transfer (see above), with both
+sides verifying every byte against a known pattern.
+
+| Rate | Result | Badge-measured wire time | vs. theoretical minimum | Full-frame-equivalent |
+|-----:|--------|--------------------------:|---:|---:|
+| 10 MHz | **0/115200 mismatches, both sides** | 93,673 µs | 92,160 µs → **98.4% efficiency** | 10.7 fps |
+| 20 MHz | **0/115200 mismatches, both sides** | 47,586 µs | 46,080 µs → **96.7% efficiency** | 21.0 fps |
+
+**Use the badge-side timing, not the RP2350's.** The RP2350 firmware's own elapsed-time
+number (4.6 **seconds**, both rates — obviously bogus) is a measurement artifact, not a
+finding: its clock starts right after the warmup, before the badge has finished the slow job
+of building a 115,200-byte `bytearray` via a Python generator expression in MicroPython —
+that CPU-bound Python time lands entirely inside the RP2350's "waiting for CS" window and
+gets counted as transfer time. The badge's own measurement, taken only around the actual
+`spi.write_readinto()` call, is unaffected by this and lands within 2–4% of the
+clock-rate-only theoretical minimum both times — that's the trustworthy number.
+
+**C3 is settled for the bench-wiring case: a full mirrored frame moves in well under the
+100 ms budget C1 needs (worst real app measured: 14.3 fps → ~70 ms/frame) even at 10 MHz**,
+with headroom to spare at 20 MHz and likely beyond (30/40 MHz weren't re-tried with a full
+frame — the small-packet sweep already shows they're unreliable on this wiring). The official
+edge connector, not dupont wire, is the next thing to re-run this against once available.

@@ -1117,9 +1117,14 @@ assignment is unchanged for the real product, which has no such constraint. LS_E
 (GPIO29) is left unwired on the Metro — that pin doubles as the board's USB-A host power
 enable, an unwanted side effect for a "spare" signal with no bearing on the actual test.
 Physically wired and **I2C0-target half confirmed working** — see C4 below, same firmware
-and wiring session. **SPI0-slave half not yet tested** — needs badge-side driver code to
-actually drive the HS lines as SPI master, unlike I2C0 (which the badge scans passively on
-its own).
+and wiring session. **SPI0-slave half also confirmed working (2026-08-30)**, mode 3
+(CPOL=1, CPHA=1), CS held low for the whole burst: badge and RP2350 exchange known test
+patterns cleanly in both directions. The first attempts failed regardless of SPI mode —
+root-caused to a single bad physical connection on the CS wire (bench dupont wiring), found
+by comparing GPIO edge counts across all four SPI0 pins during a live badge-driven transfer;
+CS showed zero edges while SCK/MOSI showed clean, correctly-counted activity over the same
+wiring pass. Fixed by rewiring that one connection. Full diagnostic writeup and the C3 speed
+sweep below in `firmware/phase0-a2-spi/README.md`.
 
 **A3. 640×480 @60 DVI output — done.** Confirmed on a real monitor (Stage 1 and Stage 2
 both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HSTX-rating
@@ -1175,9 +1180,19 @@ interrupt-vs-`resume` gotcha worked around to get them non-invasively are in §3
 §3.1 arrives as a tested patch. If you also want drawlist forwarding, prototype the capture
 hook here — one conversation upstream, two hooks.
 
-**C3. SPI link speed.** Sweep 10→40 MHz over the HS pins through the protoboard hexpansion
-with the real edge connector in circuit. Record the highest reliable rate, then push a real
-115,200-byte frame and time it end to end.
+**C3. SPI link speed — done for the bench-wiring case (2026-08-30).** Swept 100 kHz–40 MHz
+over dupont-wire bench wiring (not yet the real edge connector — see below). **100 kHz–20
+MHz fully reliable**; 30/40 MHz show genuine bit errors, consistent with §1.2's ~40 MHz
+ceiling on the badge's matrix-routed HS pins. Pushed a real 115,200-byte frame (the badge's
+actual mirrored-framebuffer size) at both 10 and 20 MHz: **0 mismatches both directions at
+both rates**, wire time within 2–4% of the clock-rate theoretical minimum (98.4% efficiency
+at 10 MHz, 96.7% at 20 MHz) — **10.7 fps and 21.0 fps full-frame-equivalent**, both well
+inside C1's budget (worst real app measured: 14.3 fps, ~70 ms/frame). Full numbers,
+including a debugged false-failure (a fixed, repeatable corrupted-first-transaction artifact
+on the badge's own ESP32-S3 SPI master, not a link problem) and a bogus RP2350-side timing
+number explained, in `firmware/phase0-a2-spi/README.md`. **Still open: re-run against the
+real edge connector** (dupont wire is expected to be the pessimistic case, not the
+representative one) and confirm 30/40 MHz clean up on a PCB trace before relying on them.
 
 **C4. EEPROM emulation enumerates reliably.** Cold-plug 50 times. Measure worst-case time
 from port power-on to the badge's first I2C read against the RP2350's time-to-I2C-ready. If
