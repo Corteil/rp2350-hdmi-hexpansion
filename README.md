@@ -999,6 +999,15 @@ re-reading each source line vertically, per-line descriptor table for the circul
 pillarbox. Feed it a static test image — ideally a real badge screenshot. Measure actual
 core load against §3.4's estimated 2–5%. **This validates the whole mirroring architecture.**
 
+**Stage 1 built (`firmware/phase0-dvi/`), not yet run on hardware.** A deliberately
+simplified first step — 320×240 doubled to fill 640×480 exactly (no pillarbox/mask needed,
+since 320×2=640 and 240×2=480 land exactly), horizontal doubling done by pre-expanding in
+SRAM rather than the HSTX pixel-duplication trick, and the simpler two-channel
+per-scanline-IRQ DMA mechanism from the official `pico-examples` rather than the
+CPU-efficient one-IRQ-per-frame ring-buffer approach Adafruit's own PicoDVI driver uses.
+The real pillarboxed/circular-masked/CPU-load-measured A1 is the next step once this is
+confirmed correct on a monitor.
+
 **A2. Pin-map validation.** Bring up §4.1's allocation on real RP2350A silicon: SPI0 as
 slave, SPI1 on `{8,9,10,11}`, I2C0 as target, I2C1 for Qwiic, DDC on PIO. This is the test
 the Metro cannot do, and the reason the Feather is the primary bench.
