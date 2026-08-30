@@ -107,9 +107,44 @@ path) — the only thing to check is the monitor.
    lane/pin mapping. If channel-swapped (e.g. red and blue traded), see
    the note above — cheap, expected-possible, easy fix.
 
-## Results
+## Results (2026-08-30, Adafruit Feather RP2350 with HSTX)
 
-Not yet run on hardware.
+**Working, after three real bugs found and fixed on hardware:**
+
+1. **Ribbon cable inserted backwards** — showed as "no signal" on the
+   monitor. Diagnosed by flashing CircuitPython and running Adafruit's own
+   `picodvi` example (same resolution, same adapter) — it also showed
+   nothing until the cable was reseated correctly, which isolated the
+   problem to the physical connection rather than any code, ours or
+   Adafruit's.
+2. **Wrong pixel clock** — `clk_hstx` follows `clk_sys` undivided by
+   default (confirmed via [RP2350 datasheet](https://pip.raspberrypi.com/documents/RP-008373-DS-rp2350-datasheet.pdf)
+   §12.11.4), and the real pixel clock is `clk_hstx`/5 (fixed by the
+   `N_SHIFTS=5` DDR scheme) — not adjustable via `CSR.CLKDIV`, which is
+   only the *clock generator* output's own period and must equal
+   `N_SHIFTS` to keep clock and data aligned. An initial attempt to "fix"
+   the pixel clock by changing `CLKDIV` (5→6) was wrong and made things
+   worse (regressed from "out of range" to "no signal" — see git history).
+   The actual fix: `set_sys_clock_khz(126000, true)` at the top of
+   `main()`, confirmed against
+   [`Panda381/DispHSTX`](https://github.com/Panda381/DispHSTX)'s own
+   tested video mode table, which explicitly uses "system clock 126 MHz"
+   for 640×480@60.
+3. **Colour channels rotated** — see the comment above `bar_colours[]` in
+   `src/main.c`. White and black round-tripped correctly (colour-order
+   invariant), every other colour came out as a fixed, consistent
+   substitute — a clean 3-way rotation, not a scramble. Fixed by
+   empirically inverting the observed substitution in the test pattern's
+   colour table. **This is a test-pattern-level fix, not a root-cause
+   one** — real badge pixel data can't be pre-rotated like this for free,
+   so the actual `expand_tmds`/lane-mapping bug this is compensating for
+   still needs finding before Stage 2.
+
+**Confirmed on hardware**: 8 sharp, evenly-spaced vertical bars filling
+the full 640×480 screen, stable (no flicker/rolling/sync loss) — the
+doubling math, DMA read addressing, and TMDS/HSTX/DMA/timing chain are
+all validated. The colour-table fix (point 3 above) is applied but not
+yet re-confirmed on hardware — next step.
 
 ## Next: the real A1
 

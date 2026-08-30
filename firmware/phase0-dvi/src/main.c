@@ -94,8 +94,24 @@ static uint32_t framebuf[SRC_ROWS][ROW_WORDS];
 // 80px each (640/8). Lets a glance confirm both geometry (bars should be
 // sharp and evenly spaced) and colour channel wiring (each bar is a known
 // colour) at once.
+//
+// First hardware run showed a clean channel rotation, not a scramble --
+// white and black round-tripped correctly (invariant under any channel
+// reorder), and each other colour came out as a fixed, consistent
+// substitute (sent yellow -> displayed purple, sent cyan -> displayed
+// yellow, sent green -> displayed red, sent magenta -> displayed cyan,
+// sent red -> displayed blue, sent blue -> displayed green). That
+// confirmed the doubling/timing/DMA mechanism is correct -- only the R/G/B
+// channel assumption (from Adafruit's expand_tmds ROT values combined
+// with this file's own 32-bit pixel-pair packing) was off. Values below
+// are empirically corrected (inverting the observed substitution table)
+// so the *displayed* order is white/yellow/cyan/green/magenta/red/blue/
+// black as intended. This is a test-pattern-level fix, not a root-cause
+// one -- real badge pixel data (Stage 2) can't be pre-rotated like this
+// in software for free, so the actual expand_tmds/lane-mapping bug still
+// needs finding before then.
 static const uint16_t bar_colours[8] = {
-    0xFFFF, 0xFFE0, 0x07FF, 0x07E0, 0xF81F, 0xF800, 0x001F, 0x0000,
+    0xFFFF, 0x07FF, 0xF81F, 0x001F, 0xFFE0, 0x07E0, 0xF800, 0x0000,
 };
 
 static void fill_test_pattern(void) {
