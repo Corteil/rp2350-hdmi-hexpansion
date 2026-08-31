@@ -39,11 +39,25 @@ BLOCK_SIZE = 512
 BLOCK_COUNT = 127  # (eeprom_total_size=65536 - fs_offset=64) // 512 -- must match src/eeprom_i2c.c
 
 
+# Anything under these never belongs on the badge -- most notably
+# __pycache__/*.pyc, which a stray `python -m py_compile` (e.g. a local
+# syntax check) leaves behind right next to app.py. Packing one in
+# blindly fails LFS_ERR_NOENT (the .pyc's parent directory was never
+# created inside the image), which is a confusing way to discover an
+# unrelated dev-tool side effect -- skip it explicitly instead.
+SKIP_DIR_NAMES = {"__pycache__"}
+SKIP_SUFFIXES = {".pyc"}
+
+
 def build_image() -> bytes:
     fs = LittleFS(block_size=BLOCK_SIZE, block_count=BLOCK_COUNT)
 
     for path in sorted(BADGE_APP_DIR.rglob("*")):
         if path.is_dir():
+            continue
+        if SKIP_DIR_NAMES & set(path.relative_to(BADGE_APP_DIR).parts[:-1]):
+            continue
+        if path.suffix in SKIP_SUFFIXES:
             continue
         rel = path.relative_to(BADGE_APP_DIR).as_posix()
         data = path.read_bytes()

@@ -6,33 +6,52 @@
 // eeprom_i2c.c, real VID/PID) -> mounts the real LittleFS image inside
 // it (fs_image.h) -> auto-launches badge_app/app.py -> that app opens
 // SPI0 (mode 3, CS-continuous -- the exact protocol proven in Phase 0
-// A2/C3) and sends a pattern-select command -> this firmware applies it
-// and the connected monitor (HSTX/DVI, colour-correct per Phase 0 A1)
-// shows it. Every link in that chain was proven individually in Phase 0;
-// this is the first firmware to run all of them at once.
+// A2/C3) and streams a live, badge-generated frame, row by row -> this
+// firmware writes each row into framebuf and the connected monitor
+// (HSTX/DVI, colour-correct per Phase 0 A1) shows it, continuously, "as
+// if mirrored from the badge". Every link in that chain was proven
+// individually in Phase 0; this is the first firmware to run all of
+// them at once.
+//
+// 2026-08-30: reworked from a 4-pattern SELECT-command demo (badge picks
+// among a few RP2350-generated test cards) into this -- the badge itself
+// generates 240x240 RGB565 frame content in Python and streams it,
+// matching what the real product's primary mode actually does (main
+// README section 3.1), not just proving a control link. NOT a literal
+// mirror of the badge's own rendered screen -- that needs display.get_fb()
+// (Phase 0 C2's patch, written but never verified, and would mean
+// flashing custom firmware onto a real physical badge, out of scope
+// here) -- the badge instead builds pixel data directly in Python. Same
+// wire format and bandwidth profile the real thing needs either way.
 //
 // Board: Metro RP2350 -- same bench rig as A2/C3/C4 (I2C0 on GPIO4/5,
 // SPI0 on GPIO20-23) and phase0-dvi-colorfix (HSTX on GPIO12-19, its own
 // dedicated 22-pin connector). All three pin groups are disjoint, so one
 // physical board runs the whole demo.
 //
-// HSTX geometry: Stage 1's exact-double 320x240->640x480 shape (no
-// pillarbox/circular mask -- that's A1 Stage 2's concern, mirroring the
-// badge's own round display; this is a generic test card, not a mirror,
-// so the simpler exact-fit geometry is the right one here). Colour
-// config is the root-cause fix from firmware/phase0-dvi-colorfix/, not
-// the empirical compensation table Stage 1 originally shipped with.
+// HSTX geometry: A1 Stage 2's real target -- 240x240 source, pillarboxed
+// and circular-masked into 640x480 (matching the badge's own round
+// display, per main README section 3.1/3.4) -- not Stage 1's simpler
+// exact-double 320x240 shape the original pattern-select version of this
+// file used. Row-fill/mask logic is phase0-dvi2's proven code, unchanged;
+// colour config is the root-cause fix from firmware/phase0-dvi-colorfix/.
 
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
+#include "hardware/pio.h"
 #include "hardware/spi.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
 #include "hardware/sync.h"
 #include "pico/stdlib.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "ws2812.pio.h"
 
 #include "eeprom_i2c.h"
 
@@ -59,78 +78,102 @@
 #define MODE_V_BACK_PORCH    33
 #define MODE_V_ACTIVE_LINES  480
 
-#define MODE_H_TOTAL_PIXELS ( \
-    MODE_H_FRONT_PORCH + MODE_H_SYNC_WIDTH + \
-    MODE_H_BACK_PORCH  + MODE_H_ACTIVE_PIXELS \
-)
 #define MODE_V_TOTAL_LINES  ( \
     MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + \
     MODE_V_BACK_PORCH  + MODE_V_ACTIVE_LINES \
 )
 
-#define HSTX_CMD_RAW         (0x0u << 12)
 #define HSTX_CMD_RAW_REPEAT  (0x1u << 12)
 #define HSTX_CMD_TMDS        (0x2u << 12)
 #define HSTX_CMD_NOP         (0xfu << 12)
 
 // ----------------------------------------------------------------------------
-// Source image: 320x240, pre-expanded to 640-wide RGB565 rows in SRAM
-// (Stage 1's exact-double geometry -- see file header). Vertical 2x is
-// done by re-reading each row twice (see dma_irq_handler).
+// Source image: 240x240 (the badge's own screen size), pre-doubled
+// horizontally to 480-wide RGB565 rows in SRAM -- byte-for-byte
+// phase0-dvi2's proven geometry. Vertical 2x re-reads each row twice
+// (see dma_irq_handler). 240 words/row * 240 rows * 4 bytes = 230400
+// bytes.
 
-#define SRC_ROWS  240
-#define ROW_WORDS (MODE_H_ACTIVE_PIXELS / 2)  // 2 RGB565 pixels/word
+#define SRC_ROWS   240
+#define DBL_W      480                 // 240 source pixels, doubled
+#define DBL_WORDS  (DBL_W / 2)         // 2 RGB565 pixels/word
+#define PILLARBOX  ((MODE_H_ACTIVE_PIXELS - DBL_W) / 2)  // 80px each side
 
-static uint32_t framebuf[SRC_ROWS][ROW_WORDS];
+static uint32_t framebuf[SRC_ROWS][DBL_WORDS];
 
-#define PATTERN_COUNT 4
+// A real second copy of framebuf (double buffering, swapped at vblank)
+// would remove the live-streaming sweep entirely, but doesn't fit: it's
+// another 230400 bytes against ~220KB of free SRAM. frame_staging holds
+// incoming rows at their SOURCE resolution instead (240 pixels, not the
+// pre-doubled 480) -- 240*240*2 = 115200 bytes, half the cost -- and
+// only gets expanded into framebuf, one full staged frame at a time,
+// once every 240 rows (see the SPI0 receive loop in main()). The
+// visible result is close to real double buffering (one swap per badge
+// frame instead of a continuous row-by-row reveal) without the RAM cost
+// of an actual second framebuf.
+static uint16_t frame_staging[SRC_ROWS][DBL_WORDS];
 
-// Classic 8-bar pattern, TRUE RGB565 values -- see
-// firmware/phase0-dvi-colorfix/README.md for the expand_tmds derivation
-// that makes these display correctly without compensation.
-static const uint16_t bar_colours[8] = {
-    0xFFFF, // white   R+G+B
-    0xFFE0, // yellow  R+G
-    0x07FF, // cyan    G+B
-    0x07E0, // green   G
-    0xF81F, // magenta R+B
-    0xF800, // red     R
-    0x001F, // blue    B
-    0x0000, // black
-};
+// "No signal" pattern -- analog-TV-style static, generated here on the
+// RP2350 (not sent by the badge), shown at boot before the badge's first
+// streamed row ever arrives. A simple xorshift32 PRNG, not
+// cryptographic-quality -- fine for visual noise.
+static uint32_t rng_state = 0xC0FFEEu;
 
-static void fill_pattern(uint8_t pattern_id) {
+static inline uint32_t xorshift32(void) {
+    uint32_t x = rng_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    rng_state = x;
+    return x;
+}
+
+static inline uint16_t random_gray_pixel(void) {
+    uint8_t v = (uint8_t)(xorshift32() & 0xFF);
+    // RGB565 gray: top bits of the same 8-bit value into each channel's
+    // field width (5/6/5), so R==B and G is the closest 6-bit match --
+    // visually neutral gray, not tinted.
+    return (uint16_t)(((v >> 3) << 11) | ((v >> 2) << 5) | (v >> 3));
+}
+
+static void fill_static_noise_row(int row) {
+    for (int w = 0; w < DBL_WORDS; w++) {
+        uint16_t c0 = random_gray_pixel();
+        uint16_t c1 = random_gray_pixel();
+        framebuf[row][w] = (uint32_t)c0 | ((uint32_t)c1 << 16);
+    }
+}
+
+static void fill_static_noise(void) {
     for (int row = 0; row < SRC_ROWS; row++) {
-        for (int w = 0; w < ROW_WORDS; w++) {
-            int x0 = w * 2;
-            int x1 = w * 2 + 1;
-            uint16_t c0, c1;
-            switch (pattern_id) {
-                case 1:  // solid red
-                    c0 = c1 = 0xF800;
-                    break;
-                case 2:  // solid green
-                    c0 = c1 = 0x07E0;
-                    break;
-                case 3: {  // checkerboard, 40px blocks
-                    int block_x0 = x0 / 40, block_x1 = x1 / 40, block_y = row / 40;
-                    c0 = ((block_x0 + block_y) & 1) ? 0xFFFF : 0x0000;
-                    c1 = ((block_x1 + block_y) & 1) ? 0xFFFF : 0x0000;
-                    break;
-                }
-                default:  // 0 (and any out-of-range fallback): colour bars
-                    c0 = bar_colours[x0 / 80];
-                    c1 = bar_colours[x1 / 80];
-                    break;
-            }
-            framebuf[row][w] = (uint32_t)c0 | ((uint32_t)c1 << 16);
+        fill_static_noise_row(row);
+    }
+}
+
+// Per active-output-row (0..479) half-width of the visible circle, in
+// pixels, always even (word-aligned: 2 RGB565 pixels/word) -- unchanged
+// from phase0-dvi2, see that file for the full derivation.
+static uint16_t row_half_width[MODE_V_ACTIVE_LINES];
+
+static void build_row_table(void) {
+    const float radius = DBL_W / 2.0f;
+    const float centre = (MODE_V_ACTIVE_LINES - 1) / 2.0f;
+    for (int row = 0; row < MODE_V_ACTIVE_LINES; row++) {
+        float dy = row - centre;
+        float hw = 0.0f;
+        if (fabsf(dy) < radius) {
+            hw = sqrtf(radius * radius - dy * dy);
         }
+        int half_width = (int)(hw + 0.5f);
+        half_width -= half_width & 1;
+        if (half_width < 0) half_width = 0;
+        if (half_width > (int)radius) half_width = (int)radius;
+        row_half_width[row] = (uint16_t)half_width;
     }
 }
 
 // ----------------------------------------------------------------------------
-// HSTX command lists (padded with NOPs to be >= HSTX FIFO size) -- byte-for-
-// byte Stage 1's proven shape (firmware/phase0-dvi/).
+// HSTX command lists -- unchanged from phase0-dvi2 (proven on hardware).
 
 static uint32_t vblank_line_vsync_off[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
@@ -152,6 +195,10 @@ static uint32_t vblank_line_vsync_on[] = {
     HSTX_CMD_NOP
 };
 
+// One HSTX_CMD_TMDS covering the full 640px active width -- see
+// phase0-dvi2/src/main.c's comment for why the black pillarbox/mask
+// fill must be plain DMA data under this same command, never separate
+// TMDS commands (extra command-boundary stalls break horizontal sync).
 static uint32_t vactive_line[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
     SYNC_V1_H1,
@@ -164,20 +211,27 @@ static uint32_t vactive_line[] = {
     HSTX_CMD_TMDS       | MODE_H_ACTIVE_PIXELS
 };
 
+#define ZERO_BUF_WORDS 160
+static uint32_t zero_buf[ZERO_BUF_WORDS] = {0};
+
 // ----------------------------------------------------------------------------
-// DMA logic -- two channels ping-ponging via chain_to, unchanged from
-// Stage 1. Reads whatever fill_pattern() last wrote into framebuf; a
-// pattern change from the SPI0 command loop below can land mid-scanout
-// (framebuf isn't double-buffered here) -- worst case is a one-frame
-// visual tear during a pattern switch, an acceptable cosmetic cost for a
-// test card, not a correctness issue.
+// DMA logic -- two channels ping-ponging via chain_to, four phases per
+// active row (command list / left fill / pixel data / right fill), one
+// HSTX command total per row -- unchanged from phase0-dvi2. Reads
+// whatever the SPI0 receive loop below last wrote into framebuf; a row
+// landing mid-scanout (framebuf isn't double-buffered) can still tear
+// that one row if it's written at the exact wrong instant. A full second
+// framebuf would remove this entirely but doesn't fit -- SRAM is already
+// down to a few KB of headroom with one 230KB copy (see
+// framebuf_row_write_is_safe(), below, for the lighter mitigation used
+// instead: skip writing only the specific row the DMA is about to reach).
 
 #define DMACH_PING 0
 #define DMACH_PONG 1
 
 static bool dma_pong = false;
-static uint v_scanline = 2;
-static bool vactive_cmdlist_posted = false;
+static volatile uint v_scanline = 2;  // read from main() too now (framebuf_row_write_is_safe) -- must not be cached across a spin loop
+static int active_phase = 0;  // 0=left fill, 1=pixel data, 2=right fill
 
 void __scratch_x("") dma_irq_handler(void) {
     uint ch_num = dma_pong ? DMACH_PONG : DMACH_PING;
@@ -188,23 +242,76 @@ void __scratch_x("") dma_irq_handler(void) {
     if (v_scanline >= MODE_V_FRONT_PORCH && v_scanline < (MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH)) {
         ch->read_addr = (uintptr_t)vblank_line_vsync_on;
         ch->transfer_count = count_of(vblank_line_vsync_on);
-    } else if (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH) {
+        v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
+        return;
+    }
+    if (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH) {
         ch->read_addr = (uintptr_t)vblank_line_vsync_off;
         ch->transfer_count = count_of(vblank_line_vsync_off);
-    } else if (!vactive_cmdlist_posted) {
-        ch->read_addr = (uintptr_t)vactive_line;
-        ch->transfer_count = count_of(vactive_line);
-        vactive_cmdlist_posted = true;
-    } else {
-        uint v_active = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
-        uint src_row = (v_active / 2) % SRC_ROWS;  // vertical 2x: re-read each row twice
-        ch->read_addr = (uintptr_t)framebuf[src_row];
-        ch->transfer_count = ROW_WORDS;
-        vactive_cmdlist_posted = false;
+        v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
+        return;
     }
 
-    if (!vactive_cmdlist_posted) {
+    uint v_active = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
+    uint half_width = row_half_width[v_active];
+    uint left_black = PILLARBOX + (DBL_W / 2 - half_width);
+    uint right_black = left_black;
+
+    if (active_phase == 0) {
+        ch->read_addr = (uintptr_t)vactive_line;
+        ch->transfer_count = count_of(vactive_line);
+        active_phase = 1;
+    } else if (active_phase == 1) {
+        ch->read_addr = (uintptr_t)zero_buf;
+        ch->transfer_count = left_black / 2;
+        active_phase = 2;
+    } else if (active_phase == 2) {
+        uint src_row = (v_active / 2) % SRC_ROWS;  // vertical 2x
+        uint col_word_offset = (DBL_W / 2 - half_width) / 2;
+        ch->read_addr = (uintptr_t)(&framebuf[src_row][col_word_offset]);
+        ch->transfer_count = half_width;
+        active_phase = 3;
+    } else {
+        ch->read_addr = (uintptr_t)zero_buf;
+        ch->transfer_count = right_black / 2;
+        active_phase = 0;
         v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
+    }
+}
+
+// dma_irq_handler's phase-2 branch (above) only ever reads ONE framebuf
+// row at a time -- so every row except the one or two the DMA is about
+// to reach is always safe to write, no matter what the CPU is doing.
+// `row` counts as safe if: we're in vertical blanking right now (DMA
+// isn't touching framebuf at all, see the two early-return branches
+// above), or the scan position is far enough behind `row`, in the
+// direction it's advancing, that a short CPU write can't catch up to it
+// before it gets there. WRITE_SAFETY_MARGIN_ROWS=3 covers the write
+// itself (a few hundred ns for one row) many times over against the
+// ~63.5us it takes the scan position to advance one src_row (two
+// scanlines at vertical 2x).
+#define WRITE_SAFETY_MARGIN_ROWS 3
+
+static inline bool framebuf_row_write_is_safe(int row) {
+    uint scanline = v_scanline;  // single read of the ISR-shared value
+    if (scanline < (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES)) {
+        return true;  // vertical blanking -- DMA isn't reading framebuf at all
+    }
+    uint v_active = scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
+    int current_row = (int)((v_active / 2) % SRC_ROWS);
+    int ahead = (row - current_row + SRC_ROWS) % SRC_ROWS;
+    return ahead >= WRITE_SAFETY_MARGIN_ROWS;
+}
+
+// Bounded, not indefinite: one full scan lap is ~16ms, so 20ms is a
+// generous margin while still guaranteeing this can never hang the main
+// loop. If the deadline is somehow hit, writing anyway just risks the
+// same single-row tear this whole mechanism exists to avoid -- never a
+// correctness problem, only ever cosmetic.
+static inline void wait_until_row_write_safe(int row) {
+    absolute_time_t deadline = make_timeout_time_ms(20);
+    while (!framebuf_row_write_is_safe(row) && !time_reached(deadline)) {
+        tight_loop_contents();
     }
 }
 
@@ -276,6 +383,19 @@ static void hstx_dvi_init(void) {
     dma_hw->inte0 = (1u << DMACH_PING) | (1u << DMACH_PONG);
     irq_set_exclusive_handler(DMA_IRQ_0, dma_irq_handler);
     irq_set_enabled(DMA_IRQ_0, true);
+    // Highest priority (2026-08-30, found via real hardware testing):
+    // this A1-Stage-2-style geometry (4 DMA phases/active row, tighter
+    // per-line timing than Stage 1's simpler 2-phase shape -- its own
+    // README already documents it as more command-boundary-sensitive)
+    // lost HDMI sync specifically once the SPI0 row-streaming loop below
+    // started running continuously, while a fresh boot (HSTX/DMA alone,
+    // no sustained SPI0 traffic yet) displayed correctly -- isolating
+    // the cause to IRQ/bus contention between the two, not a DMA/HSTX
+    // config bug (that part is unchanged from phase0-dvi2, already
+    // proven). Forcing DMA_IRQ_0 to preempt promptly regardless of what
+    // the SPI0 polling loop is doing is the direct fix for exactly that
+    // class of problem.
+    irq_set_priority(DMA_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
 
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
 
@@ -283,19 +403,36 @@ static void hstx_dvi_init(void) {
 }
 
 // ----------------------------------------------------------------------------
-// SPI0 slave: pattern-select command link -- mode 3 (CPOL=1, CPHA=1), CS
-// held low for the whole burst, the exact protocol confirmed working on
-// real hardware in Phase 0 A2/C3 (firmware/phase0-a2-spi/). Pin roles:
-// HS_F=MOSI(GPIO20), HS_G=CS(GPIO21), HS_H=SCK(GPIO22), HS_I=MISO(GPIO23)
-// -- main README section 4.1's resolved role assignment.
+// SPI0 slave: row-streaming mirror link -- mode 3 (CPOL=1, CPHA=1), CS
+// held low per row, the protocol proven in Phase 0 A2/C3
+// (firmware/phase0-a2-spi/). Pin roles: HS_F=MOSI(GPIO20),
+// HS_G=CS(GPIO21), HS_H=SCK(GPIO22), HS_I=MISO(GPIO23) -- main README
+// section 4.1's resolved role assignment.
+//
+// One SPI burst per SOURCE row (240 source pixels = 480 bytes,
+// RGB565), not one burst for the whole 115,200-byte frame. Same
+// reasoning as the 1-byte pattern-select protocol this replaced: the
+// RP2350 never resets on hexpansion removal (USB-powered on this bench,
+// not badge-powered), so a mid-transfer disconnect can leave
+// spi_write_read_blocking() stuck waiting for bytes that never arrive,
+// permanently misaligning everything after it. Per-row bursts cap the
+// damage at one row (self-correcting on the very next row) instead of
+// an entire 115 KB transfer or a whole misaligned stream.
+//
+// No frame-sync marker: rows are received in a fixed repeating 0..239
+// cycle with no explicit "this is row 0" signal, so a resync after a
+// corrupted burst can leave the RP2350's row index briefly out of phase
+// with the badge's actual row count -- self-corrects within one 240-row
+// cycle, visible (if it happens at all) as a brief vertical shift/tear,
+// not a lasting problem. A real product wants an explicit frame marker;
+// out of scope for this bench proof.
 
-#define SPI_PORT  spi0
-#define PIN_MOSI  20
-#define PIN_CS    21
-#define PIN_SCK   22
-#define PIN_MISO  23
-#define XFER_LEN  16
-#define ACK_BYTE  0xC0  // must match badge_app/app.py's ACK_BYTE
+#define SPI_PORT     spi0
+#define PIN_MOSI     20
+#define PIN_CS       21
+#define PIN_SCK      22
+#define PIN_MISO     23
+#define ROW_RX_BYTES 480  // 240 source RGB565 pixels, 2 bytes each, low byte first (matches badge_app/app.py's bytearray packing)
 
 static void spi0_slave_init(void) {
     spi_init(SPI_PORT, 1000 * 1000);  // nominal only -- slave derives timing from the badge's SCK
@@ -307,7 +444,115 @@ static void spi0_slave_init(void) {
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
 }
 
+// CS-framed polling receive, with a SHORT internal timeout purely to
+// guarantee this function always returns promptly (never a hang, at
+// either phase) -- how long ago the last SUCCESSFUL row arrived, for
+// deciding "genuinely idle" vs. "brief gap between rows", is tracked by
+// the CALLER on a wall clock, not by this function's own timeout value.
+//
+// Went through two other approaches first (2026-08-30, both on real
+// hardware) before landing here:
+//   1. A plain byte-counting poll with no CS-awareness at all: any
+//      timeout mid-burst left stale bytes sitting in the RX FIFO, which
+//      the NEXT call would treat as the start of a fresh row -- a
+//      persistent byte-shift, once introduced, that never
+//      self-corrected (confirmed on real hardware: streamed pixel data
+//      was consistently misaligned from that point on).
+//   2. A single call to the SDK's own spi_write_read_blocking() after
+//      only a ONE-TIME, non-blocking CS peek beforehand (no ongoing
+//      CS-awareness during the transfer itself): reused proven transfer
+//      mechanics, but reopened almost the exact hang risk that motivated
+//      moving off a single blocking call in the first place -- if CS
+//      happens to go back high in the gap between the peek and the
+//      actual transfer engaging (a real race, given how fast the badge
+//      toggles CS between rows), the SDK call has no way to know and
+//      just sits waiting forever for bytes that will never arrive.
+//      Confirmed on real hardware: the whole main loop hung completely
+//      (not even the wall-clock heartbeat LED kept blinking).
+// This version keeps CS-awareness THROUGHOUT the byte-by-byte receive
+// (not just as a one-time gate beforehand), so it can safely abort an
+// incomplete burst instead of ever waiting on data that isn't coming,
+// while ALSO explicitly resynchronizing to each fresh CS-low edge (fix
+// #1's actual bug) rather than trusting stale FIFO content.
+//
+// 2026-08-31, real hardware: gpio_get(PIN_CS) read 0 on literally every
+// single poll, including multi-second idle stretches with nothing
+// plugged in at all -- so it is NOT reliably reflecting this pin's real
+// level while PIN_CS is configured GPIO_FUNC_SPI on this hardware/SDK
+// combination (the "input path reflects the pad regardless of function
+// select" assumption from fix #2, above, does not hold here). Given
+// that, the CS-low-wait loop above always fell straight through (0
+// iterations), and the mid-burst "did CS go back high" abort check
+// never fired either -- so that version was effectively an unconditional
+// per-call "flush the FIFO, then drain up to 480 bytes with a timeout"
+// running in a tight loop against a stream it was never actually
+// synchronized to. Its rare successes (~5 out of ~6000 calls, captured
+// on the console) only happened when a call's timing accidentally
+// landed on a genuine row boundary; every other call's flush step threw
+// away legitimately-in-flight bytes of whatever row was already
+// mid-transfer, permanently shifting alignment for that row.
+//
+// The badge sends one row as a single continuous CS-low burst of
+// exactly ROW_RX_BYTES bytes back-to-back (see _send_frame() in
+// badge_app/app.py), with no filler bytes in the gaps between rows.
+// That means the RX FIFO's byte stream is ALREADY naturally
+// row-aligned as long as this side never discards a byte it has
+// actually received and never fabricates one it hasn't -- no GPIO-level
+// framing signal is needed at all. So: drop CS entirely from this
+// function, never flush, and let `received` persist ACROSS calls
+// (static) so a row that arrives a few bytes at a time (this function
+// gets called from a tight main loop that also does other per-iteration
+// work) still accumulates correctly instead of being reset. The
+// deadline only measures genuine byte-to-byte silence -- it resets on
+// every byte received -- so it triggers on real idle, not on ordinary
+// gaps in a slow-but-steady stream.
+#define SPI0_RECEIVE_INTERNAL_TIMEOUT_MS 50
+
+static bool spi0_receive_row(uint8_t *rx_buf) {
+    static size_t received = 0;  // persists across calls -- never reset except on a full row
+
+    absolute_time_t deadline = make_timeout_time_ms(SPI0_RECEIVE_INTERNAL_TIMEOUT_MS);
+    while (received < ROW_RX_BYTES) {
+        if (spi_is_readable(SPI_PORT)) {
+            rx_buf[received++] = (uint8_t)spi_get_hw(SPI_PORT)->dr;
+            deadline = make_timeout_time_ms(SPI0_RECEIVE_INTERNAL_TIMEOUT_MS);
+        } else if (time_reached(deadline)) {
+            return false;  // genuine silence -- come back later, `received` is preserved
+        }
+    }
+    received = 0;
+    return true;
+}
+
 // ----------------------------------------------------------------------------
+
+// Heartbeat/activity LED via the Metro's onboard NeoPixel (GPIO25) --
+// GPIO23 (PICO_DEFAULT_LED_PIN on this board) is unusable here, already
+// claimed as SPI0's MISO, and a plain GPIO needs an LED wired up to be
+// visible at all, whereas the NeoPixel is already on the board. Uses
+// pico-sdk's own official ws2812.pio program (BSD-3, Raspberry Pi) via
+// its documented ws2812_program_init() helper, not a hand-rolled driver.
+// RED blinks at 1Hz on a real wall clock (not tied to row/frame
+// activity, so it keeps blinking with nothing plugged in at all --
+// spi0_receive_row()'s timeout is what makes that possible); GREEN
+// briefly overrides it whenever a new frame actually completes, so red
+// = alive, green = link active.
+#define PIN_NEOPIXEL   25
+#define NEOPIXEL_PIO   pio0
+#define NEOPIXEL_SM    0
+
+static inline void neopixel_put(uint8_t r, uint8_t g, uint8_t b) {
+    // ws2812.pio shifts out the top 24 bits MSB-first as G,R,B (one byte
+    // each) -- the order the WS2812 protocol itself expects on the wire.
+    uint32_t grb = ((uint32_t)g << 24) | ((uint32_t)r << 16) | ((uint32_t)b << 8);
+    pio_sm_put_blocking(NEOPIXEL_PIO, NEOPIXEL_SM, grb);
+}
+
+static void neopixel_init(void) {
+    uint offset = pio_add_program(NEOPIXEL_PIO, &ws2812_program);
+    ws2812_program_init(NEOPIXEL_PIO, NEOPIXEL_SM, offset, PIN_NEOPIXEL, 800000.0f, false);
+    neopixel_put(0, 0, 0);  // off until the main loop starts toggling it
+}
 
 int main(void) {
     // Section 5 mitigation #1: I2C0 target up before anything else,
@@ -318,33 +563,145 @@ int main(void) {
     // clk_sys=126MHz -- see phase0-dvi/README.md for the derivation.
     set_sys_clock_khz(126000, true);
 
-    fill_pattern(0);  // colour bars, shown until the badge requests otherwise
+    build_row_table();
+    fill_static_noise();  // "no signal" look, shown until the badge's first streamed row arrives
     hstx_dvi_init();
     spi0_slave_init();
+    neopixel_init();
 
-    // tx_buf primed with the ack for whatever's currently showing (0 at
-    // boot) -- correct even before any SPI transfer has happened.
-    uint8_t current_pattern = 0;
-    uint8_t tx_buf[XFER_LEN] = {0};
-    tx_buf[0] = ACK_BYTE;
-    tx_buf[1] = current_pattern;
+    uint8_t row_rx[ROW_RX_BYTES];
+    uint row_index = 0;
+
+    // Heartbeat: RED, 1Hz, wall-clock-timed (not tied to row/frame
+    // arrival -- this must keep blinking even with no badge connected at
+    // all, which the old row-count-based version couldn't do since it
+    // never ran without SPI activity). GREEN briefly overrides it for
+    // ~80ms whenever a new frame actually completes, so red = alive,
+    // green = link active, distinguishable at a glance.
+    bool heartbeat_red_on = false;
+    absolute_time_t next_red_toggle = make_timeout_time_ms(500);
+    absolute_time_t green_flash_until = nil_time;
+
+    // Idle detection is wall-clock-timed, not iteration-counted --
+    // spi0_receive_row() blocks internally (spinning on the RX FIFO)
+    // until either a full row completes or SPI0_RECEIVE_INTERNAL_TIMEOUT_MS
+    // of genuine byte-to-byte silence passes, so it does NOT return
+    // near-instantly on every miss -- while truly idle, the outer loop
+    // only comes back around roughly once per that internal timeout. A
+    // gap between successful rows under IDLE_AFTER_MS is unremarkable
+    // (MicroPython GC pauses, background WiFi/BT servicing, scheduler
+    // jitter between one row and the next); only sustained silence past
+    // that is "actually idle" and falls back to static.
+    #define IDLE_AFTER_MS 500
+    absolute_time_t last_row_time = get_absolute_time();
+
+#ifdef DEBUG_SERIAL
+    stdio_init_all();
+    absolute_time_t wait_until = make_timeout_time_ms(10000);
+    while (!stdio_usb_connected() && !time_reached(wait_until)) {
+        sleep_ms(50);
+    }
+    printf("\ntestcard DEBUG_SERIAL build: entering SPI0 receive loop\n");
+    uint32_t rows_received = 0;
+#endif
 
     for (;;) {
-        uint8_t rx_buf[XFER_LEN];
-        spi_write_read_blocking(SPI_PORT, tx_buf, rx_buf, XFER_LEN);
+        bool got_row = spi0_receive_row(row_rx);
 
-        // rx_buf[0] is the badge's requested pattern for THIS transfer;
-        // tx_buf just sent was the ack for the PREVIOUS one (full-duplex
-        // means a single blocking transfer can't reply to data it's
-        // still receiving) -- the badge app's own status line accounts
-        // for this one-round lag; see its file header.
-        uint8_t requested = rx_buf[0];
-        if (requested < PATTERN_COUNT && requested != current_pattern) {
-            current_pattern = requested;
-            fill_pattern(current_pattern);
+        if (got_row) {
+#ifdef DEBUG_SERIAL
+            rows_received++;
+            if (rows_received <= 5 || (rows_received % 240) == 0) {
+                printf("row_rx #%lu: first 8: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                       (unsigned long)rows_received,
+                       row_rx[0], row_rx[1], row_rx[2], row_rx[3],
+                       row_rx[4], row_rx[5], row_rx[6], row_rx[7]);
+            }
+#endif
+            last_row_time = get_absolute_time();
+
+            // Stage this row at source resolution -- NOT into framebuf
+            // directly. framebuf only gets touched once a full frame has
+            // landed here (below), so the display keeps showing the
+            // previous complete frame, unchanged, for the ~1s+ it takes
+            // the badge to stream the next one, instead of visibly
+            // filling in row by row. See frame_staging's own comment.
+            memcpy(frame_staging[row_index], row_rx, ROW_RX_BYTES);
+
+            row_index = (row_index + 1) % SRC_ROWS;
+            if (row_index == 0) {  // a full frame just finished staging
+                // Swap: expand all 240 staged rows into framebuf in one
+                // pass. Each row is still individually gated by
+                // framebuf_row_write_is_safe() (a full pass here is
+                // dozens of writes in quick succession, so this is NOT
+                // the same as the single giant unguarded write that
+                // broke HSTX outright on 2026-08-30 -- each row write is
+                // the same small, proven-safe granularity as before,
+                // just done back-to-back instead of spread across the
+                // whole streaming period).
+                for (int row = 0; row < SRC_ROWS; row++) {
+                    wait_until_row_write_safe(row);
+                    uint16_t *src16 = frame_staging[row];
+                    uint32_t *dst32 = framebuf[row];
+                    for (int i = 0; i < DBL_WORDS; i++) {
+                        uint32_t px = src16[i];
+                        dst32[i] = px | (px << 16);
+                    }
+                }
+                green_flash_until = make_timeout_time_ms(80);
+            }
+        } else {
+            sleep_us(200);  // idle -- don't busy-spin the CS peek needlessly
+
+            bool genuinely_idle =
+                absolute_time_diff_us(last_row_time, get_absolute_time()) >= IDLE_AFTER_MS * 1000;
+
+#ifdef DEBUG_SERIAL
+            static uint32_t misses = 0;
+            misses++;
+            if (misses <= 10 || (misses % 2000) == 0) {
+                printf("spi0_receive_row missed (#%lu), genuinely_idle=%d\n",
+                       (unsigned long)misses, (int)genuinely_idle);
+            }
+#endif
+
+            if (genuinely_idle) {
+                // Refresh the whole "no signal" static buffer, one row at
+                // a time, each row gated by framebuf_row_write_is_safe()
+                // -- rewriting the entire 230KB buffer from the CPU in
+                // ONE UNGATED go, while HSTX's DMA is simultaneously,
+                // continuously reading that same memory for active
+                // scanout, held the bus long enough to break the display
+                // outright (found on real hardware, 2026-08-30) -- HSTX's
+                // per-line timing here is already known-marginal even
+                // with nothing else running (phase0-dvi2's own README:
+                // its command structure needed a full rewrite once
+                // already to fit its timing budget). Gating per row
+                // avoids that while still refreshing every row on every
+                // idle pass, instead of a slow crawl of a few rows at a
+                // time -- this loop naturally only runs about once per
+                // SPI0_RECEIVE_INTERNAL_TIMEOUT_MS while truly idle (see
+                // spi0_receive_row()), which already paces it to a
+                // reasonable analog-TV-like flicker rate without any
+                // extra throttling here.
+                row_index = 0;  // next real row, once streaming resumes, starts a fresh frame cleanly
+                for (int row = 0; row < SRC_ROWS; row++) {
+                    wait_until_row_write_safe(row);
+                    fill_static_noise_row(row);
+                }
+            }
+            // else: recent activity -- not idle yet, just a gap between rows, nothing to do
         }
 
-        tx_buf[0] = ACK_BYTE;
-        tx_buf[1] = current_pattern;
+        if (time_reached(next_red_toggle)) {
+            heartbeat_red_on = !heartbeat_red_on;
+            next_red_toggle = delayed_by_ms(next_red_toggle, 500);  // fixed 500ms cadence, no drift
+        }
+        bool green_active = !is_nil_time(green_flash_until) && !time_reached(green_flash_until);
+        if (green_active) {
+            neopixel_put(0, 20, 0);  // dim green: link active (new frame just landed)
+        } else {
+            neopixel_put(heartbeat_red_on ? 20 : 0, 0, 0);  // dim red, 1Hz: alive
+        }
     }
 }
