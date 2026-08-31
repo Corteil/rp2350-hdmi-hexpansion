@@ -186,41 +186,52 @@ higher rate is safe.
 ## Multiple test screens
 
 Beyond the rotating colour bars, `badge_app/app.py` now has 6 more selectable screens,
-cycled with UP/DOWN (L/R still controls the bars' rotation direction):
+cycled with UP/DOWN (L/R still controls the bars' rotation direction): `checker`, `bunny`,
+`spider7`, `spider8`, `bat`, `duck`.
 
 * **`checker`** — 20×20px black/white squares, generated the same way the bars are (raw
   pixel math in Python), no font/ctx involved.
-* **`icon0`..`icon4`** — five unusual codepoints (`U+41E9 U+71E9 U+81E9 U+BA7A U+BA7B`) found
-  in `EMFCampFont.h`'s own glyph-index comment that don't belong to any normal
-  alphabet/symbol block — the font's license header credits bundled "Solder Party logo" and
-  "Keebdeck icons" as custom additions, and these are the leftover oddities. Rendered via an
+* **`bunny`/`spider7`/`spider8`/`bat`/`duck`** — five unusual codepoints (`U+41E9 U+71E9
+  U+81E9 U+BA7A` and `U+21E9`) found in `EMFCampFont.h`'s own glyph-index comment that don't
+  belong to any normal alphabet/symbol block — the font's license header credits bundled
+  "Solder Party logo" and "Keebdeck icons" as custom additions, and most of these are the
+  leftover oddities (`U+21E9`/duck is the one exception — see below). Rendered via an
   **off-screen `ctx.Context(buffer=..., format=ctx.RGB565, ...)` surface backed by a
-  bytearray this app allocates and controls itself** — the same underlying `ctx_new_for_framebuffer()`
-  the real display driver uses, just pointed at our own buffer instead of the badge's screen.
-  This is what makes `ctx`'s real vector font rendering available to a hexpansion app
-  *without* needing `display.get_fb()` (Phase 0 C2's still-unmerged patch) at all: rendering
-  into a buffer we own and read back ourselves sidesteps that blocker entirely, for this one
-  narrow case (rendering static content), even though it doesn't solve C2's original goal
-  (reading back the badge's *own live* screen).
+  bytearray this app allocates and controls itself** — the same underlying
+  `ctx_new_for_framebuffer()` the real display driver uses, just pointed at our own buffer
+  instead of the badge's screen. This is what makes `ctx`'s real vector font rendering
+  available to a hexpansion app *without* needing `display.get_fb()` (Phase 0 C2's still-
+  unmerged patch) at all: rendering into a buffer we own and read back ourselves sidesteps
+  that blocker entirely, for this one narrow case (rendering static content), even though it
+  doesn't solve C2's original goal (reading back the badge's *own live* screen).
 
-**Identified on real hardware (2026-08-31):** icon1 (`U+71E9`, 7-leg) and icon2 (`U+81E9`,
-8-leg) both look genuinely spider-like — two similar glyphs, not one glyph miscounted via an
-earlier centering bug (re-confirmed after fixing that bug, below); icons 3/4
-(`U+BA7A`/`U+BA7B`) look bat-like; icon0 (`U+41E9`) is a genuine, intentionally
-multi-coloured Easter-egg bunny — its own glyph data sets its own fill colours internally
-(e.g. an embedded `0xFF0000FF` = opaque red), overriding whatever colour this app sets
-beforehand, which is why it renders in red/blue rather than the white every other icon uses.
-A separately-sourced claim that `U+21E9` is "duck" does not hold up against the font file
-itself (that codepoint sits mid-sequence among ordinary directional arrows, not among the
-five oddities above). A badge docs page lists this font's mascot glyphs as "shark, duck,
-spider, bats" — consistent with what's confirmed here (spider + plural bats) but doesn't
-pin down which codepoint is duck vs shark; that page's own fetched content wasn't consistent
-across two fetch attempts (a tooling limitation — content gets summarized through a model
-regardless of prompt), so specific per-codepoint claims from it aren't treated as verified,
-only the general mascot-category list, which real hardware corroborates. The duck glyph's
-codepoint, and the EMF Camp logo's, remain unidentified.
+**Identified on real hardware, all confirmed 2026-08-31:**
 
-**A real bug this surfaced**: the `'g'` byte at the start of icon0's glyph definition was
+* **`spider7`** (`U+71E9`) and **`spider8`** (`U+81E9`) both genuinely look spider-like (7-
+  and 8-leg respectively) — two similar glyphs, not one glyph miscounted via an earlier
+  centering bug (re-confirmed after fixing that bug).
+* **`bat`** (`U+BA7A`) looks bat-like — not independently confirmed against any outside
+  source the way spider/duck were, so this name is a best-guess label, not a certainty.
+* **`bunny`** (`U+41E9`) is a genuine, intentionally multi-coloured Easter-egg — its own
+  glyph data sets its own fill colours internally (e.g. an embedded `0xFF0000FF` = opaque
+  red), overriding whatever colour this app sets beforehand.
+* **`duck`** (`U+21E9`) — a separately-sourced claim that this codepoint is a repurposed
+  "duck" icon looked implausible purely from the font source (it sits mid-sequence among
+  ordinary directional arrows, not among the four genuine oddities above, with an x-advance
+  matching its arrow neighbours), and a fetch of a badge docs page repeating the claim wasn't
+  trusted either (the fetch tool summarizes through a model regardless of prompt — two
+  fetches of the same page gave inconsistent detail). **Tested directly on real hardware
+  instead: `U+21E9` genuinely renders as a rubber duck**, not a plain arrow. The positional
+  inference was a reasonable hypothesis that turned out wrong — direct hardware testing
+  settled it where source-reading and an unreliable web fetch both fell short. The EMF Camp
+  logo's own codepoint is still unidentified.
+
+Per-icon colours (requested 2026-08-31, `ICON_COLOURS` in `badge_app/app.py`): `spider7`
+white-on-dark-red, `spider8` white-on-dark-green, `bat` pale-lavender-on-dark-purple, `duck`
+yellow-on-blue. `bunny` is deliberately excluded — its foreground is set by its own glyph
+data regardless of what this app requests.
+
+**A real bug this surfaced**: the `'g'` byte at the start of the bunny glyph's definition was
 initially misread here as "this glyph is empty" (its own font-tool-generated comment reads
 `/* Nothing to see here */`, which reads as confirmation of that at a glance). It's actually
 `CTX_SAVE` (a state push) — checked against `ctx.h`'s opcode table — and real path data
@@ -231,9 +242,12 @@ Screen-switching itself made the known no-frame-sync gap (see fix 1's "Remaining
 gap" in "Bugs found and fixed", above) more visible than continuous single-content streaming
 had — each switch is a content discontinuity, and confirmed on real hardware, the bars
 screen can show transient tearing "mostly after switching" to it from another screen,
-self-correcting shortly after. Same underlying, already-deferred gap, not a new one — the
-decision to fix it properly (a real frame-sync marker in `spi0_receive_row()`) is deferred to
-the PCB-prototype stage alongside the frame-rate work above.
+self-correcting shortly after. After the per-icon colours above were added, a second
+confirming observation on real hardware: switching between differently-coloured icon screens
+can briefly show colours mixed between the old and new screen. Same underlying,
+already-deferred gap both times, not two separate bugs — the decision to fix it properly (a
+real frame-sync marker in `spi0_receive_row()`) is deferred to the PCB-prototype stage
+alongside the frame-rate work above.
 
 ## Build
 

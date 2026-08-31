@@ -94,7 +94,7 @@ CHECKER_SQUARE = 20  # px
 # oversized/off-centre render (see font_size below): icon1 (U+71E9) and
 # icon2 (U+81E9) both look spider-like (7-leg and 8-leg respectively) --
 # genuinely two similar glyphs, not one misread as two via clipping.
-# icons 3/4 (U+BA7A/U+BA7B) look bat-like. icon0 (U+41E9) is a genuine,
+# icon3 (U+BA7A) looks bat-like. icon0 (U+41E9) is a genuine,
 # intentionally multi-coloured Easter-egg bunny -- its glyph definition
 # opens with `{'g', 0, 0}, /* Nothing to see here */` (a coy joke
 # comment, initially misread here as "this glyph is empty" -- 'g' is
@@ -103,24 +103,40 @@ CHECKER_SQUARE = 20  # px
 # follows immediately after and IS the bunny). The glyph sets its own
 # colour internally, overriding whatever surface.rgb() was set
 # beforehand -- that's why it renders in its own red/blue, not white.
-# A separately-claimed identification (U+21E9 = "duck") does NOT fit:
-# that codepoint sits in the middle of a normal sequential run of
-# directional arrows in the font's own glyph index (checked directly
-# against EMFCampFont.h, not assumed), with an x-advance (114) matching
-# its arrow neighbours, not these five. A badge docs page (fetched
-# 2026-08-31) lists this font's mascot glyphs as "shark, duck, spider,
-# bats" -- consistent with what's confirmed here (spider + plural bats)
-# but doesn't resolve which exact codepoint is duck vs shark, and a
-# fetch of that same page for verbatim text (rather than a leading,
-# interpretive prompt) produced a DIFFERENT, less detailed summary than
-# the first attempt -- the tool summarizes through a model regardless of
-# what's asked, so specific claims from it (codepoints, attributions)
-# aren't treated as verified here, only the general mascot-category
-# list, which is corroborated by real hardware observation. The duck
-# glyph's actual codepoint, and the EMF Camp logo's, remain unidentified.
-ICON_CODEPOINTS = (0x41E9, 0x71E9, 0x81E9, 0xBA7A, 0xBA7B)
+#
+# icon4 is U+21E9 (down arrow), NOT the fifth of the five oddities above
+# (U+BA7B, which also looked bat-like, swapped out 2026-08-31) -- a
+# separately-sourced claim that U+21E9 is a repurposed "duck" icon
+# looked implausible from the font source alone (it sits in the middle
+# of a normal sequential run of directional arrows in the font's own
+# glyph index, with an x-advance matching its arrow neighbours, not the
+# five oddities above), and a fetch of a badge docs page repeating that
+# claim wasn't trusted either (the fetch tool summarizes through a
+# model regardless of prompt; two fetches of the same page gave
+# different, inconsistent detail). Tested directly on real hardware
+# instead of continuing to reason about it either way: **confirmed --
+# U+21E9 genuinely renders as a rubber duck**, not a plain arrow. The
+# positional inference above was a reasonable hypothesis that turned
+# out wrong; direct hardware testing settled it where source-reading
+# and an unreliable web fetch both fell short.
+ICON_CODEPOINTS = (0x41E9, 0x71E9, 0x81E9, 0xBA7A, 0x21E9)
+# Names matching each codepoint above, 1:1 -- all confirmed on real
+# hardware 2026-08-31 except "bat" (looked bat-like, not tested against
+# any independent source the way spider/duck were).
+ICON_NAMES = ("bunny", "spider7", "spider8", "bat", "duck")
 
-SCREENS = ["bars", "checker"] + ["icon%d" % i for i in range(len(ICON_CODEPOINTS))]
+# (foreground, background) per icon, as (r, g, b) 0..1 floats -- "bunny"
+# deliberately excluded, its own glyph data sets its own fill colours
+# internally (see _render_icon()'s docs) so a foreground override here
+# would have no visible effect; its background stays the plain default.
+ICON_COLOURS = {
+    "spider7": ((1, 1, 1), (0.5, 0, 0)),          # white on dark red
+    "spider8": ((1, 1, 1), (0, 0.35, 0)),         # white on dark green
+    "bat":     ((0.85, 0.75, 1), (0.12, 0, 0.2)), # pale lavender on dark purple
+    "duck":    ((1, 1, 0), (0, 0.3, 0.85)),       # yellow on blue -- as requested
+}
+
+SCREENS = ["bars", "checker"] + list(ICON_NAMES)
 
 
 class TestcardApp(app.App):
@@ -202,7 +218,7 @@ class TestcardApp(app.App):
             rows.append(bytes(buf))
         return rows
 
-    def _render_icon(self, codepoint):
+    def _render_icon(self, codepoint, fg=(1, 1, 1), bg=(0, 0, 0)):
         # Off-screen ctx surface backed by OUR OWN bytearray, not the
         # badge's real display -- exactly the capability that would have
         # let Option A (a literal display.get_fb() mirror) work, except
@@ -221,7 +237,7 @@ class TestcardApp(app.App):
             width=COLS, height=ROWS, stride=COLS * 2,
             format=ctxmod.RGB565, buffer=buf,
         )
-        surface.rgb(0, 0, 0)
+        surface.rgb(*bg)
         surface.rectangle(0, 0, COLS, ROWS)
         surface.fill()
         surface.font = "EMF Camp Font"
@@ -238,7 +254,7 @@ class TestcardApp(app.App):
         surface.font_size = 150
         surface.text_align = surface.CENTER
         surface.text_baseline = surface.MIDDLE
-        surface.rgb(1, 1, 1)
+        surface.rgb(*fg)
         surface.move_to(COLS / 2, ROWS / 2)
         surface.text(chr(codepoint))
         row_bytes = COLS * 2
@@ -253,8 +269,9 @@ class TestcardApp(app.App):
         if name == "checker":
             rows = self._render_checker()
         else:
-            idx = int(name[len("icon"):])
-            rows = self._render_icon(ICON_CODEPOINTS[idx])
+            codepoint = ICON_CODEPOINTS[ICON_NAMES.index(name)]
+            fg, bg = ICON_COLOURS.get(name, ((1, 1, 1), (0, 0, 0)))
+            rows = self._render_icon(codepoint, fg=fg, bg=bg)
         self._screen_cache[name] = rows
         return rows
 
