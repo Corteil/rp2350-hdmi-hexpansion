@@ -90,7 +90,10 @@ CHECKER_SQUARE = 20  # px
 # but these five stand apart, and the font's own license header credits
 # "Solder Party logo" and "Keebdeck icons" as bundled custom additions:
 #   U+41E9 U+71E9 U+81E9 U+BA7A U+BA7B
-# Confirmed on real hardware (2026-08-31): icon2 (U+81E9) is the spider,
+# Confirmed on real hardware (2026-08-31), after correcting an earlier
+# oversized/off-centre render (see font_size below): icon1 (U+71E9) and
+# icon2 (U+81E9) both look spider-like (7-leg and 8-leg respectively) --
+# genuinely two similar glyphs, not one misread as two via clipping.
 # icons 3/4 (U+BA7A/U+BA7B) look bat-like. icon0 (U+41E9) is a genuine,
 # intentionally multi-coloured Easter-egg bunny -- its glyph definition
 # opens with `{'g', 0, 0}, /* Nothing to see here */` (a coy joke
@@ -104,8 +107,17 @@ CHECKER_SQUARE = 20  # px
 # that codepoint sits in the middle of a normal sequential run of
 # directional arrows in the font's own glyph index (checked directly
 # against EMFCampFont.h, not assumed), with an x-advance (114) matching
-# its arrow neighbours, not these five -- the duck glyph, if this font
-# has one, is not yet identified.
+# its arrow neighbours, not these five. A badge docs page (fetched
+# 2026-08-31) lists this font's mascot glyphs as "shark, duck, spider,
+# bats" -- consistent with what's confirmed here (spider + plural bats)
+# but doesn't resolve which exact codepoint is duck vs shark, and a
+# fetch of that same page for verbatim text (rather than a leading,
+# interpretive prompt) produced a DIFFERENT, less detailed summary than
+# the first attempt -- the tool summarizes through a model regardless of
+# what's asked, so specific claims from it (codepoints, attributions)
+# aren't treated as verified here, only the general mascot-category
+# list, which is corroborated by real hardware observation. The duck
+# glyph's actual codepoint, and the EMF Camp logo's, remain unidentified.
 ICON_CODEPOINTS = (0x41E9, 0x71E9, 0x81E9, 0xBA7A, 0xBA7B)
 
 SCREENS = ["bars", "checker"] + ["icon%d" % i for i in range(len(ICON_CODEPOINTS))]

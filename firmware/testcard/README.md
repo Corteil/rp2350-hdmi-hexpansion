@@ -203,14 +203,22 @@ cycled with UP/DOWN (L/R still controls the bars' rotation direction):
   narrow case (rendering static content), even though it doesn't solve C2's original goal
   (reading back the badge's *own live* screen).
 
-**Identified on real hardware (2026-08-31):** icon2 (`U+81E9`) is the spider; icons 3/4
+**Identified on real hardware (2026-08-31):** icon1 (`U+71E9`, 7-leg) and icon2 (`U+81E9`,
+8-leg) both look genuinely spider-like — two similar glyphs, not one glyph miscounted via an
+earlier centering bug (re-confirmed after fixing that bug, below); icons 3/4
 (`U+BA7A`/`U+BA7B`) look bat-like; icon0 (`U+41E9`) is a genuine, intentionally
 multi-coloured Easter-egg bunny — its own glyph data sets its own fill colours internally
 (e.g. an embedded `0xFF0000FF` = opaque red), overriding whatever colour this app sets
 beforehand, which is why it renders in red/blue rather than the white every other icon uses.
 A separately-sourced claim that `U+21E9` is "duck" does not hold up against the font file
 itself (that codepoint sits mid-sequence among ordinary directional arrows, not among the
-five oddities above) — the duck glyph, if this font has one, is not yet identified.
+five oddities above). A badge docs page lists this font's mascot glyphs as "shark, duck,
+spider, bats" — consistent with what's confirmed here (spider + plural bats) but doesn't
+pin down which codepoint is duck vs shark; that page's own fetched content wasn't consistent
+across two fetch attempts (a tooling limitation — content gets summarized through a model
+regardless of prompt), so specific per-codepoint claims from it aren't treated as verified,
+only the general mascot-category list, which real hardware corroborates. The duck glyph's
+codepoint, and the EMF Camp logo's, remain unidentified.
 
 **A real bug this surfaced**: the `'g'` byte at the start of icon0's glyph definition was
 initially misread here as "this glyph is empty" (its own font-tool-generated comment reads
