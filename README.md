@@ -1309,11 +1309,26 @@ badge-side app → that app sends commands over the proven SPI0 link (A2/C3) →
 applies them and the monitor changes over HDMI (A1/A3, colour-correct). **Confirmed working
 end to end on real hardware, first attempt** — exact VID/PID, exact computed LittleFS block
 count, a real mounted filesystem with a real app, and all 4 test patterns visibly cycling on
-the monitor in step with badge-side commands. Full writeup in `firmware/testcard/README.md`.
+the monitor in step with badge-side commands.
 
 This isn't a Phase 0 deliverable — it's the first proof that the individually-validated
 pieces actually compose into the product's real contract, done early because the last
 blocking dependency (VID/PID) cleared.
+
+**Upgraded (2026-08-31).** The badge now generates the displayed content itself — a
+240×240 frame built in Python, streamed continuously over SPI0 one row at a time — instead
+of just selecting among a handful of RP2350-fixed patterns, exercising the link the way the
+actual mirroring product will, not just its command plumbing. Also added: a NeoPixel
+heartbeat (red 1Hz when idle, green flash per completed frame) and RP2350-generated
+analog-TV-style static shown at boot/no-signal. Getting reliable continuous streaming
+surfaced a real bug worth knowing about for the eventual product SPI0 driver too: on this
+board/SDK, `gpio_get()` does not reflect a pin's real level while it's configured
+`GPIO_FUNC_SPI` — CS-edge detection has to happen some other way (here, by treating the RX
+FIFO as an already-row-aligned continuous stream instead). Two more real-hardware findings —
+CPU writes to the scanout buffer needing to be gated against the DMA's current read position,
+and a smaller staged-frame buffer standing in for a full second framebuffer that didn't fit
+in SRAM — are also now proven, reusable techniques for the real product's own scanout path.
+Full writeup, including all three fixes in detail, in `firmware/testcard/README.md`.
 
 ### Phase 1 — Schematic + layout (3–4 weeks part-time)
 

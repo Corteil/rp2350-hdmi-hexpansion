@@ -18,7 +18,8 @@
 # vertical colour bars, fixed in position, with the colour occupying each
 # bar rotating through the palette over time -- one row-shape reused for
 # all 240 rows -- and streams it to the RP2350 continuously, one SPI
-# burst per row, "as if
+# burst per row at 1MHz (~0.77fps -- see the burst-granularity comment
+# further down for why a faster protocol was tried and reverted), "as if
 # mirrored from the badge". Not a literal mirror of this badge's own
 # rendered ctx screen -- that needs display.get_fb() (Phase 0 C2's
 # patch, written but never verified, and would mean flashing custom
@@ -40,21 +41,37 @@
 # transfer after that is reliable. Not worked around here, since hiding
 # it would misrepresent what the actual link behaves like.
 #
-# One SPI burst per row, not one burst for the whole 115,200-byte frame
-# (2026-08-30, found via real hardware testing): the RP2350 doesn't
-# reset when this hexpansion is unplugged (it's USB-powered on the bench
-# rig, not badge-powered), so a physical removal mid-transfer can leave
-# its blocking SPI read waiting for bytes that never arrive -- the next
-# transfer after reinsertion then lands on top of that stale one with no
-# resync, permanently misaligning everything after it. Reproduced on
-# real hardware: correct after a fresh boot, corrupted and stuck after
-# an unplug/replug cycle. Per-row bursts cap the blast radius at one row
-# instead of an entire frame or stream. See ../src/main.c's own comment
-# on this for the RP2350 side, including the accepted remaining gap (no
-# frame-sync marker -- a corrupted burst can leave row alignment briefly
-# out of phase, self-correcting within one 240-row cycle).
+# One SPI burst per row, at 1MHz -- reverted here after a same-session
+# detour (2026-08-31) that tried one burst per FRAME at 20MHz instead,
+# to chase a 15fps target (matching the badge's own worst-case app
+# render rate, main README section 3.1's C1 measurement). That got a
+# real, cross-checked ~5fps -- 240 separate per-row bursts meant 240
+# rounds of Python-loop + two GPIO calls + a spi.write() call per frame,
+# and collapsing that to one big burst removed nearly all of it. But it
+# also produced real, visible corruption on the actual monitor ("lines
+# not straight, colours mixed") that persisted (reduced, not gone) even
+# backed off to 10MHz -- most likely sustained bus contention between
+# the RP2350's continuous SPI receive polling and HSTX's simultaneous
+# DMA scanout over one long unbroken burst, a combination Phase 0 C3's
+# own speed sweep never actually exercised (that measurement had no
+# display output running at the same time). Per-row bursts at 1MHz are
+# this session's last thoroughly-confirmed-clean-on-real-hardware
+# configuration, so that's what ships. See "Frame rate" in
+# ../README.md for the full investigation and the decision to revisit
+# this at the PCB-prototype stage, where a real board (no devkit-to-Metro
+# dupont leg) may tolerate a higher rate more cleanly.
+#
+# The RP2350 side's own receive function doesn't depend on CS-level
+# framing at all any more (see ../src/main.c's spi0_receive_row()
+# comment) -- it treats incoming bytes as one continuous,
+# chunking-agnostic stream, so this side remains free to choose whatever
+# burst granularity serves its own needs without any RP2350-side change,
+# which is exactly what made it cheap to try the frame-burst experiment
+# above and revert it just as easily.
 
 import app
+import time
+import ctx as ctxmod  # NOT the ctx passed into draw(ctx) -- see _render_icon()
 from machine import SPI, Pin
 from events.input import Buttons, BUTTON_TYPES
 from app_components.tokens import clear_background, small_font_size, label_font_size
@@ -65,6 +82,33 @@ ROWS = 240
 COLS = 240
 BAR_COLOURS = (0xFFFF, 0xFFE0, 0x07FF, 0x07E0, 0xF81F, 0xF800, 0x001F, 0x0000)
 BAR_WIDTH = COLS // len(BAR_COLOURS)  # 30px/bar
+CHECKER_SQUARE = 20  # px
+
+# EMFCampFont.h's own glyph-index comment lists five unusual codepoints
+# that don't belong to any normal alphabet/symbol block -- Latin-1 and a
+# handful of arrows/geometric shapes cover everything else in the font,
+# but these five stand apart, and the font's own license header credits
+# "Solder Party logo" and "Keebdeck icons" as bundled custom additions:
+#   U+41E9 U+71E9 U+81E9 U+BA7A U+BA7B
+# Confirmed on real hardware (2026-08-31): icon2 (U+81E9) is the spider,
+# icons 3/4 (U+BA7A/U+BA7B) look bat-like. icon0 (U+41E9) is a genuine,
+# intentionally multi-coloured Easter-egg bunny -- its glyph definition
+# opens with `{'g', 0, 0}, /* Nothing to see here */` (a coy joke
+# comment, initially misread here as "this glyph is empty" -- 'g' is
+# actually CTX_SAVE, a state push, not a no-op; real path data with its
+# own embedded fill colours, e.g. `{'*', 0xFF0000FF, 0}` = opaque red,
+# follows immediately after and IS the bunny). The glyph sets its own
+# colour internally, overriding whatever surface.rgb() was set
+# beforehand -- that's why it renders in its own red/blue, not white.
+# A separately-claimed identification (U+21E9 = "duck") does NOT fit:
+# that codepoint sits in the middle of a normal sequential run of
+# directional arrows in the font's own glyph index (checked directly
+# against EMFCampFont.h, not assumed), with an x-advance (114) matching
+# its arrow neighbours, not these five -- the duck glyph, if this font
+# has one, is not yet identified.
+ICON_CODEPOINTS = (0x41E9, 0x71E9, 0x81E9, 0xBA7A, 0xBA7B)
+
+SCREENS = ["bars", "checker"] + ["icon%d" % i for i in range(len(ICON_CODEPOINTS))]
 
 
 class TestcardApp(app.App):
@@ -78,7 +122,25 @@ class TestcardApp(app.App):
         self.rotation_step = 1
         self.frames_sent = 0
         self.status = "starting..."
-        self._row_buf = bytearray(COLS * 2)  # reused every row -- avoid reallocating 480B/row
+        self.status2 = ""
+        self._max_delta_ms = 0
+        self._sum_delta_ms = 0
+        # All 8 possible rows precomputed ONCE, not rebuilt via a
+        # 240-iteration Python loop every single frame (2026-08-31: this
+        # loop's cost was folding into unexplained per-frame overhead --
+        # only 8 distinct rotation states ever exist, so an O(1) lookup
+        # replaces it entirely). Trivial memory cost (8 x 480 bytes).
+        self._rows = [self._compute_row(r) for r in range(len(BAR_COLOURS))]
+
+        # Other screens (checker, icons) are rendered lazily on first
+        # selection, then cached -- their content doesn't change frame to
+        # frame the way the bars' rotation does, so there's no reason to
+        # pay their (much higher, full-240-row) render cost more than
+        # once. Keyed by screen name; value is a list of 240 480-byte
+        # rows, one per screen row (unlike self._rows, which is one row
+        # shape reused for the whole frame).
+        self.screen_index = 0
+        self._screen_cache = {}
         self._init_spi()
 
         # See the long comment below for why this can't just fire here.
@@ -100,40 +162,156 @@ class TestcardApp(app.App):
             self.status = "SPI init failed: {!r}".format(e)
             print(self.status)
 
-    def _build_row(self, rotation):
+    def _compute_row(self, rotation):
         # 8 vertical colour bars, FIXED in position -- each bar's colour
         # cycles through the palette over time instead (bar index x//
-        # BAR_WIDTH never changes; which colour occupies it does). Content
-        # is identical for every row of this particular pattern, so this
-        # only needs to run once per frame, not once per row -- see
-        # _send_frame().
-        buf = self._row_buf
+        # BAR_WIDTH never changes; which colour occupies it does).
+        buf = bytearray(COLS * 2)
         n = len(BAR_COLOURS)
         for x in range(COLS):
             bar_index = x // BAR_WIDTH
             c = BAR_COLOURS[(bar_index + rotation) % n]
             buf[x * 2] = c & 0xFF        # low byte first -- matches src/main.c's uint16_t cast
             buf[x * 2 + 1] = (c >> 8) & 0xFF
-        return buf
+        return bytes(buf)
 
-    def _send_frame(self):
+    def _render_checker(self):
+        # 20x20px black/white squares. Built once (see _screen_cache) --
+        # a 240x240 nested Python loop is far too slow to redo every
+        # frame, but is a fine one-time cost when switching screens.
+        rows = []
+        for y in range(ROWS):
+            buf = bytearray(COLS * 2)
+            for x in range(COLS):
+                on = ((x // CHECKER_SQUARE) + (y // CHECKER_SQUARE)) % 2 == 0
+                c = 0xFFFF if on else 0x0000
+                buf[x * 2] = c & 0xFF
+                buf[x * 2 + 1] = (c >> 8) & 0xFF
+            rows.append(bytes(buf))
+        return rows
+
+    def _render_icon(self, codepoint):
+        # Off-screen ctx surface backed by OUR OWN bytearray, not the
+        # badge's real display -- exactly the capability that would have
+        # let Option A (a literal display.get_fb() mirror) work, except
+        # here we're the ones creating and controlling the surface, so no
+        # unmerged badge-firmware patch is needed. ctx.RGB565 (exposed
+        # without the CTX_FORMAT_ prefix its C enum uses -- checked
+        # against mp_uctx.c's MP_CTX_INT_CONSTANT macro) matches
+        # src/main.c's expected low-byte-first layout directly -- the
+        # real GC9A01 display driver specifically requests the OTHER
+        # format, RGB565_BYTESWAPPED, for the physical panel's own wire
+        # format (checked against ctx.h), meaning plain RGB565 is the
+        # native/little-endian byte order, which is what we want here
+        # since we're not talking to that panel.
+        buf = bytearray(ROWS * COLS * 2)
+        surface = ctxmod.Context(
+            width=COLS, height=ROWS, stride=COLS * 2,
+            format=ctxmod.RGB565, buffer=buf,
+        )
+        surface.rgb(0, 0, 0)
+        surface.rectangle(0, 0, COLS, ROWS)
+        surface.fill()
+        surface.font = "EMF Camp Font"
+        # 150, not a larger size -- these icon glyphs' own x-advance is
+        # 126-160 (checked directly against EMFCampFont.h), so this is
+        # close to their apparent "designed" scale rather than
+        # exaggerating it. text_align=CENTER centers based on advance
+        # width, a font metric -- not necessarily the visual ink bounding
+        # box, which icon glyphs commonly don't fill symmetrically. No
+        # ink-extents API is exposed to MicroPython here (only
+        # text_width(), the same advance metric), so this is the best
+        # correction available without one; found off-center on real
+        # hardware (2026-08-31), not yet re-verified after this change.
+        surface.font_size = 150
+        surface.text_align = surface.CENTER
+        surface.text_baseline = surface.MIDDLE
+        surface.rgb(1, 1, 1)
+        surface.move_to(COLS / 2, ROWS / 2)
+        surface.text(chr(codepoint))
+        row_bytes = COLS * 2
+        return [bytes(buf[i * row_bytes:(i + 1) * row_bytes]) for i in range(ROWS)]
+
+    def _rows_for_current_screen(self):
+        name = SCREENS[self.screen_index]
+        if name == "bars":
+            return None  # signals "one row repeated" to _send_frame
+        if name in self._screen_cache:
+            return self._screen_cache[name]
+        if name == "checker":
+            rows = self._render_checker()
+        else:
+            idx = int(name[len("icon"):])
+            rows = self._render_icon(ICON_CODEPOINTS[idx])
+        self._screen_cache[name] = rows
+        return rows
+
+    def _send_frame(self, delta):
         if self.spi is None:
             return
-        row = self._build_row(self.rotation)
+        static_rows = self._rows_for_current_screen()
+
+        # Reverted to per-row bursts at 1MHz (2026-08-31, same session as
+        # the single-burst/20MHz attempt above this comment used to
+        # describe). That configuration reached ~5fps but produced real,
+        # visible corruption on the actual monitor ("lines not straight,
+        # colours mixed") -- backing off to 10MHz reduced but did not
+        # eliminate it ("some of the time, breaks up"), meaning this
+        # isn't simply a byte-rate-vs-CPU-poll-speed problem (10MHz gives
+        # 2x more time per byte than 20MHz) -- more likely sustained bus
+        # contention between the continuous SPI receive polling and
+        # HSTX's simultaneous DMA scanout, over a single long (tens-of-ms)
+        # unbroken burst, that Phase 0 C3's own speed sweep never actually
+        # tested (that measurement had no display output running
+        # concurrently). Rather than ship a demo that sometimes shows
+        # garbled output, reverted to the per-row/1MHz configuration this
+        # session had already thoroughly confirmed clean on real hardware
+        # -- see "Frame rate" in ../README.md for the full story and the
+        # decision to revisit this at the PCB-prototype stage instead.
+        t_spi_start = time.ticks_ms()
         sent_ok = 0
-        for _ in range(ROWS):
-            try:
-                self.cs.value(0)
-                self.spi.write(row)
-                self.cs.value(1)
-                sent_ok += 1
-            except Exception as e:
-                self.status = "row send failed: {!r}".format(e)
-                print(self.status)
-                return
+        try:
+            if static_rows is None:
+                row = self._rows[self.rotation]  # precomputed -- see __init__
+                for _ in range(ROWS):
+                    self.cs.value(0)
+                    self.spi.write(row)
+                    self.cs.value(1)
+                    sent_ok += 1
+            else:
+                for row in static_rows:
+                    self.cs.value(0)
+                    self.spi.write(row)
+                    self.cs.value(1)
+                    sent_ok += 1
+        except Exception as e:
+            self.status = "row send failed: {!r}".format(e)
+            print(self.status)
+            return
+        t_spi_ms = time.ticks_diff(time.ticks_ms(), t_spi_start)
+
         self.frames_sent += 1
-        self.rotation = (self.rotation + self.rotation_step) % len(BAR_COLOURS)
-        self.status = "frame %d sent (%d rows)" % (self.frames_sent, sent_ok)
+        if static_rows is None:
+            self.rotation = (self.rotation + self.rotation_step) % len(BAR_COLOURS)
+
+        # `delta` is the FRAMEWORK's own measured gap since the previous
+        # update() call (system/app.py's run(): delta_ticks passed
+        # straight in). A single instantaneous reading swings a lot frame
+        # to frame, so track a running average and worst-case stall
+        # instead of just the latest value.
+        self._sum_delta_ms += delta
+        if delta > self._max_delta_ms:
+            self._max_delta_ms = delta
+        avg_delta_ms = self._sum_delta_ms // self.frames_sent
+        avg_fps = 1000 // avg_delta_ms if avg_delta_ms > 0 else 0
+        # Split across two short status lines -- one combined line
+        # overflowed the round display's visible width (found
+        # 2026-08-31: the reader could only see the last value, the rest
+        # clipped by the circular mask). Compact single-letter labels for
+        # the same reason.
+        self.status = "%s #%d ~%dfps" % (SCREENS[self.screen_index], self.frames_sent, avg_fps)
+        self.status2 = "avg%d max%d spi%d" % (
+            avg_delta_ms, self._max_delta_ms, t_spi_ms)
 
     def background_update(self, delta):
         # The badge launches hexpansion apps in the BACKGROUND only
@@ -173,7 +351,12 @@ class TestcardApp(app.App):
         elif self.buttons.pressed(BUTTON_TYPES["LEFT"]):
             self.rotation_step = -1
 
-        self._send_frame()
+        if self.buttons.pressed(BUTTON_TYPES["DOWN"]):
+            self.screen_index = (self.screen_index + 1) % len(SCREENS)
+        elif self.buttons.pressed(BUTTON_TYPES["UP"]):
+            self.screen_index = (self.screen_index - 1) % len(SCREENS)
+
+        self._send_frame(delta)
         return True
 
     def draw(self, ctx):
@@ -190,10 +373,10 @@ class TestcardApp(app.App):
         ctx.rgb(1, 1, 1).move_to(0, -70).text("Hexi-GFX")
 
         ctx.font_size = small_font_size
-        ctx.rgb(0, 1, 0.3).move_to(0, -35).text("mirroring...")
-        ctx.rgb(1, 1, 0).move_to(0, 0).text(self.status)
-        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 35).text("L/R: rotate dir")
-        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 60).text("CANCEL: exit")
+        ctx.rgb(1, 1, 0).move_to(0, -35).text(self.status)
+        ctx.rgb(0, 1, 0.3).move_to(0, -10).text(self.status2)
+        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 25).text("U/D: screen  L/R: rotate")
+        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 50).text("CANCEL: exit")
         ctx.restore()
 
 

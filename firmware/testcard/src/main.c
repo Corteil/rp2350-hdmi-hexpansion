@@ -409,15 +409,22 @@ static void hstx_dvi_init(void) {
 // HS_G=CS(GPIO21), HS_H=SCK(GPIO22), HS_I=MISO(GPIO23) -- main README
 // section 4.1's resolved role assignment.
 //
-// One SPI burst per SOURCE row (240 source pixels = 480 bytes,
-// RGB565), not one burst for the whole 115,200-byte frame. Same
-// reasoning as the 1-byte pattern-select protocol this replaced: the
-// RP2350 never resets on hexpansion removal (USB-powered on this bench,
-// not badge-powered), so a mid-transfer disconnect can leave
-// spi_write_read_blocking() stuck waiting for bytes that never arrive,
-// permanently misaligning everything after it. Per-row bursts cap the
-// damage at one row (self-correcting on the very next row) instead of
-// an entire 115 KB transfer or a whole misaligned stream.
+// One SPI burst per FRAME (all 240 rows, 115,200 bytes), not per row --
+// changed 2026-08-31 to hit a 15fps target (matching the badge's own
+// worst-case app render rate, main README §3.1's C1 measurement).
+// Per-row bursts were originally chosen so a mid-transfer disconnect
+// only cost one row, not a whole frame -- real, but this receive
+// function (see spi0_receive_row(), below) stopped depending on
+// CS-level framing entirely on the same day (its own fix #1), so it
+// already treats the incoming bytes as one continuous, chunking-agnostic
+// stream; the row-vs-frame burst boundary only ever mattered on the
+// badge side's own robustness story, not this side's correctness. Badge
+// SPI baudrate also raised 1MHz -> 20MHz for the same reason -- both the
+// proven-reliable ceiling AND enough real, measured bandwidth for a full
+// frame well inside a 15fps budget (Phase 0 C3: 20MHz, one 115,200-byte
+// burst, 0 mismatches, 21fps-equivalent, on this same connector+dupont
+// wiring). 30MHz+ showed genuine bit errors in that same measurement --
+// not used here.
 //
 // No frame-sync marker: rows are received in a fixed repeating 0..239
 // cycle with no explicit "this is row 0" signal, so a resync after a
@@ -503,9 +510,16 @@ static void spi0_slave_init(void) {
 // (static) so a row that arrives a few bytes at a time (this function
 // gets called from a tight main loop that also does other per-iteration
 // work) still accumulates correctly instead of being reset. The
-// deadline only measures genuine byte-to-byte silence -- it resets on
-// every byte received -- so it triggers on real idle, not on ordinary
-// gaps in a slow-but-steady stream.
+// deadline covers one whole call, not reset per byte: within a single
+// CS-low burst, bytes arrive back-to-back at the SPI clock rate with no
+// natural gaps (the badge never pauses mid-burst), so a real stall can
+// only happen BETWEEN bursts -- one deadline per call already catches
+// that. A per-byte reset was tried and removed (2026-08-31): each reset
+// calls make_timeout_time_ms(), which reads a hardware timer -- cheap at
+// the original 1MHz badge-side rate, but 20MHz (needed for 15fps, see
+// badge_app/app.py) leaves only ~400ns/byte, and that timer read alone
+// was eating a meaningful fraction of it. A single deadline per call
+// removes that cost from the hot per-byte path entirely, at any speed.
 #define SPI0_RECEIVE_INTERNAL_TIMEOUT_MS 50
 
 static bool spi0_receive_row(uint8_t *rx_buf) {
@@ -515,7 +529,6 @@ static bool spi0_receive_row(uint8_t *rx_buf) {
     while (received < ROW_RX_BYTES) {
         if (spi_is_readable(SPI_PORT)) {
             rx_buf[received++] = (uint8_t)spi_get_hw(SPI_PORT)->dr;
-            deadline = make_timeout_time_ms(SPI0_RECEIVE_INTERNAL_TIMEOUT_MS);
         } else if (time_reached(deadline)) {
             return false;  // genuine silence -- come back later, `received` is preserved
         }
