@@ -28,7 +28,15 @@
 #define I2C_HW i2c0
 
 #define HEX_I2C_ADDR    0x50
-#define HEX_EEPROM_SIZE (64 * 1024)
+// Shrunk from 64 KiB (2026-09-07): this RAM-backed eeprom[] buffer no
+// longer hosts badge_app/ (side-loaded onto the badge directly for
+// testing instead -- see the main README/this project's own notes),
+// freeing ~57 KiB of RP2350 SRAM for real double-buffered framebuf[2]
+// (see main.c). Kept >= 8 KiB deliberately: badge-2024-software's
+// modules/system/hexpansion/util.py switches to a fragile 64-byte block
+// size below that threshold (512-byte blocks only apply to EEPROMs >=
+// 8 KiB) -- 8192 is the smallest size that stays on the proven path.
+#define HEX_EEPROM_SIZE (8 * 1024)
 #define HEX_FS_OFFSET   64
 #define HEX_PAGE_SIZE   64
 
@@ -94,16 +102,17 @@ static void build_header(void) {
     h[31] = compute_checksum(h);
 }
 
-// Copies the pre-built LittleFS2 image (fs_image.h, built from
-// badge_app/ by tools/build_fs_image.py) into the EEPROM's filesystem
-// region. The badge computes its own partition block count as
-// (eeprom_total_size - fs_offset) / 512, floored -- 65472/512 = 127.875,
-// so it'll only ever address the first 127*512 = 65024 bytes of this
-// region. FS_IMAGE_SIZE (also built as exactly 127 blocks, see
-// fs_image.h's own generation comment) must therefore FIT WITHIN that
-// region, not fill it exactly -- the remaining 448 bytes stay 0xFF
-// (already set by the memset in eeprom_i2c_start()), unreachable through
-// the mounted filesystem, harmless.
+// Copies the pre-built LittleFS2 image (fs_image.h, built by
+// tools/build_fs_image.py) into the EEPROM's filesystem region. The
+// badge computes its own partition block count as (eeprom_total_size -
+// fs_offset) / 512, floored -- (8192-64)/512 = 15.875, so it'll only
+// ever address the first 15*512 = 7680 bytes of this region.
+// FS_IMAGE_SIZE (also built as exactly 15 blocks, see fs_image.h's own
+// generation comment) must therefore FIT WITHIN that region -- the
+// remaining bytes stay 0xFF (already set by the memset in
+// eeprom_i2c_start()), unreachable through the mounted filesystem,
+// harmless. This image is now deliberately EMPTY (no badge_app/ packed
+// in) -- see HEX_EEPROM_SIZE's own comment for why.
 static void load_filesystem_image(void) {
     _Static_assert(FS_IMAGE_SIZE <= HEX_EEPROM_SIZE - HEX_FS_OFFSET,
                    "fs_image.h is bigger than the EEPROM's filesystem "

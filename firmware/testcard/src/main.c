@@ -101,19 +101,29 @@
 #define DBL_WORDS  (DBL_W / 2)         // 2 RGB565 pixels/word
 #define PILLARBOX  ((MODE_H_ACTIVE_PIXELS - DBL_W) / 2)  // 80px each side
 
-static uint32_t framebuf[SRC_ROWS][DBL_WORDS];
+// Real double buffering (2026-09-07) -- HEX_EEPROM_SIZE shrank from
+// 64 KiB to 8 KiB (see eeprom_i2c.c) specifically to make room for this
+// second 230400-byte copy: framebuf[2][...][...], one "front" (DMA scans
+// it out continuously) and one "back" (the CPU writes freely into it,
+// with NO per-row gating needed -- DMA never touches this index, so
+// there is no race to guard against). front_index is flipped by
+// dma_irq_handler itself, only ever at the start of vblank (v_scanline
+// == 0, see below) and only when back_buffer_ready says a complete new
+// frame is waiting -- the flip is a single word write, so it can't be
+// caught mid-scanout the way the old single-buffer row-by-row copy
+// could. This replaces both frame_staging (received rows now go
+// straight into the back buffer's doubled/BGR-corrected words, no
+// separate source-resolution staging copy needed) and
+// framebuf_row_write_is_safe()/wait_until_row_write_safe() (nothing
+// outside dma_irq_handler touches the front buffer at all, so there's
+// nothing left for them to guard).
+static uint32_t framebuf[2][SRC_ROWS][DBL_WORDS];
+static volatile int front_index = 0;
+static volatile bool back_buffer_ready = false;
 
-// A real second copy of framebuf (double buffering, swapped at vblank)
-// would remove the live-streaming sweep entirely, but doesn't fit: it's
-// another 230400 bytes against ~220KB of free SRAM. frame_staging holds
-// incoming rows at their SOURCE resolution instead (240 pixels, not the
-// pre-doubled 480) -- 240*240*2 = 115200 bytes, half the cost -- and
-// only gets expanded into framebuf, one full staged frame at a time,
-// once every 240 rows (see the SPI0 receive loop in main()). The
-// visible result is close to real double buffering (one swap per badge
-// frame instead of a continuous row-by-row reveal) without the RAM cost
-// of an actual second framebuf.
-static uint16_t frame_staging[SRC_ROWS][DBL_WORDS];
+static inline int back_index(void) {
+    return 1 - front_index;
+}
 
 // "No signal" pattern -- analog-TV-style static, generated here on the
 // RP2350 (not sent by the badge), shown at boot before the badge's first
@@ -159,18 +169,24 @@ static inline uint16_t undo_madctl_bgr(uint16_t px) {
     return (uint16_t)((b << 11) | (g << 5) | r);
 }
 
-static void fill_static_noise_row(int row) {
+static void fill_static_noise_row(int buf, int row) {
     for (int w = 0; w < DBL_WORDS; w++) {
         uint16_t c0 = random_gray_pixel();
         uint16_t c1 = random_gray_pixel();
-        framebuf[row][w] = (uint32_t)c0 | ((uint32_t)c1 << 16);
+        framebuf[buf][row][w] = (uint32_t)c0 | ((uint32_t)c1 << 16);
     }
 }
 
+// Fills the BACK buffer and flags it ready -- dma_irq_handler flips
+// front_index at the next vblank (see its own comment). Safe to call at
+// boot too (before core 1/HSTX has even started, back_buffer_ready is
+// simply picked up the first time dma_irq_handler runs).
 static void fill_static_noise(void) {
+    int buf = back_index();
     for (int row = 0; row < SRC_ROWS; row++) {
-        fill_static_noise_row(row);
+        fill_static_noise_row(buf, row);
     }
+    back_buffer_ready = true;
 }
 
 // EMF Camp colour-bar + logo test card -- a boot-time liveness indicator
@@ -268,29 +284,37 @@ static const uint8_t emf_logo_bitmap[EMF_LOGO_SIZE][EMF_LOGO_SIZE / 8] = {
 #define EMF_LOGO_ORANGE 0xF3E0u  // EMF's brand orange #F77F02 in RGB565
 #define EMF_LOGO_BLACK  0x0000u
 
-static void fill_test_card_row(int row) {
+// Raw per-buffer writers (like fill_static_noise_row) -- callers pick
+// the target buffer once, do all the writes a single logical update
+// needs (bars, then optionally the logo on top), and only flag
+// back_buffer_ready afterward. Doing it this way (rather than each
+// function self-contained like fill_static_noise()) matters here
+// specifically because the logo overlay must land in the SAME back
+// buffer as the bars underneath it, before that buffer is handed to
+// dma_irq_handler -- see both call sites in main().
+static void fill_test_card_row(int buf, int row) {
     for (int w = 0; w < DBL_WORDS; w++) {
         int x0 = w * 2;
         int x1 = w * 2 + 1;
         uint16_t c0 = bar_colours[x0 / 60];
         uint16_t c1 = bar_colours[x1 / 60];
-        framebuf[row][w] = (uint32_t)c0 | ((uint32_t)c1 << 16);
+        framebuf[buf][row][w] = (uint32_t)c0 | ((uint32_t)c1 << 16);
     }
 }
 
-static void fill_test_card(void) {
+static void fill_test_card(int buf) {
     for (int row = 0; row < SRC_ROWS; row++) {
-        fill_test_card_row(row);
+        fill_test_card_row(buf, row);
     }
 }
 
-static void draw_test_card_logo_row(int logo_row) {
+static void draw_test_card_logo_row(int buf, int logo_row) {
     int fr = EMF_LOGO_ROW0 + logo_row;
     for (int w = 0; w < EMF_LOGO_SIZE; w++) {
         int fw = EMF_LOGO_COL0 + w;
         bool ink = (emf_logo_bitmap[logo_row][w / 8] >> (7 - (w % 8))) & 1;
         uint16_t colour = ink ? EMF_LOGO_ORANGE : EMF_LOGO_BLACK;
-        framebuf[fr][fw] = (uint32_t)colour | ((uint32_t)colour << 16);
+        framebuf[buf][fr][fw] = (uint32_t)colour | ((uint32_t)colour << 16);
     }
 }
 
@@ -362,19 +386,15 @@ static uint32_t zero_buf[ZERO_BUF_WORDS] = {0};
 // DMA logic -- two channels ping-ponging via chain_to, four phases per
 // active row (command list / left fill / pixel data / right fill), one
 // HSTX command total per row -- unchanged from phase0-dvi2. Reads
-// whatever the SPI0 receive loop below last wrote into framebuf; a row
-// landing mid-scanout (framebuf isn't double-buffered) can still tear
-// that one row if it's written at the exact wrong instant. A full second
-// framebuf would remove this entirely but doesn't fit -- SRAM is already
-// down to a few KB of headroom with one 230KB copy (see
-// framebuf_row_write_is_safe(), below, for the lighter mitigation used
-// instead: skip writing only the specific row the DMA is about to reach).
+// framebuf[front_index], never the back buffer -- see framebuf's own
+// declaration comment above for the double-buffering design and why the
+// swap below can never land mid-scanout.
 
 #define DMACH_PING 0
 #define DMACH_PONG 1
 
 static bool dma_pong = false;
-static volatile uint v_scanline = 2;  // read from main() too now (framebuf_row_write_is_safe) -- must not be cached across a spin loop
+static volatile uint v_scanline = 2;  // read from main() only for DEBUG_SERIAL logging now -- must not be cached across a spin loop
 static int active_phase = 0;  // 0=left fill, 1=pixel data, 2=right fill
 
 void __scratch_x("") dma_irq_handler(void) {
@@ -382,6 +402,18 @@ void __scratch_x("") dma_irq_handler(void) {
     dma_channel_hw_t *ch = &dma_hw->ch[ch_num];
     dma_hw->intr = 1u << ch_num;
     dma_pong = !dma_pong;
+
+    // Front/back swap -- only ever right at the start of vertical
+    // blanking (v_scanline==0), so the entire blanking period is still
+    // ahead of us: a single-word pointer flip here can never be caught
+    // mid-scanout of a visible line, unlike the old single-buffer
+    // per-row copy this replaced. Whichever of main()'s three framebuf
+    // writers (real mirror rows, EMF test card, static noise) just
+    // finished a complete update sets back_buffer_ready.
+    if (v_scanline == 0 && back_buffer_ready) {
+        front_index = 1 - front_index;
+        back_buffer_ready = false;
+    }
 
     if (v_scanline >= MODE_V_FRONT_PORCH && v_scanline < (MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH)) {
         ch->read_addr = (uintptr_t)vblank_line_vsync_on;
@@ -412,7 +444,7 @@ void __scratch_x("") dma_irq_handler(void) {
     } else if (active_phase == 2) {
         uint src_row = (v_active / 2) % SRC_ROWS;  // vertical 2x
         uint col_word_offset = (DBL_W / 2 - half_width) / 2;
-        ch->read_addr = (uintptr_t)(&framebuf[src_row][col_word_offset]);
+        ch->read_addr = (uintptr_t)(&framebuf[front_index][src_row][col_word_offset]);
         ch->transfer_count = half_width;
         active_phase = 3;
     } else {
@@ -420,42 +452,6 @@ void __scratch_x("") dma_irq_handler(void) {
         ch->transfer_count = right_black / 2;
         active_phase = 0;
         v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
-    }
-}
-
-// dma_irq_handler's phase-2 branch (above) only ever reads ONE framebuf
-// row at a time -- so every row except the one or two the DMA is about
-// to reach is always safe to write, no matter what the CPU is doing.
-// `row` counts as safe if: we're in vertical blanking right now (DMA
-// isn't touching framebuf at all, see the two early-return branches
-// above), or the scan position is far enough behind `row`, in the
-// direction it's advancing, that a short CPU write can't catch up to it
-// before it gets there. WRITE_SAFETY_MARGIN_ROWS=3 covers the write
-// itself (a few hundred ns for one row) many times over against the
-// ~63.5us it takes the scan position to advance one src_row (two
-// scanlines at vertical 2x).
-#define WRITE_SAFETY_MARGIN_ROWS 3
-
-static inline bool framebuf_row_write_is_safe(int row) {
-    uint scanline = v_scanline;  // single read of the ISR-shared value
-    if (scanline < (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES)) {
-        return true;  // vertical blanking -- DMA isn't reading framebuf at all
-    }
-    uint v_active = scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
-    int current_row = (int)((v_active / 2) % SRC_ROWS);
-    int ahead = (row - current_row + SRC_ROWS) % SRC_ROWS;
-    return ahead >= WRITE_SAFETY_MARGIN_ROWS;
-}
-
-// Bounded, not indefinite: one full scan lap is ~16ms, so 20ms is a
-// generous margin while still guaranteeing this can never hang the main
-// loop. If the deadline is somehow hit, writing anyway just risks the
-// same single-row tear this whole mechanism exists to avoid -- never a
-// correctness problem, only ever cosmetic.
-static inline void wait_until_row_write_safe(int row) {
-    absolute_time_t deadline = make_timeout_time_ms(20);
-    while (!framebuf_row_write_is_safe(row) && !time_reached(deadline)) {
-        tight_loop_contents();
     }
 }
 
@@ -740,7 +736,8 @@ int main(void) {
     sleep_ms(10);
 
     build_row_table();
-    fill_test_card();  // EMF bars, shown until the badge's first full frame arrives -- see ever_received_frame below
+    fill_test_card(back_index());  // EMF bars, shown until the badge's first full frame arrives -- see ever_received_frame below
+    back_buffer_ready = true;
     spi0_slave_init();
     neopixel_init();
 
@@ -761,6 +758,7 @@ int main(void) {
 
     uint8_t row_rx[ROW_RX_BYTES];
     uint row_index = 0;
+    int recv_buf = back_index();  // which buffer the in-progress frame's rows land in -- refreshed at each frame's row 0, see below
 
     // Heartbeat: RED, 1Hz, wall-clock-timed (not tied to row/frame
     // arrival -- this must keep blinking even with no badge connected at
@@ -794,6 +792,11 @@ int main(void) {
     // semantics ("stop overwriting framebuf with the synthetic
     // bars/logo pattern" once real content has ever arrived).
     bool ever_received_frame = false;
+    // Set on the very first successful got_row, before ever_received_frame --
+    // gates the EMF test card blink below (must stop the instant real
+    // bytes start arriving, not only once a full frame completes; see
+    // that block's own comment).
+    bool ever_received_any_row = false;
     bool testcard_logo_on = false;
     absolute_time_t next_testcard_blink = make_timeout_time_ms(700);
 
@@ -821,36 +824,41 @@ int main(void) {
             }
 #endif
             last_row_time = get_absolute_time();
+            ever_received_any_row = true;  // stop the EMF test card blink, even mid-frame -- see its own comment below
 
-            // Stage this row at source resolution -- NOT into framebuf
-            // directly. framebuf only gets touched once a full frame has
-            // landed here (below), so the display keeps showing the
-            // previous complete frame, unchanged, for the ~1s+ it takes
-            // the badge to stream the next one, instead of visibly
-            // filling in row by row. See frame_staging's own comment.
-            memcpy(frame_staging[row_index], row_rx, ROW_RX_BYTES);
+            if (row_index == 0) {
+                // Starting a new frame's reception: make sure the
+                // PREVIOUS frame's flip has actually happened (dma_irq_
+                // handler clears back_buffer_ready exactly when it does
+                // the swap, at the next vblank after it was set) before
+                // grabbing a fresh back_index() to write this one into
+                // -- otherwise this could start overwriting a buffer
+                // that's still waiting to become front. In practice this
+                // never actually spins: a full frame takes ~1s+ to
+                // receive at this app's own pace, many multiples of one
+                // ~16ms vblank period, so the previous flip is always
+                // long done by the time reception loops back to row 0.
+                while (back_buffer_ready) {
+                    tight_loop_contents();
+                }
+                recv_buf = back_index();
+            }
+
+            // Straight into the back buffer, doubled + BGR-corrected --
+            // no separate staging copy needed (frame_staging is gone):
+            // DMA never touches recv_buf until back_buffer_ready flips
+            // it to front, so there's nothing to race here.
+            uint16_t *src16 = (uint16_t *)(void *)row_rx;
+            uint32_t *dst32 = framebuf[recv_buf][row_index];
+            for (int i = 0; i < DBL_WORDS; i++) {
+                uint32_t px = undo_madctl_bgr(src16[i]);
+                dst32[i] = px | (px << 16);
+            }
 
             row_index = (row_index + 1) % SRC_ROWS;
-            if (row_index == 0) {  // a full frame just finished staging
-                // Swap: expand all 240 staged rows into framebuf in one
-                // pass. Each row is still individually gated by
-                // framebuf_row_write_is_safe() (a full pass here is
-                // dozens of writes in quick succession, so this is NOT
-                // the same as the single giant unguarded write that
-                // broke HSTX outright on 2026-08-30 -- each row write is
-                // the same small, proven-safe granularity as before,
-                // just done back-to-back instead of spread across the
-                // whole streaming period).
-                for (int row = 0; row < SRC_ROWS; row++) {
-                    wait_until_row_write_safe(row);
-                    uint16_t *src16 = frame_staging[row];
-                    uint32_t *dst32 = framebuf[row];
-                    for (int i = 0; i < DBL_WORDS; i++) {
-                        uint32_t px = undo_madctl_bgr(src16[i]);
-                        dst32[i] = px | (px << 16);
-                    }
-                }
+            if (row_index == 0) {  // a full frame just landed
                 ever_received_frame = true;  // stop showing the EMF test card forever, even across future idle gaps
+                back_buffer_ready = true;
                 green_flash_until = make_timeout_time_ms(80);
             }
         } else {
@@ -869,56 +877,43 @@ int main(void) {
 #endif
 
             if (genuinely_idle && ever_received_frame) {
-                // Refresh the whole "no signal" static buffer, one row at
-                // a time, each row gated by framebuf_row_write_is_safe()
-                // -- rewriting the entire 230KB buffer from the CPU in
-                // ONE UNGATED go, while HSTX's DMA is simultaneously,
-                // continuously reading that same memory for active
-                // scanout, held the bus long enough to break the display
-                // outright (found on real hardware, 2026-08-30) -- HSTX's
-                // per-line timing here is already known-marginal even
-                // with nothing else running (phase0-dvi2's own README:
-                // its command structure needed a full rewrite once
-                // already to fit its timing budget). Gating per row
-                // avoids that while still refreshing every row on every
-                // idle pass, instead of a slow crawl of a few rows at a
-                // time -- this loop naturally only runs about once per
-                // SPI0_RECEIVE_INTERNAL_TIMEOUT_MS while truly idle (see
-                // spi0_receive_row()), which already paces it to a
-                // reasonable analog-TV-like flicker rate without any
-                // extra throttling here. Only shown once a real frame has
+                // "No signal" static -- writes straight into the back
+                // buffer (fill_static_noise() picks back_index() and
+                // sets back_buffer_ready itself; see its own comment),
+                // no per-row gating needed since DMA never touches the
+                // back buffer at all. Only shown once a real frame has
                 // landed before -- until then, the EMF test card below
-                // owns framebuf instead (this is "signal lost", not "no
+                // owns it instead (this is "signal lost", not "no
                 // signal yet").
                 row_index = 0;  // next real row, once streaming resumes, starts a fresh frame cleanly
-                for (int row = 0; row < SRC_ROWS; row++) {
-                    wait_until_row_write_safe(row);
-                    fill_static_noise_row(row);
-                }
+                fill_static_noise();
             }
             // else: recent activity -- not idle yet, just a gap between rows, nothing to do
         }
 
         // EMF bars/logo test card: blinks (bars <-> bars+logo, 700ms,
         // wall-clock-timed like the heartbeat below) until the badge's
-        // first full frame ever lands, then never touches framebuf again
-        // -- see ever_received_frame's own comment above. Runs every loop
-        // iteration (not gated on genuinely_idle) so it keeps blinking
-        // even while the badge is mid-way through streaming its first,
-        // not-yet-complete frame.
-        if (!ever_received_frame && time_reached(next_testcard_blink)) {
+        // link goes live -- gated on ever_received_any_row, not
+        // ever_received_frame: it must stop the instant real bytes start
+        // arriving, not only once a full frame completes, otherwise this
+        // block and the receive loop above would both be writing into
+        // the SAME back buffer during that first, still-incomplete
+        // frame (recv_buf is snapshotted once at that frame's start --
+        // see above) and stomp each other. Runs every loop iteration
+        // (not gated on genuinely_idle) so it keeps blinking right up
+        // until that first byte, covering the entire "badge not
+        // connected yet" window.
+        if (!ever_received_any_row && time_reached(next_testcard_blink)) {
             testcard_logo_on = !testcard_logo_on;
             next_testcard_blink = delayed_by_ms(next_testcard_blink, 700);
-            for (int row = 0; row < SRC_ROWS; row++) {
-                wait_until_row_write_safe(row);
-                fill_test_card_row(row);
-            }
+            int buf = back_index();
+            fill_test_card(buf);
             if (testcard_logo_on) {
                 for (int logo_row = 0; logo_row < EMF_LOGO_SIZE; logo_row++) {
-                    wait_until_row_write_safe(EMF_LOGO_ROW0 + logo_row);
-                    draw_test_card_logo_row(logo_row);
+                    draw_test_card_logo_row(buf, logo_row);
                 }
             }
+            back_buffer_ready = true;
         }
 
         if (time_reached(next_red_toggle)) {

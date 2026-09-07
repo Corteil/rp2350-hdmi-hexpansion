@@ -2,10 +2,9 @@
 # Builds the LittleFS2 image packed into the RP2350's emulated EEPROM
 # (rp2350-hdmi-hexpansion testcard firmware) and emits it as a C byte
 # array, src/fs_image.h, for main.c to memcpy into the eeprom buffer at
-# fs_offset. Run this whenever badge_app/ changes; the generated header
-# is checked in like any other generated artifact, not rebuilt by CMake
-# (keeps the C build reproducible without needing littlefs-python
-# installed at every build).
+# fs_offset. The generated header is checked in like any other generated
+# artifact, not rebuilt by CMake (keeps the C build reproducible without
+# needing littlefs-python installed at every build).
 #
 # Block layout MUST match what the badge itself computes (see main
 # README section 5 / badge-2024-software's
@@ -16,55 +15,40 @@
 #   block_count = (eeprom_total_size - fs_offset) // block_size
 #
 # With this project's header values (fs_offset=64, eeprom_total_size=
-# 65536): (65536-64)//512 = 127 blocks exactly. Built with EXACTLY 127
+# 8192): (8192-64)//512 = 15.875 -> 15 blocks. Built with EXACTLY 15
 # blocks here so every block this image references is one the badge's
-# partition wrapper will actually let it read -- building with more
-# would silently reference bytes past what the badge exposes; building
-# with fewer just wastes trailing EEPROM space, which is harmless but
-# not done here since 127 was already the natural, matching number.
+# partition wrapper will actually let it read.
+#
+# 2026-09-07: deliberately builds an EMPTY filesystem -- badge_app/ is no
+# longer packed in here. HEX_EEPROM_SIZE shrank from 64 KiB to 8 KiB
+# (see eeprom_i2c.c's own comment) to free RP2350 SRAM for a real
+# double-buffered framebuf[2], which the 20 KiB+ badge_app/app.py no
+# longer fits alongside. badge_app/ is now side-loaded onto the badge
+# directly for testing instead of hosted in this emulated EEPROM; the
+# badge's own hexpansion manager handles an empty mount gracefully (logs
+# "App module not found", does nothing further -- see
+# badge-2024-software's modules/system/hexpansion/app.py
+# _launch_hexpansion_app()). Revert to packing badge_app/ (and grow
+# HEX_EEPROM_SIZE back) once the real product wants the self-updating
+# EEPROM-hosted-app property back and can afford single-buffered video.
 #
 # Usage: python tools/build_fs_image.py
 # Requires: pip install littlefs-python
 
 import pathlib
-import sys
 
 from littlefs import LittleFS
 
 HERE = pathlib.Path(__file__).resolve().parent
-BADGE_APP_DIR = HERE.parent / "badge_app"
 OUT_HEADER = HERE.parent / "src" / "fs_image.h"
 
 BLOCK_SIZE = 512
-BLOCK_COUNT = 127  # (eeprom_total_size=65536 - fs_offset=64) // 512 -- must match src/eeprom_i2c.c
-
-
-# Anything under these never belongs on the badge -- most notably
-# __pycache__/*.pyc, which a stray `python -m py_compile` (e.g. a local
-# syntax check) leaves behind right next to app.py. Packing one in
-# blindly fails LFS_ERR_NOENT (the .pyc's parent directory was never
-# created inside the image), which is a confusing way to discover an
-# unrelated dev-tool side effect -- skip it explicitly instead.
-SKIP_DIR_NAMES = {"__pycache__"}
-SKIP_SUFFIXES = {".pyc"}
+BLOCK_COUNT = 15  # (eeprom_total_size=8192 - fs_offset=64) // 512 -- must match src/eeprom_i2c.c
 
 
 def build_image() -> bytes:
+    # Empty on purpose -- see this file's header comment.
     fs = LittleFS(block_size=BLOCK_SIZE, block_count=BLOCK_COUNT)
-
-    for path in sorted(BADGE_APP_DIR.rglob("*")):
-        if path.is_dir():
-            continue
-        if SKIP_DIR_NAMES & set(path.relative_to(BADGE_APP_DIR).parts[:-1]):
-            continue
-        if path.suffix in SKIP_SUFFIXES:
-            continue
-        rel = path.relative_to(BADGE_APP_DIR).as_posix()
-        data = path.read_bytes()
-        with fs.open(rel, "wb") as f:
-            f.write(data)
-        print(f"  packed {rel} ({len(data)} bytes)")
-
     return bytes(fs.context.buffer)
 
 
@@ -98,12 +82,8 @@ def emit_header(image: bytes, out_path: pathlib.Path) -> None:
 
 
 def main() -> int:
-    if not BADGE_APP_DIR.is_dir():
-        print(f"error: {BADGE_APP_DIR} not found", file=sys.stderr)
-        return 1
-
-    print(f"Building LittleFS2 image ({BLOCK_COUNT} x {BLOCK_SIZE}-byte blocks = "
-          f"{BLOCK_COUNT * BLOCK_SIZE} bytes) from {BADGE_APP_DIR}...")
+    print(f"Building empty LittleFS2 image ({BLOCK_COUNT} x {BLOCK_SIZE}-byte blocks = "
+          f"{BLOCK_COUNT * BLOCK_SIZE} bytes)...")
     image = build_image()
     assert len(image) == BLOCK_COUNT * BLOCK_SIZE, \
         f"image size {len(image)} != expected {BLOCK_COUNT * BLOCK_SIZE}"
