@@ -328,3 +328,49 @@ confirmed on real hardware, badge inserted and app running normally (not a bench
 filesystem → real app → badge-built frame data streamed continuously over SPI0 → clean,
 tear-free, colour-rotating HDMI output — all confirmed on real hardware, in one firmware
 image.
+
+**2026-09-07, real double-buffered framebuf:** the tearing described just above ("top-down
+sweep during live updates") turned out not to be fully gone -- still visible as a one-time
+shear on every landed frame once badge_app streamed real, continuously-changing content
+over an extended session. Root cause: `framebuf` was never actually double-buffered (see
+this firmware's own earlier comment on that), only per-row write-gated, which stops
+corruption but not a frame showing a mix of old/new rows during the ~240-row copy.
+Fixed by shrinking `HEX_EEPROM_SIZE` 64 KiB -> 8 KiB (freeing ~57 KiB of SRAM) and giving
+`framebuf` a real second copy, swapped by `dma_irq_handler` only at the start of vblank.
+`badge_app/` is no longer packed into the emulated EEPROM's LittleFS (now built empty) --
+side-loaded onto the badge directly instead:
+
+```
+mpremote fs mkdir :/sideload_test
+mpremote fs cp badge_app/app.py :/sideload_test/app.py
+mpremote reset   # clean module state -- see below
+mpremote resume exec "
+import sideload_test.app as sideload_app
+from system.hexpansion.config import HexpansionConfig
+from system.scheduler.events import RequestStartAppEvent
+from system.eventbus import eventbus
+from system.scheduler import scheduler
+config = HexpansionConfig(2)  # whichever port the hexpansion is in
+a = sideload_app.__app_export__(config=config)
+eventbus.emit(RequestStartAppEvent(a))
+scheduler.run_forever()
+"
+```
+
+Two real gotchas hit while working this out, worth recording:
+* A plain `import app` after `sys.path.insert(0, '/sideload_test')` shadows the framework's
+  own fundamental `app.py` (the base `App` class nearly everything imports) with the
+  side-loaded file of the same name, breaking unrelated modules elsewhere with confusing
+  `ImportError`s. Use a qualified import (`import sideload_test.app`) instead, matching how
+  the real launcher does it (`__import__(f"{mount}.app")`) -- never touches the bare `app`
+  name.
+* `mpremote exec`/`resume exec`'s Ctrl-C doesn't just pause `main.py`'s top-level
+  `scheduler.run_forever()`, it unwinds out of it entirely (a real `KeyboardInterrupt`
+  through that call). Registering an app with `RequestStartAppEvent` alone does nothing
+  further until something calls `scheduler.run_forever()` again -- do that as the last line
+  of the exec'd script (run in the background; it never returns) rather than expecting the
+  badge to keep ticking on its own afterward.
+
+Confirmed on real hardware, side-loaded via the above: bars streaming continuously, monitor
+showing **clean, tear-free** frame swaps -- no visible shear at all, unlike the same test
+before this fix.
