@@ -46,6 +46,8 @@
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
 #include "hardware/sync.h"
+#include "hardware/vreg.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include <math.h>
 #include <stdio.h>
@@ -134,6 +136,27 @@ static inline uint16_t random_gray_pixel(void) {
     // field width (5/6/5), so R==B and G is the closest 6-bit match --
     // visually neutral gray, not tinted.
     return (uint16_t)(((v >> 3) << 11) | ((v >> 2) << 5) | (v >> 3));
+}
+
+// The real GC9A01 panel driver (badge-2024-software's
+// components/flow3r_bsp/flow3r_bsp_gc9a01.c, flow3r_bsp_gc9a01_init())
+// sets MADCTL_BGR, so panel hardware -- not the badge's software --
+// swaps which 5-bit field drives Red vs. Blue when it lights the
+// subpixels. The badge's own ctx_565_pack() packs plain RGB565 with no
+// BGR awareness, so a receiver that displays those wire bytes as
+// straight RGB565 shows every pixel with Red and Blue swapped. Found
+// and fixed in spaceagon-display-tap's firmware/phase3-merged/ (same
+// name there); ported here because this firmware will hit the
+// identical bug once badge_app/app.py's synthetic rotating-colour
+// generator is replaced by a real display.get_fb() mirror (this
+// project's own README section 3.1/9 risk 4) -- synthetic content never
+// goes through the real panel driver, so the bug is latent, not yet
+// visible, until that swap happens.
+static inline uint16_t undo_madctl_bgr(uint16_t px) {
+    uint16_t r = (px >> 11) & 0x1F;
+    uint16_t g = (px >> 5) & 0x3F;
+    uint16_t b = px & 0x1F;
+    return (uint16_t)((b << 11) | (g << 5) | r);
 }
 
 static void fill_static_noise_row(int row) {
@@ -567,6 +590,16 @@ static void neopixel_init(void) {
     neopixel_put(0, 0, 0);  // off until the main loop starts toggling it
 }
 
+// Runs on core 1 (see main()'s comment for why) -- everything past
+// hstx_dvi_init() is interrupt-driven (dma_irq_handler), so core 1 has
+// nothing further to do once it returns.
+static void core1_video_entry(void) {
+    hstx_dvi_init();
+    for (;;) {
+        tight_loop_contents();
+    }
+}
+
 int main(void) {
     // Section 5 mitigation #1: I2C0 target up before anything else,
     // including clock reconfiguration -- see eeprom_i2c.h.
@@ -576,11 +609,34 @@ int main(void) {
     // clk_sys=126MHz -- see phase0-dvi/README.md for the derivation.
     set_sys_clock_khz(126000, true);
 
+    // RP2350 core1-launch voltage erratum (spaceagon-display-tap's
+    // firmware/phase3-merged/README.md, "Bug 1"): multicore_launch_core1()
+    // can hang -- core 1 stuck in a bootrom FIFO-status-polling loop,
+    // never reaching its entry function -- at stock 1.10V, independent
+    // of target clock frequency. Bump before launching core 1, with a
+    // short settle delay.
+    vreg_set_voltage(VREG_VOLTAGE_1_20);
+    sleep_ms(10);
+
     build_row_table();
     fill_static_noise();  // "no signal" look, shown until the badge's first streamed row arrives
-    hstx_dvi_init();
     spi0_slave_init();
     neopixel_init();
+
+    // Video (HSTX/DMA setup + dma_irq_handler) now runs on its own core;
+    // this core's main loop below keeps the SPI0 receive path. Matches
+    // the core assignment spaceagon-display-tap's firmware/phase3-merged
+    // found necessary on real RP2350 hardware ("Bug 2" in that project's
+    // README): the opposite assignment (video on core 0, the
+    // receive/decode job launched onto core 1) reproducibly broke video
+    // on that project's identical silicon -- confirmed fixed by swapping
+    // which job runs on which core, root cause never pinned down at the
+    // register level. Applied here pre-emptively, before this firmware
+    // hits the same wall. This also removes hstx_dvi_init()'s original
+    // need to fight the SPI0 polling loop for core time via a DMA_IRQ_0
+    // priority boost (see that function's own history) -- they no longer
+    // share a core at all.
+    multicore_launch_core1(core1_video_entry);
 
     uint8_t row_rx[ROW_RX_BYTES];
     uint row_index = 0;
@@ -657,7 +713,7 @@ int main(void) {
                     uint16_t *src16 = frame_staging[row];
                     uint32_t *dst32 = framebuf[row];
                     for (int i = 0; i < DBL_WORDS; i++) {
-                        uint32_t px = src16[i];
+                        uint32_t px = undo_madctl_bgr(src16[i]);
                         dst32[i] = px | (px << 16);
                     }
                 }

@@ -19,11 +19,13 @@ add_executable(bringup
 target_link_libraries(bringup
     pico_stdlib
     pico_unique_id
+    pico_multicore
     hardware_dma
     hardware_irq
     hardware_i2c
     hardware_spi
     hardware_pio
+    hardware_vreg
 )
 
 # Heartbeat LED via the Metro's onboard NeoPixel (GPIO25) -- reuses
@@ -55,11 +57,13 @@ add_executable(bringup_debug
 target_link_libraries(bringup_debug
     pico_stdlib
     pico_unique_id
+    pico_multicore
     hardware_dma
     hardware_irq
     hardware_i2c
     hardware_spi
     hardware_pio
+    hardware_vreg
 )
 target_compile_definitions(bringup_debug PRIVATE DEBUG_SERIAL=1)
 pico_generate_pio_header(bringup_debug ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
