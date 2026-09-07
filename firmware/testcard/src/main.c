@@ -148,27 +148,6 @@ static inline uint16_t random_gray_pixel(void) {
     return (uint16_t)(((v >> 3) << 11) | ((v >> 2) << 5) | (v >> 3));
 }
 
-// The real GC9A01 panel driver (badge-2024-software's
-// components/flow3r_bsp/flow3r_bsp_gc9a01.c, flow3r_bsp_gc9a01_init())
-// sets MADCTL_BGR, so panel hardware -- not the badge's software --
-// swaps which 5-bit field drives Red vs. Blue when it lights the
-// subpixels. The badge's own ctx_565_pack() packs plain RGB565 with no
-// BGR awareness, so a receiver that displays those wire bytes as
-// straight RGB565 shows every pixel with Red and Blue swapped. Found
-// and fixed in spaceagon-display-tap's firmware/phase3-merged/ (same
-// name there); ported here because this firmware will hit the
-// identical bug once badge_app/app.py's synthetic rotating-colour
-// generator is replaced by a real display.get_fb() mirror (this
-// project's own README section 3.1/9 risk 4) -- synthetic content never
-// goes through the real panel driver, so the bug is latent, not yet
-// visible, until that swap happens.
-static inline uint16_t undo_madctl_bgr(uint16_t px) {
-    uint16_t r = (px >> 11) & 0x1F;
-    uint16_t g = (px >> 5) & 0x3F;
-    uint16_t b = px & 0x1F;
-    return (uint16_t)((b << 11) | (g << 5) | r);
-}
-
 static void fill_static_noise_row(int buf, int row) {
     for (int w = 0; w < DBL_WORDS; w++) {
         uint16_t c0 = random_gray_pixel();
@@ -581,6 +560,49 @@ static void hstx_dvi_init(void) {
 #define PIN_MISO     23
 #define ROW_RX_BYTES 480  // 240 source RGB565 pixels, 2 bytes each, low byte first (matches badge_app/app.py's bytearray packing)
 
+// Interrupt-driven receive (2026-09-08), replacing an earlier
+// busy-polling version (see git history for that design's own real
+// debugging story: CS-framing turned out unreliable, byte-shift bugs
+// from flushing mid-burst, a hang from a blocking SDK call racing CS --
+// all still relevant background for why this drops CS-awareness
+// entirely and just treats the incoming bytes as one continuous,
+// chunking-agnostic stream, same as before).
+//
+// The busy-polling version was replaced for a different reason than any
+// of those: it read the SPI0 peripheral's status/data registers in a
+// TIGHT loop continuously, even with nothing connected -- confirmed on
+// real hardware to generate enough bus contention with core 1's
+// HSTX/DMA scanout (which has zero timing margin) to visibly corrupt
+// the displayed image. An interrupt-driven receive touches the
+// peripheral ONLY when a real interrupt fires (i.e. only when bytes are
+// actually arriving), so core 0 generates zero SPI-related bus traffic
+// while idle.
+//
+// Standard PL022 pattern: RXIM fires once the RX FIFO reaches half-full
+// (4 of 8 entries); RTIM (receive timeout) catches the tail end of a
+// burst that never reaches that threshold (needs an explicit SSPICR
+// write to clear, unlike RXIM which self-clears as the FIFO drains).
+static volatile uint8_t spi0_rx_row_buf[ROW_RX_BYTES];
+static volatile size_t spi0_rx_count = 0;
+static volatile bool spi0_row_ready = false;
+
+static void __not_in_flash_func(spi0_rx_irq_handler)(void) {
+    while (spi_is_readable(SPI_PORT)) {
+        uint8_t b = (uint8_t)spi_get_hw(SPI_PORT)->dr;
+        if (spi0_rx_count < ROW_RX_BYTES) {
+            spi0_rx_row_buf[spi0_rx_count++] = b;
+            if (spi0_rx_count == ROW_RX_BYTES) {
+                spi0_row_ready = true;
+            }
+        }
+        // else: a full row is already waiting for spi0_take_row() to
+        // consume it -- discard further bytes rather than overwrite an
+        // unconsumed row. Only possible if the main loop falls badly
+        // behind; self-corrects on the next row regardless.
+    }
+    spi_get_hw(SPI_PORT)->icr = SPI_SSPICR_RTIC_BITS;
+}
+
 static void spi0_slave_init(void) {
     spi_init(SPI_PORT, 1000 * 1000);  // nominal only -- slave derives timing from the badge's SCK
     spi_set_slave(SPI_PORT, true);
@@ -589,91 +611,22 @@ static void spi0_slave_init(void) {
     gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
+
+    spi_get_hw(SPI_PORT)->imsc = SPI_SSPIMSC_RXIM_BITS | SPI_SSPIMSC_RTIM_BITS;
+    irq_set_exclusive_handler(SPI0_IRQ, spi0_rx_irq_handler);
+    irq_set_enabled(SPI0_IRQ, true);
 }
 
-// CS-framed polling receive, with a SHORT internal timeout purely to
-// guarantee this function always returns promptly (never a hang, at
-// either phase) -- how long ago the last SUCCESSFUL row arrived, for
-// deciding "genuinely idle" vs. "brief gap between rows", is tracked by
-// the CALLER on a wall clock, not by this function's own timeout value.
-//
-// Went through two other approaches first (2026-08-30, both on real
-// hardware) before landing here:
-//   1. A plain byte-counting poll with no CS-awareness at all: any
-//      timeout mid-burst left stale bytes sitting in the RX FIFO, which
-//      the NEXT call would treat as the start of a fresh row -- a
-//      persistent byte-shift, once introduced, that never
-//      self-corrected (confirmed on real hardware: streamed pixel data
-//      was consistently misaligned from that point on).
-//   2. A single call to the SDK's own spi_write_read_blocking() after
-//      only a ONE-TIME, non-blocking CS peek beforehand (no ongoing
-//      CS-awareness during the transfer itself): reused proven transfer
-//      mechanics, but reopened almost the exact hang risk that motivated
-//      moving off a single blocking call in the first place -- if CS
-//      happens to go back high in the gap between the peek and the
-//      actual transfer engaging (a real race, given how fast the badge
-//      toggles CS between rows), the SDK call has no way to know and
-//      just sits waiting forever for bytes that will never arrive.
-//      Confirmed on real hardware: the whole main loop hung completely
-//      (not even the wall-clock heartbeat LED kept blinking).
-// This version keeps CS-awareness THROUGHOUT the byte-by-byte receive
-// (not just as a one-time gate beforehand), so it can safely abort an
-// incomplete burst instead of ever waiting on data that isn't coming,
-// while ALSO explicitly resynchronizing to each fresh CS-low edge (fix
-// #1's actual bug) rather than trusting stale FIFO content.
-//
-// 2026-08-31, real hardware: gpio_get(PIN_CS) read 0 on literally every
-// single poll, including multi-second idle stretches with nothing
-// plugged in at all -- so it is NOT reliably reflecting this pin's real
-// level while PIN_CS is configured GPIO_FUNC_SPI on this hardware/SDK
-// combination (the "input path reflects the pad regardless of function
-// select" assumption from fix #2, above, does not hold here). Given
-// that, the CS-low-wait loop above always fell straight through (0
-// iterations), and the mid-burst "did CS go back high" abort check
-// never fired either -- so that version was effectively an unconditional
-// per-call "flush the FIFO, then drain up to 480 bytes with a timeout"
-// running in a tight loop against a stream it was never actually
-// synchronized to. Its rare successes (~5 out of ~6000 calls, captured
-// on the console) only happened when a call's timing accidentally
-// landed on a genuine row boundary; every other call's flush step threw
-// away legitimately-in-flight bytes of whatever row was already
-// mid-transfer, permanently shifting alignment for that row.
-//
-// The badge sends one row as a single continuous CS-low burst of
-// exactly ROW_RX_BYTES bytes back-to-back (see _send_frame() in
-// badge_app/app.py), with no filler bytes in the gaps between rows.
-// That means the RX FIFO's byte stream is ALREADY naturally
-// row-aligned as long as this side never discards a byte it has
-// actually received and never fabricates one it hasn't -- no GPIO-level
-// framing signal is needed at all. So: drop CS entirely from this
-// function, never flush, and let `received` persist ACROSS calls
-// (static) so a row that arrives a few bytes at a time (this function
-// gets called from a tight main loop that also does other per-iteration
-// work) still accumulates correctly instead of being reset. The
-// deadline covers one whole call, not reset per byte: within a single
-// CS-low burst, bytes arrive back-to-back at the SPI clock rate with no
-// natural gaps (the badge never pauses mid-burst), so a real stall can
-// only happen BETWEEN bursts -- one deadline per call already catches
-// that. A per-byte reset was tried and removed (2026-08-31): each reset
-// calls make_timeout_time_ms(), which reads a hardware timer -- cheap at
-// the original 1MHz badge-side rate, but 20MHz (needed for 15fps, see
-// badge_app/app.py) leaves only ~400ns/byte, and that timer read alone
-// was eating a meaningful fraction of it. A single deadline per call
-// removes that cost from the hot per-byte path entirely, at any speed.
-#define SPI0_RECEIVE_INTERNAL_TIMEOUT_MS 50
-
-static bool spi0_receive_row(uint8_t *rx_buf) {
-    static size_t received = 0;  // persists across calls -- never reset except on a full row
-
-    absolute_time_t deadline = make_timeout_time_ms(SPI0_RECEIVE_INTERNAL_TIMEOUT_MS);
-    while (received < ROW_RX_BYTES) {
-        if (spi_is_readable(SPI_PORT)) {
-            rx_buf[received++] = (uint8_t)spi_get_hw(SPI_PORT)->dr;
-        } else if (time_reached(deadline)) {
-            return false;  // genuine silence -- come back later, `received` is preserved
-        }
+// Non-blocking: returns immediately either way, no internal polling or
+// timeout of its own -- spi0_rx_irq_handler() does all the actual
+// register access, only when real data arrives.
+static bool spi0_take_row(uint8_t *rx_buf) {
+    if (!spi0_row_ready) {
+        return false;
     }
-    received = 0;
+    memcpy(rx_buf, (const void *)spi0_rx_row_buf, ROW_RX_BYTES);
+    spi0_rx_count = 0;
+    spi0_row_ready = false;
     return true;
 }
 
@@ -770,16 +723,12 @@ int main(void) {
     absolute_time_t next_red_toggle = make_timeout_time_ms(500);
     absolute_time_t green_flash_until = nil_time;
 
-    // Idle detection is wall-clock-timed, not iteration-counted --
-    // spi0_receive_row() blocks internally (spinning on the RX FIFO)
-    // until either a full row completes or SPI0_RECEIVE_INTERNAL_TIMEOUT_MS
-    // of genuine byte-to-byte silence passes, so it does NOT return
-    // near-instantly on every miss -- while truly idle, the outer loop
-    // only comes back around roughly once per that internal timeout. A
-    // gap between successful rows under IDLE_AFTER_MS is unremarkable
-    // (MicroPython GC pauses, background WiFi/BT servicing, scheduler
-    // jitter between one row and the next); only sustained silence past
-    // that is "actually idle" and falls back to static.
+    // Idle detection is wall-clock-timed: spi0_take_row() itself is
+    // instant (just checks a flag set by the ISR), so the outer loop
+    // spins fast regardless of link state -- IDLE_AFTER_MS is what
+    // actually distinguishes "genuinely idle" from a brief gap between
+    // rows (MicroPython GC pauses, background WiFi/BT servicing,
+    // scheduler jitter between one row and the next).
     #define IDLE_AFTER_MS 500
     absolute_time_t last_row_time = get_absolute_time();
 
@@ -787,7 +736,7 @@ int main(void) {
     // below) -- gates which fallback pattern genuine idle shows.
     // Before it: EMF test card (this hexpansion is up, just waiting for
     // the badge's app to start). After it: static noise (the link WAS
-    // working and has since gone quiet) -- see spi0_receive_row's else
+    // working and has since gone quiet) -- see the genuinely_idle
     // branch below. Matches spaceagon-display-tap's own frame_ready
     // semantics ("stop overwriting framebuf with the synthetic
     // bars/logo pattern" once real content has ever arrived).
@@ -811,7 +760,7 @@ int main(void) {
 #endif
 
     for (;;) {
-        bool got_row = spi0_receive_row(row_rx);
+        bool got_row = spi0_take_row(row_rx);
 
         if (got_row) {
 #ifdef DEBUG_SERIAL
@@ -844,14 +793,28 @@ int main(void) {
                 recv_buf = back_index();
             }
 
-            // Straight into the back buffer, doubled + BGR-corrected --
-            // no separate staging copy needed (frame_staging is gone):
-            // DMA never touches recv_buf until back_buffer_ready flips
-            // it to front, so there's nothing to race here.
+            // Straight into the back buffer -- no separate staging copy
+            // needed (frame_staging is gone): DMA never touches recv_buf
+            // until back_buffer_ready flips it to front, so there's
+            // nothing to race here.
+            //
+            // No BGR correction here (removed 2026-09-08, was a mistaken
+            // port from spaceagon-display-tap's own undo_madctl_bgr()):
+            // that fix compensates for the REAL GC9A01 PANEL HARDWARE
+            // reinterpreting which 5-bit field drives Red vs. Blue --
+            // relevant only when physically sniffing the wire between
+            // the badge and that real panel (spaceagon-display-tap's own
+            // passive tap). This project reads display.get_fb() directly
+            // in software (or, before that, generated synthetic content
+            // in Python) -- neither path ever goes through that panel's
+            // MADCTL_BGR hardware, so there was nothing to undo. Confirmed
+            // on real hardware: applying it turned pure red (0xF800) into
+            // pure blue (0x001F), matching exactly the "blue instead of
+            // red/orange" symptom reported testing the real mirror.
             uint16_t *src16 = (uint16_t *)(void *)row_rx;
             uint32_t *dst32 = framebuf[recv_buf][row_index];
             for (int i = 0; i < DBL_WORDS; i++) {
-                uint32_t px = undo_madctl_bgr(src16[i]);
+                uint32_t px = src16[i];
                 dst32[i] = px | (px << 16);
             }
 
@@ -860,6 +823,23 @@ int main(void) {
                 ever_received_frame = true;  // stop showing the EMF test card forever, even across future idle gaps
                 back_buffer_ready = true;
                 green_flash_until = make_timeout_time_ms(80);
+#ifdef DEBUG_SERIAL
+                // Temporary diagnostic (2026-09-08): sample exact known
+                // (row,col) positions in the buffer just handed off,
+                // indexed precisely -- not the free-running rows_received
+                // counter above, which isn't aligned to real frame
+                // boundaries.
+                printf("frame landed, recv_buf=%d: r0c0=%04x r0c239=%04x r119c0=%04x r119c239=%04x r120c0=%04x r120c239=%04x r239c0=%04x r239c239=%04x\n",
+                    recv_buf,
+                    framebuf[recv_buf][0][0] & 0xFFFF,
+                    framebuf[recv_buf][0][239] & 0xFFFF,
+                    framebuf[recv_buf][119][0] & 0xFFFF,
+                    framebuf[recv_buf][119][239] & 0xFFFF,
+                    framebuf[recv_buf][120][0] & 0xFFFF,
+                    framebuf[recv_buf][120][239] & 0xFFFF,
+                    framebuf[recv_buf][239][0] & 0xFFFF,
+                    framebuf[recv_buf][239][239] & 0xFFFF);
+#endif
             }
         } else {
             sleep_us(200);  // idle -- don't busy-spin the CS peek needlessly
@@ -871,7 +851,7 @@ int main(void) {
             static uint32_t misses = 0;
             misses++;
             if (misses <= 10 || (misses % 2000) == 0) {
-                printf("spi0_receive_row missed (#%lu), genuinely_idle=%d\n",
+                printf("spi0_take_row missed (#%lu), genuinely_idle=%d\n",
                        (unsigned long)misses, (int)genuinely_idle);
             }
 #endif

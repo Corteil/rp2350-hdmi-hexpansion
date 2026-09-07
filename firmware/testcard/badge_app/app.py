@@ -70,6 +70,7 @@
 # above and revert it just as easily.
 
 import app
+import display
 import time
 import ctx as ctxmod  # NOT the ctx passed into draw(ctx) -- see _render_icon()
 from machine import SPI, Pin
@@ -409,4 +410,150 @@ class TestcardApp(app.App):
         ctx.restore()
 
 
-__app_export__ = TestcardApp
+# Byte-swaps every adjacent pair in src into dst (both must be >= n
+# bytes) -- see MirrorApp.background_update()'s own comment for why this
+# is needed at all. @micropython.viper compiles this to native machine
+# code rather than running it through the bytecode interpreter -- tested
+# directly on real hardware (2026-09-07) against the alternatives before
+# picking this one: a plain Python loop took ~1000ms for the full
+# 115200-byte framebuffer (worse than the SPI send itself, unacceptable
+# to redo every frame), @micropython.native got that down to ~260ms,
+# @micropython.viper's typed ptr8 arguments got it to ~16ms -- cheap
+# enough to do the whole buffer in one shot, no chunking needed (unlike
+# the SPI send itself, which does need chunking -- see ROWS_PER_TICK).
+@micropython.viper
+def _swap_bytepairs(src: ptr8, dst: ptr8, n: int):
+    i = 0
+    while i < n:
+        dst[i] = src[i + 1]
+        dst[i + 1] = src[i]
+        i += 2
+
+
+class MirrorApp(app.App):
+    # Real display.get_fb() mirror -- the actual product feature
+    # TestcardApp above stood in for until this firmware patch landed
+    # (badge-2024-software commit 28e1906). Reads the badge's own live
+    # framebuffer and streams it over the same SPI0 link/protocol
+    # TestcardApp already proved, instead of generating synthetic
+    # content in Python.
+    #
+    # Runs entirely in background_update(), NEVER requests foreground
+    # (unlike TestcardApp): _launch_hexpansion_app already starts
+    # hexpansion apps in the background (see TestcardApp's own
+    # background_update() comment) -- update()/draw() only ever run for
+    # whichever app currently HOLDS foreground (system/app.py's App.run()
+    # docstring: "for the foreground application only"), but
+    # background_update() runs for every app every ~50ms regardless
+    # (App.background_task()). A mirror needs exactly that: it must show
+    # whatever OTHER app the user actually has open, not steal the
+    # screen for itself.
+    #
+    # Sends the WHOLE 240-row frame in one background_update() call, not
+    # chunked across ticks -- tried chunking first (ROWS_PER_TICK=20,
+    # spread over ~12 ticks with ~50ms gaps between them, to avoid
+    # blocking the badge for the full ~940ms a whole frame takes at this
+    # link's proven-stable 1MHz), but confirmed on real hardware
+    # (2026-09-08) that it broke the image into torn horizontal bands.
+    # At the time, the RP2350's receiver was a busy-polling
+    # spi0_receive_row() with its own internal timeout the same order of
+    # magnitude as those inter-chunk gaps, so pausing mid-frame drifted
+    # the two sides' row alignment out of phase -- that receiver has
+    # since been replaced with an interrupt-driven one (src/main.c,
+    # spi0_take_row()) for an unrelated reason (busy-polling was
+    # corrupting the video output via bus contention with HSTX/DMA), so
+    # chunking's actual behavior against the new receiver is untested,
+    # not necessarily still broken the same way. TestcardApp above sends
+    # all 240 rows in one uninterrupted burst per update() and has never
+    # shown this -- matching that here trades badge responsiveness (this
+    # blocks ~940ms every call, and background_update() runs
+    # unconditionally regardless of foreground state, unlike
+    # TestcardApp's foreground-gated update()) for a correct, untorn
+    # image. Revisit chunking later against the new receiver (or a real
+    # frame-boundary marker) rather than reintroducing it blindly.
+    ROWS_PER_TICK = ROWS
+
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.spi = None
+        self.cs = None
+        self.frames_sent = 0
+        self.status = "starting..."
+        self._row_index = 0
+        # Frozen snapshot of the framebuffer for the frame currently
+        # being sent -- see background_update()'s own comment on why
+        # this can't just re-read display.get_fb() fresh every chunk.
+        self._frame = None
+        self._init_spi()
+
+    def _init_spi(self):
+        try:
+            # config.pin is [hs_1, hs_2, hs_3, hs_4] for this hexpansion's
+            # own port -- HS_F=MOSI, HS_G=CS, HS_H=SCK, HS_I=MISO (main
+            # README section 4.1's resolved role assignment).
+            mosi, cs, sck, miso = self.config.pin
+            cs.init(Pin.OUT, value=1)
+            self.cs = cs
+            self.spi = SPI(
+                1, baudrate=1_000_000, polarity=1, phase=1,
+                sck=sck, mosi=mosi, miso=miso,
+            )
+        except Exception as e:
+            self.status = "SPI init failed: {!r}".format(e)
+            print(self.status)
+
+    def background_update(self, delta):
+        if self.spi is None:
+            return
+
+        if self._row_index == 0:
+            # New frame: one atomic snapshot, not a fresh display.get_fb()
+            # read per chunk -- whatever app is actually in the
+            # foreground keeps rendering into the same live buffer while
+            # we're mid-transmission (a full frame takes ~12 chunks,
+            # roughly a second or more of wall-clock time -- see
+            # ROWS_PER_TICK's own comment), so re-reading partway through
+            # could blend rows from two different points in time. bytes()
+            # over a memoryview is a single C-level copy, not a Python
+            # loop, so this itself stays cheap.
+            #
+            # tildagon_fb is CTX_FORMAT_RGB565_BYTESWAPPED (the real
+            # GC9A01 panel's own wire-format need -- see
+            # drivers/gc9a01/display.c's ctx_new_for_framebuffer() call
+            # and components/ctx/ctx.h's byteswap handling: each pixel's
+            # two bytes are swapped relative to plain RGB565 in memory).
+            # src/main.c on the RP2350 expects plain little-endian RGB565
+            # (low byte first -- matches TestcardApp's own _compute_row()
+            # comment, and is what undo_madctl_bgr() there assumes it's
+            # decoding), so every adjacent byte pair needs swapping back
+            # before this goes out over SPI. See _swap_bytepairs()'s own
+            # comment for why that's a @micropython.viper function and
+            # not a slice-assignment trick (unsupported: this build's
+            # bytearray only accepts step=1 slices) or a plain loop (too
+            # slow -- tested at ~1000ms for the full buffer).
+            fb = display.get_fb()
+            swapped = bytearray(len(fb))
+            _swap_bytepairs(fb, swapped, len(fb))
+            self._frame = swapped
+
+        row_bytes = COLS * 2
+        end_row = min(self._row_index + self.ROWS_PER_TICK, ROWS)
+        try:
+            for r in range(self._row_index, end_row):
+                self.cs.value(0)
+                self.spi.write(self._frame[r * row_bytes:(r + 1) * row_bytes])
+                self.cs.value(1)
+        except Exception as e:
+            self.status = "row send failed: {!r}".format(e)
+            print(self.status)
+            self._row_index = 0
+            return
+
+        self._row_index = end_row % ROWS
+        if self._row_index == 0:
+            self.frames_sent += 1
+            self.status = "mirroring #%d" % self.frames_sent
+
+
+__app_export__ = MirrorApp
