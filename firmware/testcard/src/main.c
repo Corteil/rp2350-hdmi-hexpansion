@@ -586,9 +586,37 @@ static volatile uint8_t spi0_rx_row_buf[ROW_RX_BYTES];
 static volatile size_t spi0_rx_count = 0;
 static volatile bool spi0_row_ready = false;
 
+// Frame-sync marker (2026-09-08): badge_app/app.py's FRAME_MARKER, sent
+// once right before row 0 of every frame -- see that file's own comment
+// for why (no CS-level framing means a single dropped byte anywhere
+// leaves row counting permanently mislabeled until pure chance
+// realigns it; confirmed on real hardware as an occasional,
+// self-correcting-but-visible vertical misalignment). marker_window is
+// a rolling 8-byte shift register checked on EVERY incoming byte,
+// regardless of spi0_rx_count's state -- deliberately BEFORE the
+// row-storage gate below, so a marker is never missed just because a
+// previous row was still waiting for spi0_take_row() to consume it.
+#define FRAME_MARKER_VALUE 0xA55AA55AA55AA55AULL
+static uint64_t marker_window = 0;
+static volatile bool spi0_frame_synced = false;  // true once the marker has ever been seen; discard everything before that
+static volatile bool spi0_row0_pending = false;  // set on marker match; main() forces row_index=0 on the next row it takes
+
 static void __not_in_flash_func(spi0_rx_irq_handler)(void) {
     while (spi_is_readable(SPI_PORT)) {
         uint8_t b = (uint8_t)spi_get_hw(SPI_PORT)->dr;
+
+        marker_window = (marker_window << 8) | b;
+        if (marker_window == FRAME_MARKER_VALUE) {
+            spi0_rx_count = 0;
+            spi0_row0_pending = true;
+            spi0_frame_synced = true;
+            continue;  // this byte is part of the marker, not row data
+        }
+
+        if (!spi0_frame_synced) {
+            continue;  // discard everything until the first marker ever arrives
+        }
+
         if (spi0_rx_count < ROW_RX_BYTES) {
             spi0_rx_row_buf[spi0_rx_count++] = b;
             if (spi0_rx_count == ROW_RX_BYTES) {
@@ -598,7 +626,10 @@ static void __not_in_flash_func(spi0_rx_irq_handler)(void) {
         // else: a full row is already waiting for spi0_take_row() to
         // consume it -- discard further bytes rather than overwrite an
         // unconsumed row. Only possible if the main loop falls badly
-        // behind; self-corrects on the next row regardless.
+        // behind; self-corrects on the next row regardless (and the
+        // marker check above still runs on every byte either way, so a
+        // frame boundary is never missed even if some row-data bytes
+        // are).
     }
     spi_get_hw(SPI_PORT)->icr = SPI_SSPICR_RTIC_BITS;
 }
@@ -774,6 +805,17 @@ int main(void) {
 #endif
             last_row_time = get_absolute_time();
             ever_received_any_row = true;  // stop the EMF test card blink, even mid-frame -- see its own comment below
+
+            if (spi0_row0_pending) {
+                // The ISR saw a fresh frame-sync marker since the last
+                // row we took -- force row counting back to 0 even if
+                // we were previously out of phase (a dropped byte
+                // somewhere left row_index mid-frame when it shouldn't
+                // have been). Bounds any drift to at most one frame,
+                // instead of persisting until pure chance realigned it.
+                spi0_row0_pending = false;
+                row_index = 0;
+            }
 
             if (row_index == 0) {
                 // Starting a new frame's reception: make sure the

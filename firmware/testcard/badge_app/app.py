@@ -139,6 +139,21 @@ ICON_COLOURS = {
 
 SCREENS = ["bars", "checker"] + list(ICON_NAMES)
 
+# Frame-sync marker (2026-09-08): sent once, right before row 0 of every
+# frame, so the RP2350 side can resynchronize its row counting even
+# after a dropped or corrupted byte -- see src/main.c's
+# spi0_rx_irq_handler() for the receiver side. Without this, the two
+# sides' row counts have no way to realign once they drift apart (no
+# CS-level framing is used -- see this file's own header comment on
+# why), and a single dropped byte anywhere leaves every subsequent row
+# permanently mislabeled until pure chance realigns them. 8 bytes,
+# alternating bit pattern, picked to be unlikely to occur by chance in
+# real image data; an occasional false match in unusual content just
+# costs one extra, self-correcting resync (the next real marker fixes
+# it), not a lasting problem -- a real product would want a more
+# collision-proof scheme (e.g. a longer marker, or CRC-checked framing).
+FRAME_MARKER = bytes([0xA5, 0x5A, 0xA5, 0x5A, 0xA5, 0x5A, 0xA5, 0x5A])
+
 
 class TestcardApp(app.App):
     def __init__(self, config):
@@ -301,6 +316,9 @@ class TestcardApp(app.App):
         t_spi_start = time.ticks_ms()
         sent_ok = 0
         try:
+            self.cs.value(0)
+            self.spi.write(FRAME_MARKER)
+            self.cs.value(1)
             if static_rows is None:
                 row = self._rows[self.rotation]  # precomputed -- see __init__
                 for _ in range(ROWS):
@@ -525,8 +543,7 @@ class MirrorApp(app.App):
             # two bytes are swapped relative to plain RGB565 in memory).
             # src/main.c on the RP2350 expects plain little-endian RGB565
             # (low byte first -- matches TestcardApp's own _compute_row()
-            # comment, and is what undo_madctl_bgr() there assumes it's
-            # decoding), so every adjacent byte pair needs swapping back
+            # comment), so every adjacent byte pair needs swapping back
             # before this goes out over SPI. See _swap_bytepairs()'s own
             # comment for why that's a @micropython.viper function and
             # not a slice-assignment trick (unsupported: this build's
@@ -540,6 +557,14 @@ class MirrorApp(app.App):
         row_bytes = COLS * 2
         end_row = min(self._row_index + self.ROWS_PER_TICK, ROWS)
         try:
+            if self._row_index == 0:
+                # Sent only at a genuine frame start -- placed inside
+                # this same "new frame" branch as the snapshot above so
+                # it stays correct if chunking (ROWS_PER_TICK < ROWS)
+                # ever gets reintroduced. See FRAME_MARKER's own comment.
+                self.cs.value(0)
+                self.spi.write(FRAME_MARKER)
+                self.cs.value(1)
             for r in range(self._row_index, end_row):
                 self.cs.value(0)
                 self.spi.write(self._frame[r * row_bytes:(r + 1) * row_bytes])
