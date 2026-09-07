@@ -7,8 +7,8 @@ identification EEPROM with this project's real assigned identity (**VID `0x1969`
 badge-side app packed into it → that app **builds a 240×240 frame in Python and streams it
 continuously over the proven SPI0 link, one burst per row** → the RP2350 receives, buffers,
 and displays it live over HDMI, "as if mirrored from the badge" (not a literal mirror of
-this badge's own rendered `ctx` screen — that needs `display.get_fb()`, Phase 0 C2's patch,
-still unmerged; see below).
+this badge's own rendered `ctx` screen — that needed `display.get_fb()`, Phase 0 C2's patch;
+**merged and proven working end-to-end as of 2026-09-08, see the bottom of this file**).
 
 Every layer here was proven individually in Phase 0. This firmware was originally a
 pattern-select demo (RP2350 held a handful of fixed test patterns, badge picked among them)
@@ -374,3 +374,60 @@ Two real gotchas hit while working this out, worth recording:
 Confirmed on real hardware, side-loaded via the above: bars streaming continuously, monitor
 showing **clean, tear-free** frame swaps -- no visible shear at all, unlike the same test
 before this fix.
+
+## 2026-09-08 — the real `display.get_fb()` mirror, working end to end
+
+**The actual product feature this whole firmware was standing in for.** With
+`display.get_fb()` merged into `badge-2024-software` (commit `28e1906`), `badge_app/app.py`
+gained `MirrorApp`: reads the badge's own live framebuffer and streams it over the same
+SPI0 link/protocol `TestcardApp` already proved, instead of generating synthetic content in
+Python. Runs entirely in `background_update()`, never requests foreground -- unlike
+`TestcardApp`, it must show whatever app the user actually has open, not steal the screen
+for itself (`_launch_hexpansion_app` already starts hexpansion apps in the background;
+`background_update()` runs for every registered app every ~50ms regardless of foreground
+state, while `update()`/`draw()` are foreground-only -- see `system/app.py`'s `App.run()`
+docstring).
+
+Getting a real, correct image out of this took three more real, hardware-confirmed fixes
+on top of everything above -- each one looked like a plausible complete fix on its own, and
+each was wrong or incomplete in a way only real hardware revealed:
+
+1. **Wrong colours.** `undo_madctl_bgr()` (ported from `spaceagon-display-tap`'s
+   `phase3-merged`, where it belongs) turned out to be a mistaken port: that fix compensates
+   for the *real GC9A01 panel hardware* reinterpreting Red/Blue when `MADCTL_BGR` is set --
+   relevant only when physically sniffing the wire between the badge and that real panel.
+   This project reads `display.get_fb()` directly in software, never touching that panel's
+   hardware at all, so there was nothing to undo. Confirmed on real hardware: applying it
+   turned pure red (`0xF800`) into pure blue (`0x001F`), matching exactly the "blue instead
+   of red/orange" symptom seen testing the real mirror. Removed.
+2. **Image torn into duplicated-edge bands, changing every reflash.** Isolated by writing a
+   known 4-quadrant test pattern directly into `framebuf` from C, bypassing SPI/the badge
+   entirely -- the corruption persisted even then, ruling out the data pipeline and pointing
+   at the DMA/HSTX scanout path itself. Root cause: `spi0_receive_row()` busy-polled the
+   SPI0 peripheral's registers in a tight loop continuously, even with nothing connected --
+   confirmed by disabling the loop entirely, which produced a clean image. That much
+   register traffic from core 0 was enough bus contention to glitch core 1's HSTX/DMA
+   scanout (zero timing margin). Fixed by replacing the busy-poll with an interrupt-driven
+   receiver (`spi0_rx_irq_handler()` + `spi0_take_row()`, standard PL022 RXIM+RTIM pattern)
+   -- core 0 now generates zero SPI-related bus traffic while idle.
+3. **Occasional vertical misalignment, self-correcting over a few seconds.** The
+   already-documented no-frame-sync-marker limitation, now actually hit in practice: one
+   dropped byte anywhere left the badge's and RP2350's row counts out of phase until pure
+   chance realigned them. Fixed with `FRAME_MARKER`, an 8-byte pattern sent once before row
+   0 of every frame; the RP2350 checks a rolling window against it on every incoming byte
+   (deliberately before the row-storage gate, so a marker already waiting for the main loop
+   to consume the previous row is never missed) and force-resyncs row counting on a match --
+   bounding any drift to at most one frame instead of persisting indefinitely.
+
+**Confirmed on real hardware, badge foreground app left running normally (not a bench
+script):** a 4-quadrant test pattern mirrors through with correct colours and no tearing or
+drift after all three fixes; then the badge's own **real launcher menu**, and separately its
+**GPS clock app**, both mirror through correctly onto the external monitor -- indistinguishable
+from the badge's own screen, "as if mirrored from the badge" finally literally true. Measured
+frame rate with the GPS app in the foreground: **~0.5 fps**, consistent with `MirrorApp`
+sending a whole 240-row frame per `background_update()` call at this link's proven-stable
+1 MHz (~940ms/frame of SPI time alone, per `TestcardApp`'s own frame-rate history above) --
+well under the main README §3.1 C1 measurement's ~2-14 fps range for real apps, the expected
+cost of *not* chunking the send (see `MirrorApp.ROWS_PER_TICK`'s own comment for why
+chunking was tried and reverted, and remains open to revisit against the now-interrupt-driven
+receiver).
