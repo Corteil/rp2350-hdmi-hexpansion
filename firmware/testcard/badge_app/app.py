@@ -467,28 +467,21 @@ class MirrorApp(app.App):
     # whatever OTHER app the user actually has open, not steal the
     # screen for itself.
     #
-    # Sends the WHOLE 240-row frame in one background_update() call, not
-    # chunked across ticks -- tried chunking first (ROWS_PER_TICK=20,
-    # spread over ~12 ticks with ~50ms gaps between them, to avoid
-    # blocking the badge for the full ~940ms a whole frame takes at this
-    # link's proven-stable 1MHz), but confirmed on real hardware
-    # (2026-09-08) that it broke the image into torn horizontal bands.
-    # At the time, the RP2350's receiver was a busy-polling
-    # spi0_receive_row() with its own internal timeout the same order of
-    # magnitude as those inter-chunk gaps, so pausing mid-frame drifted
-    # the two sides' row alignment out of phase -- that receiver has
-    # since been replaced with an interrupt-driven one (src/main.c,
-    # spi0_take_row()) for an unrelated reason (busy-polling was
-    # corrupting the video output via bus contention with HSTX/DMA), so
-    # chunking's actual behavior against the new receiver is untested,
-    # not necessarily still broken the same way. TestcardApp above sends
-    # all 240 rows in one uninterrupted burst per update() and has never
-    # shown this -- matching that here trades badge responsiveness (this
-    # blocks ~940ms every call, and background_update() runs
-    # unconditionally regardless of foreground state, unlike
-    # TestcardApp's foreground-gated update()) for a correct, untorn
-    # image. Revisit chunking later against the new receiver (or a real
-    # frame-boundary marker) rather than reintroducing it blindly.
+    # Sends the whole 240-row frame in one background_update() call.
+    # Chunking (ROWS_PER_TICK < ROWS, spreading the send across several
+    # ticks to keep the badge responsive between them) was retried
+    # 2026-09-08 now that the receiver is interrupt-driven and a
+    # FRAME_MARKER exists for resync -- worked in one debug-build capture
+    # (rows/frames genuinely completing) but the production (non-debug)
+    # build got stuck showing the boot-time test card after a fresh
+    # reset, not reproduced further before abandoning the attempt in
+    # favour of a real throughput fix instead: chunking never actually
+    # improves frame rate (same total bytes, same SPI clock -- it only
+    # trades badge responsiveness for a slower, more complicated send),
+    # so with a 15fps target, raising the SPI clock (see _init_spi()) is
+    # the fix that actually matters. Revisit chunking separately, later,
+    # for the responsiveness problem specifically, once the production
+    # build's odd behaviour above is understood.
     ROWS_PER_TICK = ROWS
 
     def __init__(self, config):
@@ -510,11 +503,60 @@ class MirrorApp(app.App):
             # config.pin is [hs_1, hs_2, hs_3, hs_4] for this hexpansion's
             # own port -- HS_F=MOSI, HS_G=CS, HS_H=SCK, HS_I=MISO (main
             # README section 4.1's resolved role assignment).
+            #
+            # TestcardApp's own proven-stable rate is 1MHz -- a full
+            # 115200-byte frame takes ~940ms of raw SPI time there, under
+            # 1.1fps even with zero overhead, nowhere near the ~15fps
+            # target (main README section 3.1's C1 measurement: real
+            # apps render at up to ~14fps). Tried raising it twice on
+            # 2026-09-08, both abandoned:
+            #
+            # - 20MHz: measured clean in isolation before (main README's
+            #   Phase 0 C3), and the RP2350 side was confirmed genuinely
+            #   receiving/decoding correctly at this rate (a dedicated
+            #   SPI0-RX DMA channel replaced the interrupt-driven
+            #   receiver specifically to reach it) -- but the badge's own
+            #   ESP32-S3 SPI master side crashed hard (USB dropped off
+            #   the bus entirely, needed a physical power-cycle to
+            #   recover) on two separate, otherwise-clean attempts, no
+            #   debug-probe interference involved either time.
+            # - 10MHz: no crash, but a silent hang instead -- the RP2350
+            #   side saw genuinely zero bytes arrive (confirmed via its
+            #   own debug build's serial output, passively read, no
+            #   further badge-side interference) for 6+ seconds straight
+            #   while the badge process itself stayed superficially
+            #   "alive" (mpremote's own connection never dropped) --
+            #   consistent with a single blocking spi.write() call
+            #   wedged forever rather than a full interpreter crash.
+            #
+            # Root cause not identified for either; suspected ESP32-S3
+            # SPI master hardware/driver limitation against this
+            # particular slave setup at these rates, not anything
+            # RP2350-side (that side's own fixes -- interrupt-driven
+            # receive, then DMA-driven -- are proven correct and remain
+            # in place; they matter at any clock rate above 1MHz, this
+            # just never got to exercise them reliably). Needs
+            # hardware-level investigation (logic analyzer/scope) to
+            # actually diagnose, not more live trial-and-error against a
+            # real badge.
+            #
+            # 2MHz (2026-09-08) confirmed stable on real hardware: no
+            # crash or hang, badge's own launcher mirrored through
+            # correctly, NeoPixel confirmed real frames landing (roughly
+            # one every 2s). Didn't meaningfully beat 1MHz's own
+            # framerate though -- per-row Python/GPIO overhead
+            # (self.cs.value() x2 plus loop overhead per row, unrelated
+            # to the SPI clock itself) dominates over raw transfer time
+            # at this scale, so doubling the clock didn't double
+            # throughput. Trying 5MHz next, still a cautious step (not
+            # the 10-20MHz that crashed/hung the badge outright) to see
+            # whether it helps meaningfully or whether overhead has
+            # already become the real bottleneck.
             mosi, cs, sck, miso = self.config.pin
             cs.init(Pin.OUT, value=1)
             self.cs = cs
             self.spi = SPI(
-                1, baudrate=1_000_000, polarity=1, phase=1,
+                1, baudrate=5_000_000, polarity=1, phase=1,
                 sck=sck, mosi=mosi, miso=miso,
             )
         except Exception as e:

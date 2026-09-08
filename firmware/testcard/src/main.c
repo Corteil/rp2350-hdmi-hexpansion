@@ -486,6 +486,18 @@ static void hstx_dvi_init(void) {
     c = dma_channel_get_default_config(DMACH_PING);
     channel_config_set_chain_to(&c, DMACH_PONG);
     channel_config_set_dreq(&c, DREQ_HSTX);
+    // High priority (2026-09-08, added alongside the SPI0 RX DMA
+    // channel in spi0_slave_init()): HSTX has zero timing margin, and
+    // now has a second DMA channel genuinely competing with it for bus
+    // cycles at up to 20MHz/2.5MB/s, unlike before when the only other
+    // DMA-ish activity was interrupt-driven and much lower-bandwidth.
+    // bus_ctrl_hw->priority below already tells the arbiter DMA beats
+    // plain CPU access, but does nothing to arbitrate BETWEEN two
+    // competing DMA channels -- explicit per-channel priority is the
+    // actual fix, same pattern (and same justification) as
+    // spaceagon-display-tap's firmware/phase3-merged/ used for its own
+    // second DMA channel competing with HSTX.
+    channel_config_set_high_priority(&c, true);
     dma_channel_configure(
         DMACH_PING, &c, &hstx_fifo_hw->fifo,
         vblank_line_vsync_off, count_of(vblank_line_vsync_off), false
@@ -493,6 +505,7 @@ static void hstx_dvi_init(void) {
     c = dma_channel_get_default_config(DMACH_PONG);
     channel_config_set_chain_to(&c, DMACH_PING);
     channel_config_set_dreq(&c, DREQ_HSTX);
+    channel_config_set_high_priority(&c, true);
     dma_channel_configure(
         DMACH_PONG, &c, &hstx_fifo_hw->fifo,
         vblank_line_vsync_off, count_of(vblank_line_vsync_off), false
@@ -560,28 +573,44 @@ static void hstx_dvi_init(void) {
 #define PIN_MISO     23
 #define ROW_RX_BYTES 480  // 240 source RGB565 pixels, 2 bytes each, low byte first (matches badge_app/app.py's bytearray packing)
 
-// Interrupt-driven receive (2026-09-08), replacing an earlier
-// busy-polling version (see git history for that design's own real
-// debugging story: CS-framing turned out unreliable, byte-shift bugs
-// from flushing mid-burst, a hang from a blocking SDK call racing CS --
-// all still relevant background for why this drops CS-awareness
-// entirely and just treats the incoming bytes as one continuous,
-// chunking-agnostic stream, same as before).
+// DMA-driven receive (2026-09-08), replacing an earlier interrupt-driven
+// version (see git history for that design's own real debugging story,
+// still relevant background: CS-framing turned out unreliable, a
+// busy-polling receiver before THAT generated enough bus contention
+// with core 1's HSTX/DMA scanout to visibly corrupt the display).
 //
-// The busy-polling version was replaced for a different reason than any
-// of those: it read the SPI0 peripheral's status/data registers in a
-// TIGHT loop continuously, even with nothing connected -- confirmed on
-// real hardware to generate enough bus contention with core 1's
-// HSTX/DMA scanout (which has zero timing margin) to visibly corrupt
-// the displayed image. An interrupt-driven receive touches the
-// peripheral ONLY when a real interrupt fires (i.e. only when bytes are
-// actually arriving), so core 0 generates zero SPI-related bus traffic
-// while idle.
+// The interrupt-driven version was replaced for a throughput reason,
+// found raising the badge's SPI clock from 1MHz towards a 15fps target
+// (main README section 3.1's C1 measurement): at 20MHz, real,
+// reproducible corruption (diagonal streaking) appeared on real
+// hardware, most likely the per-byte interrupt-entry/register-read
+// overhead of spi0_rx_irq_handler() (confirmed clean at 1MHz) no longer
+// keeping up with the raw byte rate, causing RX FIFO overruns. A DMA
+// channel draining the RX FIFO has none of that per-byte software
+// overhead -- the peripheral's DREQ triggers a hardware transfer
+// directly into memory, no CPU/interrupt involved at all, so it should
+// scale to much higher byte rates than the CPU ever could servicing one
+// interrupt per few bytes.
 //
-// Standard PL022 pattern: RXIM fires once the RX FIFO reaches half-full
-// (4 of 8 entries); RTIM (receive timeout) catches the tail end of a
-// burst that never reaches that threshold (needs an explicit SSPICR
-// write to clear, unlike RXIM which self-clears as the FIFO drains).
+// Design: one DMA channel continuously copies bytes from SPI0's DR
+// register into spi_rx_ring, a RING-ADDRESSED buffer (hardware wraps
+// the write address automatically every SPI_RING_SIZE bytes -- see
+// channel_config_set_ring()) with a transfer count large enough it
+// never needs re-arming in practice. spi0_process_ring(), called once
+// per main-loop iteration, drains whatever DMA has written since the
+// last call by comparing the channel's live write_addr against our own
+// read position (both taken mod SPI_RING_SIZE) -- same marker-detection
+// and row-storage state machine the old ISR used, just fed from the
+// ring instead of the peripheral directly, and running as a plain
+// function call instead of an interrupt (no separate context, so no
+// races with spi0_take_row() to worry about beyond what already existed
+// between two ordinary function calls in the same loop).
+#define SPI_RING_BITS 12
+#define SPI_RING_SIZE (1u << SPI_RING_BITS)  // 4096 bytes -- ~1.6ms of margin at 20MHz between main-loop check-ins, comfortably generous
+static uint8_t spi_rx_ring[SPI_RING_SIZE] __attribute__((aligned(SPI_RING_SIZE)));
+static uint32_t spi_ring_read_pos = 0;  // position within the ring (0..SPI_RING_SIZE-1), not a monotonic total
+static uint spi_rx_dma_chan;
+
 static volatile uint8_t spi0_rx_row_buf[ROW_RX_BYTES];
 static volatile size_t spi0_rx_count = 0;
 static volatile bool spi0_row_ready = false;
@@ -593,17 +622,50 @@ static volatile bool spi0_row_ready = false;
 // realigns it; confirmed on real hardware as an occasional,
 // self-correcting-but-visible vertical misalignment). marker_window is
 // a rolling 8-byte shift register checked on EVERY incoming byte,
-// regardless of spi0_rx_count's state -- deliberately BEFORE the
-// row-storage gate below, so a marker is never missed just because a
-// previous row was still waiting for spi0_take_row() to consume it.
+// deliberately before the row-storage gate below, so a marker is never
+// missed just because a previous row was still waiting for
+// spi0_take_row() to consume it.
 #define FRAME_MARKER_VALUE 0xA55AA55AA55AA55AULL
 static uint64_t marker_window = 0;
-static volatile bool spi0_frame_synced = false;  // true once the marker has ever been seen; discard everything before that
-static volatile bool spi0_row0_pending = false;  // set on marker match; main() forces row_index=0 on the next row it takes
+static bool spi0_frame_synced = false;  // true once the marker has ever been seen; discard everything before that
+static bool spi0_row0_pending = false;  // set on marker match; main() forces row_index=0 on the next row it takes
 
-static void __not_in_flash_func(spi0_rx_irq_handler)(void) {
-    while (spi_is_readable(SPI_PORT)) {
-        uint8_t b = (uint8_t)spi_get_hw(SPI_PORT)->dr;
+static void spi0_slave_init(void) {
+    spi_init(SPI_PORT, 1000 * 1000);  // nominal only -- slave derives timing from the badge's SCK
+    spi_set_slave(SPI_PORT, true);
+    spi_set_format(SPI_PORT, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+    gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
+    gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
+    gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
+    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
+
+    spi_rx_dma_chan = dma_claim_unused_channel(true);
+    dma_channel_config c = dma_channel_get_default_config(spi_rx_dma_chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_8);
+    channel_config_set_read_increment(&c, false);   // fixed source: SPI0's own DR register
+    channel_config_set_write_increment(&c, true);   // walks through the ring
+    channel_config_set_dreq(&c, spi_get_dreq(SPI_PORT, false));  // false = RX
+    channel_config_set_ring(&c, true, SPI_RING_BITS);  // wrap the WRITE address every SPI_RING_SIZE bytes, in hardware
+    dma_channel_configure(
+        spi_rx_dma_chan, &c,
+        spi_rx_ring, &spi_get_hw(SPI_PORT)->dr,
+        0xFFFFFFFFu,  // effectively unbounded -- the ring wraps forever, this channel is armed once and never re-armed
+        true
+    );
+    spi_get_hw(SPI_PORT)->dmacr = SPI_SSPDMACR_RXDMAE_BITS;
+}
+
+// Drains whatever spi_rx_dma_chan has written into spi_rx_ring since the
+// last call. Cheap to call even when nothing new has arrived (one
+// register read, one comparison). Not an interrupt handler -- called
+// directly from main()'s own loop, once per iteration.
+static void spi0_process_ring(void) {
+    uint32_t write_addr = dma_channel_hw_addr(spi_rx_dma_chan)->write_addr;
+    uint32_t write_pos = (uint32_t)(write_addr - (uintptr_t)spi_rx_ring) & (SPI_RING_SIZE - 1);
+
+    while (spi_ring_read_pos != write_pos) {
+        uint8_t b = spi_rx_ring[spi_ring_read_pos];
+        spi_ring_read_pos = (spi_ring_read_pos + 1) & (SPI_RING_SIZE - 1);
 
         marker_window = (marker_window << 8) | b;
         if (marker_window == FRAME_MARKER_VALUE) {
@@ -631,26 +693,11 @@ static void __not_in_flash_func(spi0_rx_irq_handler)(void) {
         // frame boundary is never missed even if some row-data bytes
         // are).
     }
-    spi_get_hw(SPI_PORT)->icr = SPI_SSPICR_RTIC_BITS;
 }
 
-static void spi0_slave_init(void) {
-    spi_init(SPI_PORT, 1000 * 1000);  // nominal only -- slave derives timing from the badge's SCK
-    spi_set_slave(SPI_PORT, true);
-    spi_set_format(SPI_PORT, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
-    gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
-
-    spi_get_hw(SPI_PORT)->imsc = SPI_SSPIMSC_RXIM_BITS | SPI_SSPIMSC_RTIM_BITS;
-    irq_set_exclusive_handler(SPI0_IRQ, spi0_rx_irq_handler);
-    irq_set_enabled(SPI0_IRQ, true);
-}
-
-// Non-blocking: returns immediately either way, no internal polling or
-// timeout of its own -- spi0_rx_irq_handler() does all the actual
-// register access, only when real data arrives.
+// Non-blocking: returns immediately either way. Caller must have called
+// spi0_process_ring() first (in the same loop iteration) for this to
+// see anything new -- see main()'s own loop.
 static bool spi0_take_row(uint8_t *rx_buf) {
     if (!spi0_row_ready) {
         return false;
@@ -702,6 +749,19 @@ static void core1_video_entry(void) {
 }
 
 int main(void) {
+    // Claim the HSTX ping-pong channels BEFORE anything else calls
+    // dma_claim_unused_channel() (spi0_slave_init(), below, for its own
+    // SPI0 RX DMA) -- hstx_dvi_init() configures DMACH_PING/DMACH_PONG
+    // by hardcoded channel number directly, never through
+    // dma_channel_claim(), so the SDK's own claimed-channel bookkeeping
+    // has no way to know they're spoken for otherwise, and
+    // dma_claim_unused_channel() could hand one of them out to whatever
+    // asks first. Same class of bug spaceagon-display-tap's
+    // firmware/phase3-merged/ already hit and fixed for its own,
+    // different second DMA consumer (see that project's main() comment).
+    dma_channel_claim(DMACH_PING);
+    dma_channel_claim(DMACH_PONG);
+
     // Section 5 mitigation #1: I2C0 target up before anything else,
     // including clock reconfiguration -- see eeprom_i2c.h.
     eeprom_i2c_start();
@@ -791,6 +851,7 @@ int main(void) {
 #endif
 
     for (;;) {
+        spi0_process_ring();
         bool got_row = spi0_take_row(row_rx);
 
         if (got_row) {
