@@ -431,3 +431,63 @@ well under the main README §3.1 C1 measurement's ~2-14 fps range for real apps,
 cost of *not* chunking the send (see `MirrorApp.ROWS_PER_TICK`'s own comment for why
 chunking was tried and reverted, and remains open to revisit against the now-interrupt-driven
 receiver).
+
+## Pushing towards 15fps (2026-09-08) -- real gains, a real hardware limit, and where to look next
+
+Chasing the main README §3.1 C1 target (~15fps, matching real apps' worst-case render rate)
+surfaced two more genuine RP2350-side bugs, fixed properly, plus a hard limit on the badge
+side that stopped short of 15fps and needs different tools than a live badge to actually
+diagnose.
+
+**RP2350-side, both fixed:** the interrupt-driven receiver (previous section) couldn't keep
+up with the raw byte rate once the badge's SPI clock went past ~1MHz -- confirmed on real
+hardware as diagonal streaking at 20MHz, traced to per-byte interrupt-entry/register-read
+overhead, not a logic bug. Replaced with a DMA-driven receiver (`spi_rx_ring`, a
+ring-addressed buffer; `spi0_process_ring()`, called from `main()`'s own loop instead of an
+ISR) -- confirmed via a debug-build capture to genuinely decode correct frames at 20MHz.
+Getting there also surfaced (and fixed) a real DMA channel conflict (`hstx_dvi_init()`'s
+hardcoded `DMACH_PING`/`PONG` were never formally claimed via `dma_channel_claim()`, so the
+new SPI0 RX channel's own `dma_claim_unused_channel()` call could -- and once did -- grab
+one of them) and added explicit high priority on HSTX's own DMA channels (a second DMA
+channel now genuinely competes with HSTX for bus cycles at higher SPI rates; the existing
+`bus_ctrl_hw->priority` only ever arbitrated DMA-vs-CPU, never DMA-vs-DMA).
+
+**Badge-side, not resolved:** with the RP2350 side proven correct at 20MHz, the badge's own
+ESP32-S3 SPI master turned out to be the actual ceiling. 20MHz crashed it hard -- USB
+dropped off the bus entirely, needing a physical power-cycle to recover -- twice, on
+otherwise-clean attempts with no debug-probe interference either time. 10MHz produced a
+different failure, a silent hang (RP2350 confirmed receiving zero bytes for 6+ seconds while
+the badge's own mpremote connection stayed superficially alive, consistent with one blocking
+`spi.write()` call wedged forever rather than a full crash). **5MHz is the highest rate
+confirmed stable**: no crash or hang across repeated real-hardware tests, badge's own
+launcher mirrors through correctly, real frames landing at ~1fps -- 2x the 1MHz baseline,
+but still well short of 15fps, and clearly not scaling linearly with clock rate (2MHz gave
+about the same ~0.5fps as 1MHz; only 5MHz showed a real jump). That non-linearity is itself
+a clue -- see below.
+
+**Two concrete next steps, not yet attempted, both bigger than a config tweak:**
+
+1. **Move `MirrorApp`'s send loop into C.** The non-linear scaling above points at
+   Python-level per-row overhead -- a 240-iteration loop, a fresh `bytearray` slice
+   allocated every row (`self._frame[r*row_bytes:(r+1)*row_bytes]`, 480 bytes copied each
+   time), two `self.cs.value()` GPIO calls per row -- competing with, or exceeding, raw SPI
+   transfer time even before considering the ESP32-S3 SPI master's own apparent instability
+   above 5MHz. A small custom C user-module (matching how `display`/`ctx` are already
+   implemented in `badge-2024-software`'s `drivers/gc9a01/`) doing the byteswap-and-send as
+   one tight C loop -- no per-row Python call, no repeated slice allocation -- would remove
+   that overhead entirely. Needs a new MicroPython binding exposed from badge firmware, not
+   just a badge_app/app.py change.
+2. **Move the badge's own SPI transfer onto DMA**, the same idea this session's RP2350-side
+   fix already proved out in the other direction: let the ESP32-S3 stream `tildagon_fb`
+   directly via hardware DMA instead of a blocking, CPU-driven write per row. Two possible
+   wins at once -- removes the remaining per-row CPU cost C alone wouldn't (DMA hands the
+   transfer to hardware entirely), and plausibly more stable than the current blocking-write
+   approach at higher clock rates, though that's a hypothesis, not confirmed. Needs checking
+   whether MicroPython's `machine.SPI` already uses ESP-IDF's own DMA path internally for
+   large transfers before assuming a from-scratch driver is required.
+
+Both need real C-level firmware work (a new ESP-IDF component, a MicroPython binding) rather
+than badge_app/app.py tweaks, and the 10-20MHz instability specifically needs hardware-level
+tools (logic analyzer/scope on the SPI lines) to actually root-cause -- more live
+trial-and-error against a real badge already cost two hard crashes needing a physical
+power-cycle each time. Diagnose before reattempting higher clock rates blind.
