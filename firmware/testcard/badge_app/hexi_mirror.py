@@ -2,11 +2,20 @@
 #
 # Lives in THIS repo (not badge-2024-software) because it's Hexi-GFX-
 # project-specific badge-side code, same as app.py alongside it --
-# badge-2024-software's own checkout just symlinks
-# modules/firmware_apps/hexi_mirror.py to this file so the mount-based
-# dev-testing workflow ([[feedback-hexigfx-sideload-over-reflash]]) can
-# still import it as `firmware_apps.hexi_mirror`, without committing it
-# to that fork's git history.
+# badge-2024-software's own checkout keeps a plain COPY of this file at
+# modules/firmware_apps/hexi_mirror.py (gitignored there, not committed
+# to that fork's history) so the mount-based dev-testing workflow can
+# import it as `firmware_apps.hexi_mirror`.
+#
+# Deliberately a copy, not a symlink: a symlink there crashed the badge
+# outright (2026-09-08) with `ImportError: no module named
+# 'firmware_apps.hexi_mirror'`, and needed a physical USB power cycle to
+# recover -- `mpremote`'s own mount implementation lists directory
+# entries with `os.lstat()` (transport_serial.py), which doesn't follow
+# symlinks, so the mounted virtual filesystem never sees the real file.
+# There is no live sync: after editing this file, re-copy it into
+# badge-2024-software's modules/firmware_apps/ by hand before testing
+# there again.
 #
 # MirrorApp does NOT come from the hexpansion's own emulated EEPROM
 # filesystem -- confirmed empty on real hardware (2026-09-08: badge log
