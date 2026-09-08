@@ -78,6 +78,7 @@ from events.input import Buttons, BUTTON_TYPES
 from app_components.tokens import clear_background, small_font_size, label_font_size
 from system.eventbus import eventbus
 from system.scheduler.events import RequestForegroundPushEvent
+from system.hexpansion.events import HexpansionAppLauncherAddEvent
 
 ROWS = 240
 COLS = 240
@@ -456,16 +457,25 @@ class MirrorApp(app.App):
     # TestcardApp already proved, instead of generating synthetic
     # content in Python.
     #
-    # Runs entirely in background_update(), NEVER requests foreground
-    # (unlike TestcardApp): _launch_hexpansion_app already starts
-    # hexpansion apps in the background (see TestcardApp's own
-    # background_update() comment) -- update()/draw() only ever run for
-    # whichever app currently HOLDS foreground (system/app.py's App.run()
-    # docstring: "for the foreground application only"), but
+    # Mirroring itself runs entirely in background_update() and NEVER
+    # auto-requests foreground (unlike TestcardApp): _launch_hexpansion_app
+    # already starts hexpansion apps in the background (see TestcardApp's
+    # own background_update() comment) -- update()/draw() only ever run
+    # for whichever app currently HOLDS foreground (system/app.py's
+    # App.run() docstring: "for the foreground application only"), but
     # background_update() runs for every app every ~50ms regardless
     # (App.background_task()). A mirror needs exactly that: it must show
     # whatever OTHER app the user actually has open, not steal the
     # screen for itself.
+    #
+    # Does register a real, normal launcher menu entry though (2026-09-08)
+    # -- see __init__'s HexpansionAppLauncherAddEvent emission, same
+    # pattern Corteil/tildagon-space-unicorn's own app.py uses. Selecting
+    # it from the menu foregrounds this app like any other (Launcher's
+    # "hexpansion_app" callable path), which briefly shows update()/draw()
+    # below -- a plain status readout, CANCEL to return -- but mirroring
+    # itself doesn't depend on ever being foregrounded; it keeps running
+    # via background_update() regardless of what's selected.
     #
     # Sends the whole 240-row frame in one background_update() call.
     # Chunking (ROWS_PER_TICK < ROWS, spreading the send across several
@@ -487,6 +497,7 @@ class MirrorApp(app.App):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.buttons = Buttons(self)
         self.spi = None
         self.cs = None
         self.frames_sent = 0
@@ -497,6 +508,15 @@ class MirrorApp(app.App):
         # this can't just re-read display.get_fb() fresh every chunk.
         self._frame = None
         self._init_spi()
+
+        # Registers a real, normal launcher menu entry for this app --
+        # only when genuinely hexpansion-launched (config.port set), same
+        # guard Corteil/tildagon-space-unicorn's own app.py uses. This is
+        # what makes "HDMI Mirror" show up in the menu at all; no
+        # badge-2024-software-side code is needed for it any more.
+        port = getattr(config, "port", None) if config else None
+        if port is not None:
+            eventbus.emit(HexpansionAppLauncherAddEvent(port, "HDMI Mirror"))
 
     def _init_spi(self):
         try:
@@ -621,6 +641,28 @@ class MirrorApp(app.App):
         if self._row_index == 0:
             self.frames_sent += 1
             self.status = "mirroring #%d" % self.frames_sent
+
+    def update(self, delta):
+        # Only runs while this app holds the foreground (see the class's
+        # own comment on background_update() vs update()) -- i.e. only
+        # right after the user taps "HDMI Mirror" in the menu. Mirroring
+        # itself doesn't depend on this at all.
+        if self.buttons.pressed(BUTTON_TYPES["CANCEL"]):
+            self.buttons.clear()
+            self.minimise()
+            return True
+
+    def draw(self, ctx):
+        ctx.save()
+        clear_background(ctx)
+        ctx.text_align = ctx.CENTER
+        ctx.text_baseline = ctx.MIDDLE
+        ctx.font_size = label_font_size
+        ctx.rgb(1, 1, 1).move_to(0, -30).text("HDMI Mirror")
+        ctx.font_size = small_font_size
+        ctx.rgb(1, 1, 0).move_to(0, 10).text(self.status)
+        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 45).text("CANCEL: back")
+        ctx.restore()
 
 
 __app_export__ = MirrorApp
