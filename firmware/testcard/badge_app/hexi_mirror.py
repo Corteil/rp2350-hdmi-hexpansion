@@ -17,30 +17,23 @@
 # badge-2024-software's modules/firmware_apps/ by hand before testing
 # there again.
 #
-# MirrorApp does NOT come from the hexpansion's own emulated EEPROM
-# filesystem -- confirmed empty on real hardware (2026-09-08: badge log
-# showed "Mounted eeprom to /hexpansion_1" / "Hexpansion files: []" /
-# "no module named 'hexpansion_1.app'"). That's deliberate, not a bug:
-# tools/build_fs_image.py (2026-09-07) shrank HEX_EEPROM_SIZE from 64KiB
-# to 8KiB to free RP2350 SRAM for a real double-buffered framebuf[2], and
-# the 20KB+ badge_app/app.py no longer fits alongside -- so this repo's
-# own README instead sideloads badge_app/app.py straight onto the
-# BADGE's flash at :/sideload_test (`mpremote fs cp badge_app/app.py
-# :/sideload_test/app.py`, a one-time, persists-across-reboots step,
-# separate from badge-2024-software's own `modules/` mount) and launches
-# it by hand with a manually constructed HexpansionConfig(port). This app
-# automates exactly that hand-built sequence from a normal menu tap,
-# importing `sideload_test.app` instead of going through the (currently
-# always-empty) hexpansion-mount path badge-2024-software's own
-# `_launch_hexpansion_app()` uses -- see [[hexigfx-mirror-status]].
+# MirrorApp now genuinely lives on the hexpansion's own emulated EEPROM
+# filesystem again (2026-09-08, tools/build_fs_image.py) -- it packs
+# app.py pre-compiled to bytecode (app.mpy via mpy-cross) instead of raw
+# source, which is what makes it fit: 32141 bytes of mostly-comments
+# source compiles down to ~4.4KB, comfortably under the 8KiB EEPROM's
+# 7680-byte usable budget (the double-buffered framebuf[2] SRAM win from
+# 2026-09-07 is kept -- no need to grow HEX_EEPROM_SIZE back). This
+# reverses the same day's earlier sideload-based workaround (importing
+# `sideload_test.app` by hand) -- back to the straightforward path:
+# badge-2024-software's own `_launch_hexpansion_app()` mounts the real fs
+# and imports `app` from it exactly like any other hexpansion.
 #
-# Port detection still works the normal way: hexpansion header
-# auto-detection (badge-2024-software's
-# modules/system/hexpansion/app.py's handle_hexpansion_insertion) already
-# reads and stores each port's EEPROM header regardless of whether the fs
-# it points to has any files on it, so scanning hexpansion_headers by
-# VID/PID below is unaffected by the empty-fs issue above -- only
-# importing FROM that specific port's mount is.
+# Port detection works the normal way: hexpansion header auto-detection
+# (badge-2024-software's modules/system/hexpansion/app.py's
+# handle_hexpansion_insertion) reads and stores each port's EEPROM
+# header, so scanning hexpansion_headers by VID/PID below finds which
+# port to launch on.
 #
 # Deliberately minimises itself back to the launcher (rather than staying
 # in the foreground) once it's confirmed mirroring is running: MirrorApp
@@ -50,7 +43,6 @@
 # monitor. Intended flow: open this once per session to (re)arm
 # mirroring, then go pick the app you actually want mirrored.
 import app
-import os
 from events.input import Buttons, BUTTON_TYPES
 from app_components.tokens import clear_background, small_font_size, label_font_size
 
@@ -96,38 +88,11 @@ class HexiMirrorLauncherApp(app.App):
             self.status = f"Already mirroring (port {port})"
             return
 
-        # A bare `import sideload_test.app` only resolves against whatever
-        # directory happens to be the current working one -- matches
-        # _launch_hexpansion_app()'s own os.chdir("/") before its import,
-        # needed for the same reason (confirmed on real hardware
-        # 2026-09-08: the import failed with "no module named" from
-        # inside this app's own running context until this chdir was
-        # added, despite :/sideload_test/app.py genuinely existing on the
-        # badge's flash).
-        old_cwd = os.getcwd()
-        os.chdir("/")
-        try:
-            import sideload_test.app as mirror_pkg
-        except ImportError as e:
-            self.status = "No sideload: {!r}".format(e)
-            return
-        finally:
-            os.chdir(old_cwd)
-
-        from system.hexpansion.config import HexpansionConfig
-        from system.scheduler.events import RequestStartAppEvent
-        from system.eventbus import eventbus
-
-        try:
-            config = HexpansionConfig(port)
-            instance = mirror_pkg.__app_export__(config=config)
-        except Exception as e:
-            self.status = "Launch failed: {!r}".format(e)
-            return
-
-        eventbus.emit(RequestStartAppEvent(instance))
-        mgr.hexpansion_apps[port] = instance
-        self.status = f"Mirroring started (port {port})"
+        mgr._launch_hexpansion_app(port)
+        if port in mgr.hexpansion_apps:
+            self.status = f"Mirroring started (port {port})"
+        else:
+            self.status = f"Failed to start (port {port})"
 
     def update(self, delta):
         if not self._checked:

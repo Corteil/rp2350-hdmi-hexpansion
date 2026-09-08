@@ -4,7 +4,7 @@
 # array, src/fs_image.h, for main.c to memcpy into the eeprom buffer at
 # fs_offset. The generated header is checked in like any other generated
 # artifact, not rebuilt by CMake (keeps the C build reproducible without
-# needing littlefs-python installed at every build).
+# needing littlefs-python/mpy-cross installed at every build).
 #
 # Block layout MUST match what the badge itself computes (see main
 # README section 5 / badge-2024-software's
@@ -19,45 +19,116 @@
 # blocks here so every block this image references is one the badge's
 # partition wrapper will actually let it read.
 #
-# 2026-09-07: deliberately builds an EMPTY filesystem -- badge_app/ is no
-# longer packed in here. HEX_EEPROM_SIZE shrank from 64 KiB to 8 KiB
-# (see eeprom_i2c.c's own comment) to free RP2350 SRAM for a real
-# double-buffered framebuf[2], which the 20 KiB+ badge_app/app.py no
-# longer fits alongside. badge_app/ is now side-loaded onto the badge
-# directly for testing instead of hosted in this emulated EEPROM; the
-# badge's own hexpansion manager handles an empty mount gracefully (logs
-# "App module not found", does nothing further -- see
-# badge-2024-software's modules/system/hexpansion/app.py
-# _launch_hexpansion_app()). Revert to packing badge_app/ (and grow
-# HEX_EEPROM_SIZE back) once the real product wants the self-updating
-# EEPROM-hosted-app property back and can afford single-buffered video.
+# 2026-09-08: badge_app/app.py is packed again, as PRE-COMPILED BYTECODE
+# (app.mpy via mpy-cross), not raw source -- reverses the 2026-09-07
+# decision to leave this image empty. That decision was purely a size
+# problem, not an architectural one: HEX_EEPROM_SIZE shrank from 64 KiB
+# to 8 KiB to free RP2350 SRAM for a real double-buffered framebuf[2],
+# and app.py's 32 KiB of raw source (most of it historical comments)
+# doesn't fit in 15 blocks (7680 bytes) alongside that. Compiling first
+# removes the comments/docstrings and uses a compact bytecode
+# representation instead of text -- 32141 bytes -> 4389 bytes, comfortably
+# under budget with the double-buffering win kept intact. MicroPython's
+# import system resolves `import app` against either app.py or app.mpy
+# transparently, so no badge-2024-software-side change was needed for
+# this to work.
+#
+# hexi_mirror.py (badge-2024-software's launcher-menu entry, also in
+# this dir) is deliberately NOT packed here -- it's badge-2024-software
+# UI code, not something the hexpansion itself should serve; it's copied
+# into that other checkout for local testing instead (see that file's
+# own header comment).
+#
+# CRITICAL: the .mpy bytecode format is versioned and must come from an
+# mpy-cross build EXACTLY matching the MicroPython commit the RP2350
+# firmware embeds (a generic pip-installed mpy-cross is NOT guaranteed
+# to match and can silently produce a .mpy the badge's own runtime
+# refuses to load) -- badge-2024-software vendors that exact source at
+# micropython/mpy-cross/; build it there (`cd micropython/mpy-cross &&
+# make`) and point MPY_CROSS at the resulting binary, e.g.:
+#   MPY_CROSS=/path/to/badge-2024-software/micropython/mpy-cross/build/mpy-cross \
+#       python tools/build_fs_image.py
 #
 # Usage: python tools/build_fs_image.py
 # Requires: pip install littlefs-python
 
+import os
 import pathlib
+import subprocess
+import sys
+import tempfile
 
 from littlefs import LittleFS
 
 HERE = pathlib.Path(__file__).resolve().parent
+BADGE_APP_DIR = HERE.parent / "badge_app"
+APP_SOURCE = BADGE_APP_DIR / "app.py"
 OUT_HEADER = HERE.parent / "src" / "fs_image.h"
 
 BLOCK_SIZE = 512
 BLOCK_COUNT = 15  # (eeprom_total_size=8192 - fs_offset=64) // 512 -- must match src/eeprom_i2c.c
 
+# ESP32/ESP32-S3's Xtensa target -- must match badge-2024-software's own
+# frozen-module build flag (see that repo's ports/esp32/boards/tildagon
+# manifest build: `makemanifest.py ... -f-march=xtensawin`), since
+# app.py uses a @micropython.viper function (native-code-compiled, so
+# genuinely architecture-specific, unlike plain bytecode).
+MPY_CROSS_ARCH = "xtensawin"
+
+
+def find_mpy_cross() -> str:
+    override = os.environ.get("MPY_CROSS")
+    if override:
+        return override
+    # Default guess: sibling badge-2024-software checkout, if present.
+    guess = (
+        HERE.parent.parent.parent.parent
+        / "badge-2024-software"
+        / "micropython"
+        / "mpy-cross"
+        / "build"
+        / "mpy-cross"
+    )
+    if guess.is_file():
+        return str(guess)
+    sys.exit(
+        "mpy-cross not found -- set MPY_CROSS to a binary built from "
+        "badge-2024-software's own micropython/mpy-cross/ (see this "
+        "script's header comment for why a generic pip install isn't "
+        "safe to use here)."
+    )
+
+
+def compile_app_mpy(mpy_cross: str) -> bytes:
+    with tempfile.TemporaryDirectory() as tmp:
+        out_path = pathlib.Path(tmp) / "app.mpy"
+        subprocess.run(
+            [mpy_cross, f"-march={MPY_CROSS_ARCH}", str(APP_SOURCE), "-o", str(out_path)],
+            check=True,
+        )
+        return out_path.read_bytes()
+
 
 def build_image() -> bytes:
-    # Empty on purpose -- see this file's header comment.
+    mpy_cross = find_mpy_cross()
+    data = compile_app_mpy(mpy_cross)
+    print(f"  compiled app.py -> app.mpy ({APP_SOURCE.stat().st_size} -> {len(data)} bytes)")
+
     fs = LittleFS(block_size=BLOCK_SIZE, block_count=BLOCK_COUNT)
+    with fs.open("app.mpy", "wb") as f:
+        f.write(data)
+    print(f"  packed app.mpy ({len(data)} bytes)")
+
     return bytes(fs.context.buffer)
 
 
 def emit_header(image: bytes, out_path: pathlib.Path) -> None:
     lines = [
         "// GENERATED FILE -- do not hand-edit.",
-        "// Produced by tools/build_fs_image.py from badge_app/. Re-run that",
-        "// script (pip install littlefs-python first) after changing the",
-        "// badge-side app source, then rebuild this firmware.",
+        "// Produced by tools/build_fs_image.py from badge_app/app.py. Re-run that",
+        "// script (pip install littlefs-python; MPY_CROSS pointing at a matching",
+        "// mpy-cross build -- see the script's header comment) after changing",
+        "// app.py, then rebuild this firmware.",
         "",
         "#ifndef FS_IMAGE_H",
         "#define FS_IMAGE_H",
@@ -82,7 +153,7 @@ def emit_header(image: bytes, out_path: pathlib.Path) -> None:
 
 
 def main() -> int:
-    print(f"Building empty LittleFS2 image ({BLOCK_COUNT} x {BLOCK_SIZE}-byte blocks = "
+    print(f"Building LittleFS2 image ({BLOCK_COUNT} x {BLOCK_SIZE}-byte blocks = "
           f"{BLOCK_COUNT * BLOCK_SIZE} bytes)...")
     image = build_image()
     assert len(image) == BLOCK_COUNT * BLOCK_SIZE, \
