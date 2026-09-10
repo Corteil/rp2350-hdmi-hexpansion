@@ -429,224 +429,91 @@ class TestcardApp(app.App):
         ctx.restore()
 
 
-# Byte-swaps every adjacent pair in src into dst (both must be >= n
-# bytes) -- see MirrorApp.background_update()'s own comment for why this
-# is needed at all. @micropython.viper compiles this to native machine
-# code rather than running it through the bytecode interpreter -- tested
-# directly on real hardware (2026-09-07) against the alternatives before
-# picking this one: a plain Python loop took ~1000ms for the full
-# 115200-byte framebuffer (worse than the SPI send itself, unacceptable
-# to redo every frame), @micropython.native got that down to ~260ms,
-# @micropython.viper's typed ptr8 arguments got it to ~16ms -- cheap
-# enough to do the whole buffer in one shot, no chunking needed (unlike
-# the SPI send itself, which does need chunking -- see ROWS_PER_TICK).
-@micropython.viper
-def _swap_bytepairs(src: ptr8, dst: ptr8, n: int):
-    i = 0
-    while i < n:
-        dst[i] = src[i + 1]
-        dst[i + 1] = src[i]
-        i += 2
+# No sck/mosi/cs override (2026-09-10): hazanjon's PORT_PINS table
+# (badge-2024-software feature/hdmi-mirror, flow3r_bsp_display_mirror.c)
+# disagreed with this repo's own README §4.1 role assignment for GPIO21/22
+# (SCK vs CS swapped) -- GPIO21/22 are hardware-fixed silicon roles on the
+# RP2350 side (confirmed against RP2350.svd, README §4.1/§9 risk 19), not
+# software-reassignable, so this can't be patched in either firmware's
+# code. Resolved instead by physically rewiring the bench connection
+# (HS_G/HS_H swapped to the RP2350's GPIO22/GPIO21 respectively) so both
+# sides' own unmodified defaults already agree -- see main.c's own
+# PIN_SCK/PIN_CS comment for the full story. Only dc still needs
+# overriding below.
+
+# hazanjon's mirror driver always drives a `dc` pin -- mirror_init_pins()
+# in flow3r_bsp_display_mirror.c configures it GPIO_MODE_OUTPUT and drives
+# it HIGH unconditionally on attach, whether or not an init sequence is
+# actually used (ours isn't). Left at its per-port default (PORT_PINS[port].dc,
+# which for port 1 is GPIO42 = this repo's own HS_I = the RP2350's SPI0 MISO
+# line, README §4.1), this crashes the badge the instant the hexpansion is
+# plugged in -- confirmed on real hardware (2026-09-10): the badge hard-resets
+# in a fast loop (flashing status LED, NeoPixel flashing red) rather than
+# raising a catchable Python error, consistent with a genuine electrical
+# contention between the badge driving that pin high and the RP2350's own
+# SPI0 peripheral driving its MISO output, not a software-level failure.
+# Redirect dc to GPIO6 instead: port 6's own DC line in hazanjon's own
+# PORT_PINS table, and genuinely unconnected as long as no hexpansion is
+# plugged into port 6 (only port 1 is populated here).
+_DC_OVERRIDE_PIN = 6
 
 
 class MirrorApp(app.App):
-    # Real display.get_fb() mirror -- the actual product feature
-    # TestcardApp above stood in for until this firmware patch landed
-    # (badge-2024-software commit 28e1906). Reads the badge's own live
-    # framebuffer and streams it over the same SPI0 link/protocol
-    # TestcardApp already proved, instead of generating synthetic
-    # content in Python.
-    #
-    # Mirroring itself runs entirely in background_update() and NEVER
-    # auto-requests foreground (unlike TestcardApp): _launch_hexpansion_app
-    # already starts hexpansion apps in the background (see TestcardApp's
-    # own background_update() comment) -- update()/draw() only ever run
-    # for whichever app currently HOLDS foreground (system/app.py's
-    # App.run() docstring: "for the foreground application only"), but
-    # background_update() runs for every app every ~50ms regardless
-    # (App.background_task()). A mirror needs exactly that: it must show
-    # whatever OTHER app the user actually has open, not steal the
-    # screen for itself.
-    #
-    # Does register a real, normal launcher menu entry though (2026-09-08)
-    # -- see __init__'s HexpansionAppLauncherAddEvent emission, same
-    # pattern Corteil/tildagon-space-unicorn's own app.py uses. Selecting
-    # it from the menu foregrounds this app like any other (Launcher's
-    # "hexpansion_app" callable path), which briefly shows update()/draw()
-    # below -- a plain status readout, CANCEL to return -- but mirroring
-    # itself doesn't depend on ever being foregrounded; it keeps running
-    # via background_update() regardless of what's selected.
-    #
-    # Sends the whole 240-row frame in one background_update() call.
-    # Chunking (ROWS_PER_TICK < ROWS, spreading the send across several
-    # ticks to keep the badge responsive between them) was retried
-    # 2026-09-08 now that the receiver is interrupt-driven and a
-    # FRAME_MARKER exists for resync -- worked in one debug-build capture
-    # (rows/frames genuinely completing) but the production (non-debug)
-    # build got stuck showing the boot-time test card after a fresh
-    # reset, not reproduced further before abandoning the attempt in
-    # favour of a real throughput fix instead: chunking never actually
-    # improves frame rate (same total bytes, same SPI clock -- it only
-    # trades badge responsiveness for a slower, more complicated send),
-    # so with a 15fps target, raising the SPI clock (see _init_spi()) is
-    # the fix that actually matters. Revisit chunking separately, later,
-    # for the responsiveness problem specifically, once the production
-    # build's odd behaviour above is understood.
-    ROWS_PER_TICK = ROWS
-
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.buttons = Buttons(self)
-        self.spi = None
-        self.cs = None
-        self.frames_sent = 0
         self.status = "starting..."
-        self._row_index = 0
-        # Frozen snapshot of the framebuffer for the frame currently
-        # being sent -- see background_update()'s own comment on why
-        # this can't just re-read display.get_fb() fresh every chunk.
-        self._frame = None
-        self._init_spi()
 
-        # Registers a real, normal launcher menu entry for this app --
-        # only when genuinely hexpansion-launched (config.port set), same
-        # guard Corteil/tildagon-space-unicorn's own app.py uses. This is
-        # what makes "HDMI Mirror" show up in the menu at all; no
-        # badge-2024-software-side code is needed for it any more.
         port = getattr(config, "port", None) if config else None
         if port is not None:
+            print("DEBUG: before HexpansionAppLauncherAddEvent emit")
             eventbus.emit(HexpansionAppLauncherAddEvent(port, "HDMI Mirror"))
+            print("DEBUG: after HexpansionAppLauncherAddEvent emit")
+            self._attach(port)
 
-    def _init_spi(self):
+    def _attach(self, port):
+        print("DEBUG: _attach entered, port=%d" % port)
+        driver = {
+            # 20MHz tried and reverted (2026-09-10): real-hardware UART
+            # capture showed frame_synced stuck at 0 and corrupted marker
+            # values despite 1M+ bytes arriving -- genuine signal
+            # integrity limits on this bench dupont-wire setup at that
+            # rate. 1MHz tried (2026-09-11) to test whether a 1-byte
+            # row-alignment drift seen at 5MHz was signal-integrity-
+            # related -- it wasn't: the identical drift (same repeating
+            # byte pattern, shifted by exactly one byte between captures)
+            # showed up at 1MHz too, at a similar rate, ruling out clock
+            # speed as the cause. Most likely an occasional interrupt/
+            # task-switch hiccup on the badge's own ESP32-S3 corrupting a
+            # byte mid-transfer, independent of SPI rate -- fixing it
+            # would need changes inside hazanjon's C driver (out of scope;
+            # this project's own plan explicitly avoids patching that).
+            # Back to 5MHz: same artifact either way, but meaningfully
+            # more responsive (~184ms/frame block vs ~0.92s at 1MHz).
+            "baudrate": 5_000_000,
+            "init": [], "prefix": [], "postfix": [],
+            "header": FRAME_MARKER,  # bytes([0xA5, 0x5A] * 4) -- unchanged
+        }
+        print("DEBUG: calling display.attach_mirror dc=%d (sck/mosi/cs at hazanjon's defaults)" % (
+            _DC_OVERRIDE_PIN,))
         try:
-            # config.pin is [hs_1, hs_2, hs_3, hs_4] for this hexpansion's
-            # own port -- HS_F=MOSI, HS_G=CS, HS_H=SCK, HS_I=MISO (main
-            # README section 4.1's resolved role assignment).
-            #
-            # TestcardApp's own proven-stable rate is 1MHz -- a full
-            # 115200-byte frame takes ~940ms of raw SPI time there, under
-            # 1.1fps even with zero overhead, nowhere near the ~15fps
-            # target (main README section 3.1's C1 measurement: real
-            # apps render at up to ~14fps). Tried raising it twice on
-            # 2026-09-08, both abandoned:
-            #
-            # - 20MHz: measured clean in isolation before (main README's
-            #   Phase 0 C3), and the RP2350 side was confirmed genuinely
-            #   receiving/decoding correctly at this rate (a dedicated
-            #   SPI0-RX DMA channel replaced the interrupt-driven
-            #   receiver specifically to reach it) -- but the badge's own
-            #   ESP32-S3 SPI master side crashed hard (USB dropped off
-            #   the bus entirely, needed a physical power-cycle to
-            #   recover) on two separate, otherwise-clean attempts, no
-            #   debug-probe interference involved either time.
-            # - 10MHz: no crash, but a silent hang instead -- the RP2350
-            #   side saw genuinely zero bytes arrive (confirmed via its
-            #   own debug build's serial output, passively read, no
-            #   further badge-side interference) for 6+ seconds straight
-            #   while the badge process itself stayed superficially
-            #   "alive" (mpremote's own connection never dropped) --
-            #   consistent with a single blocking spi.write() call
-            #   wedged forever rather than a full interpreter crash.
-            #
-            # Root cause not identified for either; suspected ESP32-S3
-            # SPI master hardware/driver limitation against this
-            # particular slave setup at these rates, not anything
-            # RP2350-side (that side's own fixes -- interrupt-driven
-            # receive, then DMA-driven -- are proven correct and remain
-            # in place; they matter at any clock rate above 1MHz, this
-            # just never got to exercise them reliably). Needs
-            # hardware-level investigation (logic analyzer/scope) to
-            # actually diagnose, not more live trial-and-error against a
-            # real badge.
-            #
-            # 2MHz (2026-09-08) confirmed stable on real hardware: no
-            # crash or hang, badge's own launcher mirrored through
-            # correctly, NeoPixel confirmed real frames landing (roughly
-            # one every 2s). Didn't meaningfully beat 1MHz's own
-            # framerate though -- per-row Python/GPIO overhead
-            # (self.cs.value() x2 plus loop overhead per row, unrelated
-            # to the SPI clock itself) dominates over raw transfer time
-            # at this scale, so doubling the clock didn't double
-            # throughput. Trying 5MHz next, still a cautious step (not
-            # the 10-20MHz that crashed/hung the badge outright) to see
-            # whether it helps meaningfully or whether overhead has
-            # already become the real bottleneck.
-            mosi, cs, sck, miso = self.config.pin
-            cs.init(Pin.OUT, value=1)
-            self.cs = cs
-            self.spi = SPI(
-                1, baudrate=5_000_000, polarity=1, phase=1,
-                sck=sck, mosi=mosi, miso=miso,
-            )
+            display.attach_mirror(port=port, driver=driver, dc=_DC_OVERRIDE_PIN)
+            print("DEBUG: attach_mirror returned OK")
+            self.status = "mirroring (attach_mirror)"
         except Exception as e:
-            self.status = "SPI init failed: {!r}".format(e)
+            self.status = "attach_mirror failed: {!r}".format(e)
             print(self.status)
 
-    def background_update(self, delta):
-        if self.spi is None:
-            return
-
-        if self._row_index == 0:
-            # New frame: one atomic snapshot, not a fresh display.get_fb()
-            # read per chunk -- whatever app is actually in the
-            # foreground keeps rendering into the same live buffer while
-            # we're mid-transmission (a full frame takes ~12 chunks,
-            # roughly a second or more of wall-clock time -- see
-            # ROWS_PER_TICK's own comment), so re-reading partway through
-            # could blend rows from two different points in time. bytes()
-            # over a memoryview is a single C-level copy, not a Python
-            # loop, so this itself stays cheap.
-            #
-            # tildagon_fb is CTX_FORMAT_RGB565_BYTESWAPPED (the real
-            # GC9A01 panel's own wire-format need -- see
-            # drivers/gc9a01/display.c's ctx_new_for_framebuffer() call
-            # and components/ctx/ctx.h's byteswap handling: each pixel's
-            # two bytes are swapped relative to plain RGB565 in memory).
-            # src/main.c on the RP2350 expects plain little-endian RGB565
-            # (low byte first -- matches TestcardApp's own _compute_row()
-            # comment), so every adjacent byte pair needs swapping back
-            # before this goes out over SPI. See _swap_bytepairs()'s own
-            # comment for why that's a @micropython.viper function and
-            # not a slice-assignment trick (unsupported: this build's
-            # bytearray only accepts step=1 slices) or a plain loop (too
-            # slow -- tested at ~1000ms for the full buffer).
-            fb = display.get_fb()
-            swapped = bytearray(len(fb))
-            _swap_bytepairs(fb, swapped, len(fb))
-            self._frame = swapped
-
-        row_bytes = COLS * 2
-        end_row = min(self._row_index + self.ROWS_PER_TICK, ROWS)
-        try:
-            if self._row_index == 0:
-                # Sent only at a genuine frame start -- placed inside
-                # this same "new frame" branch as the snapshot above so
-                # it stays correct if chunking (ROWS_PER_TICK < ROWS)
-                # ever gets reintroduced. See FRAME_MARKER's own comment.
-                self.cs.value(0)
-                self.spi.write(FRAME_MARKER)
-                self.cs.value(1)
-            for r in range(self._row_index, end_row):
-                self.cs.value(0)
-                self.spi.write(self._frame[r * row_bytes:(r + 1) * row_bytes])
-                self.cs.value(1)
-        except Exception as e:
-            self.status = "row send failed: {!r}".format(e)
-            print(self.status)
-            self._row_index = 0
-            return
-
-        self._row_index = end_row % ROWS
-        if self._row_index == 0:
-            self.frames_sent += 1
-            self.status = "mirroring #%d" % self.frames_sent
+    def deinit(self):
+        port = getattr(self.config, "port", None) if self.config else None
+        if port is not None:
+            try:
+                display.detach_mirror(port)
+            except Exception as e:
+                print("detach_mirror failed: {!r}".format(e))
 
     def update(self, delta):
-        # Only runs while this app holds the foreground (see the class's
-        # own comment on background_update() vs update()) -- i.e. only
-        # right after the user taps "HDMI Mirror" in the menu. Mirroring
-        # itself doesn't depend on this at all.
         if self.buttons.pressed(BUTTON_TYPES["CANCEL"]):
             self.buttons.clear()
             self.minimise()
@@ -655,9 +522,6 @@ class MirrorApp(app.App):
     def draw(self, ctx):
         ctx.save()
         clear_background(ctx)
-        ctx.text_align = ctx.CENTER
-        ctx.text_baseline = ctx.MIDDLE
-        ctx.font_size = label_font_size
         ctx.rgb(1, 1, 1).move_to(0, -30).text("HDMI Mirror")
         ctx.font_size = small_font_size
         ctx.rgb(1, 1, 0).move_to(0, 10).text(self.status)

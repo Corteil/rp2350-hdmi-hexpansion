@@ -120,6 +120,7 @@
 static uint32_t framebuf[2][SRC_ROWS][DBL_WORDS];
 static volatile int front_index = 0;
 static volatile bool back_buffer_ready = false;
+static volatile uint32_t swap_count = 0;  // TEMP DEBUG: real front/back swaps done by dma_irq_handler
 
 static inline int back_index(void) {
     return 1 - front_index;
@@ -392,6 +393,10 @@ void __scratch_x("") dma_irq_handler(void) {
     if (v_scanline == 0 && back_buffer_ready) {
         front_index = 1 - front_index;
         back_buffer_ready = false;
+        swap_count++;  // TEMP DEBUG: incremented here only (not printed
+                        // from the ISR itself -- unsafe); read from the
+                        // main loop instead to confirm whether the swap
+                        // is actually happening at all.
     }
 
     if (v_scanline >= MODE_V_FRONT_PORCH && v_scanline < (MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH)) {
@@ -568,6 +573,24 @@ static void hstx_dvi_init(void) {
 
 #define SPI_PORT     spi0
 #define PIN_MOSI     20
+// Reverted (2026-09-10): GPIO21/22 are NOT freely reassignable between
+// SCK/CS via software -- README §4.1's HS_G=CS(GPIO21)/HS_H=SCK(GPIO22)
+// role assignment is a hardware-fixed fact about this RP2350's own GPIO
+// function-select table (confirmed against real silicon, §9 risk 19),
+// not a convention this code chose. gpio_set_function(pin, GPIO_FUNC_SPI)
+// only selects WHICH peripheral claims a pin, not which signal within
+// that peripheral it becomes -- GPIO21 is always SPI0's SSn/CS input and
+// GPIO22 is always its SCLK input, regardless of what these #defines are
+// named. The earlier "swap to match hazanjon's PORT_PINS labeling" edit
+// didn't actually swap anything electrically; it just made this file
+// call the wrong pin by the wrong name, so hazanjon's real SCK signal
+// (on HS_G) was landing on this peripheral's hardware CS input and its
+// real CS signal (on HS_H) was landing on the SCLK input -- confirmed by
+// real-hardware SSPSR polling (2026-09-10): BSY went high (the shift
+// register did see something) but RNE never once did (it never
+// completed an actual byte), consistent with the "clock" input only
+// ever seeing CS's handful of transitions. The correction belongs on the
+// badge side (explicit sck/mosi/cs kwargs to attach_mirror), not here.
 #define PIN_CS       21
 #define PIN_SCK      22
 #define PIN_MISO     23
@@ -630,11 +653,48 @@ static uint64_t marker_window = 0;
 static bool spi0_frame_synced = false;  // true once the marker has ever been seen; discard everything before that
 static bool spi0_row0_pending = false;  // set on marker match; main() forces row_index=0 on the next row it takes
 
+// Fix (2026-09-10): a marker match used to force row_index=0 UNCONDITIONALLY,
+// on every occurrence -- fine when markers are rare relative to how long a
+// frame takes (the 1MHz/per-row-burst badge this was designed against), but
+// with the badge now sending full frames continuously back-to-back at much
+// higher throughput, a marker arrives roughly once per frame REGARDLESS of
+// whether the previous frame's 240 rows have actually finished landing yet.
+// Real hardware confirmed (2026-09-10, RP2350's own UART debug output,
+// unaffected by USB/video clock-sharing): swap_count stuck at 1 forever
+// despite 15M+ bytes and dozens of frames' worth of continuous, correctly-
+// framed (frame_synced=1) traffic -- row_index was being reset back to 0 by
+// every new marker before it ever naturally wrapped 239->0, so a full frame
+// essentially never completed. bytes_since_marker gates this: only a marker
+// seen after (approximately) a full frame's worth of bytes is trusted as a
+// genuine new-frame boundary; one seen earlier is almost certainly the
+// marker for the CURRENT frame's own header re-detected against real pixel
+// data content coincidentally matching the pattern, or arriving in the
+// small natural gap before this receiver has finished the previous frame --
+// either way, letting it interrupt an already-in-progress, otherwise-healthy
+// frame is strictly worse than ignoring it here and catching the next one.
+#define MIN_BYTES_BETWEEN_MARKERS ((uint32_t)ROW_RX_BYTES * (SRC_ROWS - 1))
+static uint32_t bytes_since_marker = 0;
+
 static void spi0_slave_init(void) {
     spi_init(SPI_PORT, 1000 * 1000);  // nominal only -- slave derives timing from the badge's SCK
     spi_set_slave(SPI_PORT, true);
-    spi_set_format(SPI_PORT, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+    // TEMP DEBUG (2026-09-10): CPHA_1 test -- CPOL0/CPHA0 (matching
+    // hazanjon's hardcoded ESP-IDF .mode=0) produced a marker_window
+    // stuck at a5a5a5a5a5a5a5a5 instead of alternating a5/5a (0xA5's
+    // exact bit-complement) on real hardware once wiring was corrected --
+    // consistent with a one-half-cycle sampling-edge mismatch, not a
+    // wiring problem (real bytes finally arrive at all: total_bytes_seen
+    // advanced past 0 for the first time this session).
+    spi_set_format(SPI_PORT, 8, SPI_CPOL_0, SPI_CPHA_1, SPI_MSB_FIRST);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
+    // Reverted (2026-09-10): leaving PIN_CS unassigned from GPIO_FUNC_SPI
+    // made no difference (total_bytes_seen stayed 0) -- inconclusive, not
+    // a disproof: an unrouted FSS input most likely defaults to
+    // permanently DEASSERTED at the silicon level (a safe default for a
+    // disabled input), not permanently asserted, so this couldn't
+    // actually distinguish "FSS gating is the blocker" from "FSS gating
+    // isn't involved at all." Back to routing it for real so the
+    // peripheral sees the genuine external CS state.
     gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
@@ -659,6 +719,8 @@ static void spi0_slave_init(void) {
 // last call. Cheap to call even when nothing new has arrived (one
 // register read, one comparison). Not an interrupt handler -- called
 // directly from main()'s own loop, once per iteration.
+static volatile uint32_t spi0_total_bytes_seen = 0;  // TEMP DEBUG: raw bytes drained from the ring, regardless of marker match
+
 static void spi0_process_ring(void) {
     uint32_t write_addr = dma_channel_hw_addr(spi_rx_dma_chan)->write_addr;
     uint32_t write_pos = (uint32_t)(write_addr - (uintptr_t)spi_rx_ring) & (SPI_RING_SIZE - 1);
@@ -666,12 +728,16 @@ static void spi0_process_ring(void) {
     while (spi_ring_read_pos != write_pos) {
         uint8_t b = spi_rx_ring[spi_ring_read_pos];
         spi_ring_read_pos = (spi_ring_read_pos + 1) & (SPI_RING_SIZE - 1);
+        spi0_total_bytes_seen++;
 
         marker_window = (marker_window << 8) | b;
-        if (marker_window == FRAME_MARKER_VALUE) {
+        bytes_since_marker++;
+        if (marker_window == FRAME_MARKER_VALUE &&
+            (!spi0_frame_synced || bytes_since_marker >= MIN_BYTES_BETWEEN_MARKERS)) {
             spi0_rx_count = 0;
             spi0_row0_pending = true;
             spi0_frame_synced = true;
+            bytes_since_marker = 0;
             continue;  // this byte is part of the marker, not row data
         }
 
@@ -841,11 +907,12 @@ int main(void) {
     absolute_time_t next_testcard_blink = make_timeout_time_ms(700);
 
 #ifdef DEBUG_SERIAL
+    // UART, not USB -- see CMakeLists.txt's own comment on this build's
+    // stdio choice. No stdio_usb_connected()-style handshake exists (or
+    // is needed) for a plain UART; a short fixed settle delay is enough
+    // for a host-side terminal to already be listening.
     stdio_init_all();
-    absolute_time_t wait_until = make_timeout_time_ms(10000);
-    while (!stdio_usb_connected() && !time_reached(wait_until)) {
-        sleep_ms(50);
-    }
+    sleep_ms(200);
     printf("\ntestcard DEBUG_SERIAL build: entering SPI0 receive loop\n");
     uint32_t rows_received = 0;
 #endif
@@ -914,10 +981,28 @@ int main(void) {
             // on real hardware: applying it turned pure red (0xF800) into
             // pure blue (0x001F), matching exactly the "blue instead of
             // red/orange" symptom reported testing the real mirror.
-            uint16_t *src16 = (uint16_t *)(void *)row_rx;
+#ifdef DEBUG_SERIAL
+            // TEMP DEBUG (2026-09-11): wide raw-byte dump of one middle
+            // row, occasionally, to look for a periodic/alternating
+            // byte-order signature directly rather than guessing from
+            // 8-byte corner samples -- "green/blue bars" background with
+            // otherwise-correct-looking text suggests a per-pixel or
+            // per-row byte-order flip, not gross corruption.
+            static uint32_t frames_for_dump = 0;
+            if (row_index == 120 && (frames_for_dump++ % 30) == 0) {
+                printf("ROWDUMP row120 (first 64 raw bytes): ");
+                for (int b = 0; b < 64; b++) {
+                    printf("%02x ", row_rx[b]);
+                }
+                printf("\n");
+            }
+#endif
             uint32_t *dst32 = framebuf[recv_buf][row_index];
             for (int i = 0; i < DBL_WORDS; i++) {
-                uint32_t px = src16[i];
+                // hazanjon's attach_mirror sink forwards tildagon_fb raw
+                // (CTX_FORMAT_RGB565_BYTESWAPPED) -- undo that here since
+                // there's no Python-side _swap_bytepairs() step any more.
+                uint32_t px = (row_rx[2 * i] << 8) | row_rx[2 * i + 1];
                 dst32[i] = px | (px << 16);
             }
 
@@ -932,8 +1017,8 @@ int main(void) {
                 // indexed precisely -- not the free-running rows_received
                 // counter above, which isn't aligned to real frame
                 // boundaries.
-                printf("frame landed, recv_buf=%d: r0c0=%04x r0c239=%04x r119c0=%04x r119c239=%04x r120c0=%04x r120c239=%04x r239c0=%04x r239c239=%04x\n",
-                    recv_buf,
+                printf("frame landed, recv_buf=%d, front_index=%d, swap_count=%lu: r0c0=%04x r0c239=%04x r119c0=%04x r119c239=%04x r120c0=%04x r120c239=%04x r239c0=%04x r239c239=%04x\n",
+                    recv_buf, front_index, (unsigned long)swap_count,
                     framebuf[recv_buf][0][0] & 0xFFFF,
                     framebuf[recv_buf][0][239] & 0xFFFF,
                     framebuf[recv_buf][119][0] & 0xFFFF,
@@ -954,8 +1039,11 @@ int main(void) {
             static uint32_t misses = 0;
             misses++;
             if (misses <= 10 || (misses % 2000) == 0) {
-                printf("spi0_take_row missed (#%lu), genuinely_idle=%d\n",
-                       (unsigned long)misses, (int)genuinely_idle);
+                printf("spi0_take_row missed (#%lu), genuinely_idle=%d, total_bytes_seen=%lu, marker_window=%016llx, frame_synced=%d, front_index=%d, swap_count=%lu\n",
+                       (unsigned long)misses, (int)genuinely_idle,
+                       (unsigned long)spi0_total_bytes_seen,
+                       (unsigned long long)marker_window, (int)spi0_frame_synced,
+                       front_index, (unsigned long)swap_count);
             }
 #endif
 

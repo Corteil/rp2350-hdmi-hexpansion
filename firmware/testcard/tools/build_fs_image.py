@@ -110,14 +110,27 @@ def compile_app_mpy(mpy_cross: str) -> bytes:
 
 
 def build_image() -> bytes:
-    mpy_cross = find_mpy_cross()
-    data = compile_app_mpy(mpy_cross)
-    print(f"  compiled app.py -> app.mpy ({APP_SOURCE.stat().st_size} -> {len(data)} bytes)")
-
     fs = LittleFS(block_size=BLOCK_SIZE, block_count=BLOCK_COUNT)
-    with fs.open("app.mpy", "wb") as f:
-        f.write(data)
-    print(f"  packed app.mpy ({len(data)} bytes)")
+
+    # TEMP DEV MODE (2026-09-10): EEPROM filesystem left deliberately empty
+    # so badge_app/app.py can be sideloaded onto the badge's own flash at
+    # /drivers/hex_1969_4544/app.py instead -- modules/system/hexpansion/
+    # app.py's own _try_filesystem_driver() falls back there automatically
+    # when the mounted EEPROM has no app, keyed by VID/PID from the real
+    # header (still sent correctly; only the packed filesystem changes).
+    # Real physical hexpansion insertion still triggers everything --
+    # this only removes the RP2350-firmware-rebuild step from the Python
+    # iteration loop while chasing the core0/core1 framebuffer race.
+    # Revert to packing app.mpy (see git history) once that's done.
+    if os.environ.get("EMPTY_FS"):
+        print("  EMPTY_FS set -- leaving filesystem region empty (sideload mode)")
+    else:
+        mpy_cross = find_mpy_cross()
+        data = compile_app_mpy(mpy_cross)
+        print(f"  compiled app.py -> app.mpy ({APP_SOURCE.stat().st_size} -> {len(data)} bytes)")
+        with fs.open("app.mpy", "wb") as f:
+            f.write(data)
+        print(f"  packed app.mpy ({len(data)} bytes)")
 
     return bytes(fs.context.buffer)
 

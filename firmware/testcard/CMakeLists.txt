@@ -67,6 +67,15 @@ target_link_libraries(bringup_debug
 )
 target_compile_definitions(bringup_debug PRIVATE DEBUG_SERIAL=1)
 pico_generate_pio_header(bringup_debug ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
-pico_enable_stdio_usb(bringup_debug 1)
-pico_enable_stdio_uart(bringup_debug 0)
+# UART, not USB (2026-09-10): stdio_usb shares clock infrastructure with
+# clk_sys, which clk_hstx (video) follows undivided at the 126MHz this
+# firmware sets for 640x480@60 -- confirmed disrupting HSTX's own
+# zero-timing-margin video output on real hardware. UART0 on GPIO0/1 (the
+# Metro board's own labelled TX/RX pins, boards/adafruit_metro_rp2350.h's
+# own default, confirmed unused elsewhere in this firmware) is a
+# genuinely separate clock domain -- wire the Raspberry Pi Debug Probe's
+# UART bridge (separate from its SWD connector already in use for
+# flashing) to these pins to read it.
+pico_enable_stdio_usb(bringup_debug 0)
+pico_enable_stdio_uart(bringup_debug 1)
 pico_add_extra_outputs(bringup_debug)

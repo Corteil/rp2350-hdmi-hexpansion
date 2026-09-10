@@ -491,3 +491,173 @@ than badge_app/app.py tweaks, and the 10-20MHz instability specifically needs ha
 tools (logic analyzer/scope on the SPI lines) to actually root-cause -- more live
 trial-and-error against a real badge already cost two hard crashes needing a physical
 power-cycle each time. Diagnose before reattempting higher clock rates blind.
+
+## 2026-09-10/11 — switching to hazanjon's `attach_mirror` sink, and everything that broke on the way there
+
+Migrated off the `display.get_fb()` polling approach above entirely, onto hazanjon's
+push-based `display.attach_mirror()` sink (`badge-2024-software` branch `feature/hdmi-mirror`,
+upstream PR emfcamp/badge-2024-software#454) -- real ESP32-S3 hardware SPI2 + DMA on the badge
+side instead of a Python-driven `machine.SPI` loop, following the plan in
+`hdmi-mirror-plan.md`. Four distinct, real bugs surfaced and got fixed, in order, each one
+only visible once the previous was actually resolved. All confirmed on real hardware.
+
+**Bug 1 -- `dc` pin driving straight into this side's own MISO line.** hazanjon's driver
+always drives a `dc` pin HIGH on attach (`mirror_init_pins()`), defaulting per-port to
+`HS_I` -- this repo's own MISO line (README §4.1). Left at that default, the badge hard-reset
+in a fast panic-reboot loop the instant the hexpansion was plugged in: genuine electrical
+contention between the badge driving that pin and the RP2350's own SPI0 peripheral driving
+its TX output, not a software failure. Fixed by redirecting `dc` to GPIO6 in
+`badge_app/app.py` (`_DC_OVERRIDE_PIN`) -- port 6's own DC line in hazanjon's PORT_PINS
+table, genuinely unconnected as long as nothing is plugged into port 6.
+
+**Bug 2 -- GPIO21/22 have hardware-fixed SPI0 roles; they aren't software-reassignable.**
+With bug 1 fixed, `attach_mirror()` returned success and the badge kept transmitting
+continuously and successfully -- yet the RP2350 side received exactly **zero bytes**, on
+every port tried (1 and 2), at every baudrate tried (1MHz through 20MHz), confirmed via a
+raw SSPSR-register poll showing the shift register occasionally going BSY but never once
+completing a byte into the RX FIFO (RNE never set). Root cause: this repo's own README §4.1
+already documents (from real-silicon verification against `RP2350.svd`) that GPIO21 is
+hardware-fixed as SPI0's `spi0_ss_n` (CS) input and GPIO22 as its `spi0_sclk` (SCK) input --
+`gpio_set_function(pin, GPIO_FUNC_SPI)` only selects *which peripheral* claims a pin, not
+*which signal within it* that pin becomes. hazanjon's own PORT_PINS table assigns the
+opposite role to the two middle HS lines (HS_G=SCK, HS_H=CS) relative to this repo's
+independently-resolved assignment (HS_G=CS, HS_H=SCK) -- so hazanjon's real SCK signal was
+landing on this peripheral's hardware CS input (which only toggles a handful of times per
+frame) and his real CS signal was landing on the hardware SCK input (which then only ever
+saw a few stray edges, never a real clock). Fixed two ways together: reverted
+`src/main.c`'s `PIN_CS`/`PIN_SCK` back to the silicon-correct values (21/22), and physically
+rewired the bench connection so `HS_G`/`HS_H` land on RP2350 GPIO22/GPIO21 respectively,
+matching hazanjon's PORT_PINS defaults directly -- letting `badge_app/app.py` drop its
+`sck`/`mosi`/`cs` overrides to `attach_mirror()` entirely and trust hazanjon's own per-port
+defaults (only `dc` still needs overriding, for bug 1).
+
+**Bug 3 -- CPHA needed to be 1, not 0, despite hazanjon's ESP-IDF code hardcoding `.mode = 0`.**
+With bug 2 fixed, real bytes finally arrived (`total_bytes_seen` advancing), but the 8-byte
+FRAME_MARKER decoded as a stuck `a5a5a5a5a5a5a5a5` instead of alternating `a5`/`5a` (0xA5's
+exact bit-complement) -- consistent with a one-half-clock-cycle sampling-edge mismatch, not
+a wiring problem. Textbook SPI mode 0 is CPOL0/CPHA0 on both sides and should have matched;
+empirically, CPOL0/CPHA1 on the RP2350 side is what actually decodes correctly against this
+specific ESP32-S3 hardware-SPI-master + RP2350-hardware-SPI-slave pairing. Root cause not
+pinned down further (a GPIO-matrix routing delay specific to non-IOMUX pins, at a guess);
+fixed empirically and confirmed repeatedly via real-hardware capture (dozens of frames
+landing cleanly, marker matching exactly) at both 1MHz and 5MHz once applied.
+
+**Bug 4 -- the frame-resync marker fought the very reception it was meant to protect.**
+With bugs 1-3 fixed, reception looked perfect from the SPI0/DMA layer (`frame_synced=1`
+sustained, tens of millions of bytes received) -- but the actual video display stayed stuck
+on the fallback test card forever. Root cause, confirmed via a `dma_irq_handler` swap
+counter: the front/back buffer swap happened exactly **once**, then never again, despite
+15M+ bytes and roughly 130 frames' worth of continuous traffic afterward. The frame-sync
+marker (`spi0_row0_pending`, added 2026-09-08 to recover from a dropped byte) forced
+`row_index` back to 0 on *every* marker match, unconditionally -- fine when markers were
+rare relative to how long a frame took (the old 1MHz per-row-burst badge this was designed
+against), but the badge now sends full frames continuously back-to-back, so a marker arrives
+roughly once per frame *regardless* of whether the RP2350 has actually finished consuming
+the previous frame's 240 rows yet. Every new marker was interrupting an already-in-progress,
+otherwise-healthy frame before it could complete, so `row_index` essentially never wrapped
+239→0 via its own natural increment. Fixed with `bytes_since_marker`/
+`MIN_BYTES_BETWEEN_MARKERS`: a marker match is now only honored once ~239 rows' worth of
+bytes have actually been seen since the last accepted one (once synced), so an early/false
+match falls through and gets treated as ordinary row data instead of resetting anything.
+Confirmed on real hardware: swap count climbed continuously in lockstep with "frame landed"
+events (40+ in one capture) instead of sticking at 1, and real, correctly-interactive badge
+UI content (menu text, correct white/highlighted-colour selection state) became visible on
+the external monitor for the first time this project has ever shown it.
+
+**Fast iteration setup: sideloading `badge_app/app.py` onto the badge's own flash.** Debugging
+bugs 1-4 needed many Python-only iterations; rebuilding+repacking the RP2350's own EEPROM
+image for each one (§ "Real EEPROM-hosted app restored", above) was the slow part of the
+loop. `modules/system/hexpansion/app.py`'s own `_launch_hexpansion_app()` already has a
+built-in fallback for exactly this case: if the hexpansion's mounted EEPROM filesystem has no
+importable `app` module, it tries `/drivers/hex_{vid:04x}_{pid:04x}/app` on the badge's own
+flash instead -- a real, existing mechanism, not something patched in. `tools/build_fs_image.py`
+now supports `EMPTY_FS=1` to leave the packed filesystem region empty (no `app.mpy`), and
+`badge_app/app.py` gets copied straight onto the badge's flash at `/drivers/hex_1969_4544/`
+(with a blank `__init__.py`) via `mpremote fs cp` -- physical hexpansion insertion still
+triggers everything for real, but a Python-only edit only needs one `mpremote fs cp`, no
+RP2350 rebuild/reflash at all. Revert to packing `app.mpy` into the real EEPROM image (drop
+`EMPTY_FS`, matching the 2026-09-08 "fix it properly" decision) once satisfied with the
+Python side; the sideload path was always meant as a debugging convenience, not the shipped
+end state.
+
+**Debugging tool note: `DEBUG_SERIAL`'s USB-CDC output actively broke video.** `bringup_debug`
+used to route `printf()` over `stdio_usb` (TinyUSB). This shares clock infrastructure with
+`clk_sys`, which `clk_hstx` (video) follows undivided at the 126MHz this firmware sets for
+640x480@60 -- confirmed on real hardware to disrupt HSTX's own zero-timing-margin video
+output (production `bringup`, with no `DEBUG_SERIAL` code at all, never showed this; enabling
+USB debug output on `bringup_debug` reliably did). Fixed by switching `bringup_debug` to
+UART0 on GPIO0/1 instead (the Adafruit Metro RP2350's own labelled TX/RX pins, confirmed
+unused elsewhere in this firmware, its own board header's own stdio default) -- a genuinely
+separate clock domain. Read via the Raspberry Pi Debug Probe's own UART bridge (its second,
+separate 3-pin JST-SH connector, not the SWD one) rather than a second on-target USB port;
+needed a Debug Probe firmware update (1.0.1 → 2.3.1, from
+`raspberrypi/debugprobe`'s own GitHub releases) before that bridge actually passed data
+through. **Anything using `bringup_debug` from here on should still be treated as
+disturbing video** -- use it to check the SPI0/DMA receive state (which doesn't care about
+video timing at all), not to judge whether the picture looks right; use plain `bringup` for
+that.
+
+**Known, real, remaining limitations -- not further fixable without changes outside this
+repo's own scope:**
+
+1. **The whole badge UI blocks for the duration of every mirror transmission.**
+   `mirror_sink_send_frame()` runs synchronously inside `display.end_frame()`, called
+   directly from whichever app is currently rendering (typically the Launcher) --
+   MicroPython here is single-threaded and cooperative, so there is no way to background
+   this call from the Python side. ~184ms per 115,200-byte frame at 5MHz (~0.92s at 1MHz).
+   The only lever available without patching hazanjon's C driver is baudrate -- 5MHz is the
+   highest confirmed clean and self-resyncing on this bench dupont-wire setup (20MHz failed
+   to sync entirely: `frame_synced` stuck at 0, corrupted marker values, despite 1M+ bytes
+   arriving -- consistent with this project's own repeated conclusion elsewhere that higher
+   rates need a real PCB, not dupont wire, to be reliable).
+
+   This is a genuine, unavoidable architectural conflict, not specific to this bench setup
+   -- confirmed by reading `badge-2024-software`'s own scheduler source. The Launcher's own
+   `update()` (`modules/system/launcher/app.py`) never returns `False`, and `App.run()`
+   (`modules/app.py`) triggers a re-render on every single iteration unless `update()`
+   explicitly returns `False` -- so the Launcher redraws continuously at roughly 20fps (a
+   50ms pacing built into `mark_update_finished()`) purely to keep its own animated
+   background (`bg.update(delta)`) smooth, regardless of whether the menu or mirrored
+   content has actually changed. Since that's faster than one mirror transmission can
+   complete at any baudrate confirmed clean on this bench setup, `attach_mirror()` will
+   always be "behind" while the Launcher is foregrounded, queuing the next block before the
+   previous one even finishes. hazanjon's own PR demo photos showing both displays working
+   don't contradict this -- a still photo can't show whether the badge felt sluggish while
+   it was taken, and if that demo was also shot from the Launcher, it would have hit the
+   exact same blocking. A foreground app that explicitly returns `False` from `update()`
+   when genuinely idle (no animated background, redrawing only on real state changes) would
+   reduce how often this blocking actually triggers, without needing any change outside
+   this repo -- worth trying if perceived responsiveness matters more than always mirroring
+   from the Launcher specifically.
+
+   **A real Doom-on-both-screens demo video seen separately** (external monitor genuinely
+   mirroring the badge's own display, smooth and full-speed) doesn't necessarily contradict
+   this either, on reflection -- `display.c` does expose a second, independent `Screen` type
+   with its own `end_frame()` (`mp_display_screen_end_frame`, separate from the module-level
+   `display.end_frame()` `attach_mirror()` hooks into), but that theory doesn't fit once the
+   mirrored content is confirmed to genuinely track the primary screen. More likely: a Doom
+   engine on this hardware probably already renders at a fairly modest native framerate
+   (raycasting on a microcontroller, not a GPU) -- if that native rate is already in the same
+   ballpark as one mirror transmission's own duration (~184ms/frame, ~5.4fps, at 5MHz), the
+   *added* latency from mirroring is comparatively small and easy not to notice, especially
+   in a moving 3D scene where a human eye is far less sensitive to an extra frame or two of
+   lag than to an absolute framerate number. The Launcher is the opposite case: its own
+   *native* target is a smooth ~20fps (the animated background alone demands it), so the
+   exact same absolute mirroring cost is a much larger *relative* drop -- 20fps to ~5fps is
+   immediately, jarringly obvious, where a already-modest Doom framerate dropping by a
+   similar absolute amount may not be. Not independently confirmed against the actual Doom
+   build's own frame timing -- offered as the most plausible reconciliation, not a proven
+   fact.
+2. **An occasional one-byte transmission drift**, independent of clock speed. Confirmed via
+   a raw row-byte dump (`ROWDUMP`) at both 5MHz and 1MHz: two captures of the same row, 30
+   frames apart, showed the identical repeating byte pattern shifted by exactly one byte
+   (`4a 00 4a 00...` vs `00 4a 00 4a...`) -- the same artifact at both rates rules out signal
+   integrity/clock rate as the cause. Since a uniform background colour decodes to two
+   different RGB565 values depending on which byte-phase is active, this is what produces
+   the visible alternating green/blue background bars (text is naturally more forgiving of a
+   one-byte shift than a smooth background fill is). Most likely an occasional interrupt/
+   task-switch hiccup on the badge's own ESP32-S3 corrupting a byte mid-transfer. This
+   repo's own resync mechanism can only correct at full-frame boundaries by design (the
+   protocol has no denser sync signal than one marker per frame) -- catching a genuine
+   mid-frame single-byte glitch would need a change inside hazanjon's C driver, which this
+   project's own plan (`hdmi-mirror-plan.md`) explicitly avoids patching.
