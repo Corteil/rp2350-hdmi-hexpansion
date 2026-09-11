@@ -458,19 +458,43 @@ class TestcardApp(app.App):
 _DC_OVERRIDE_PIN = 6
 
 
+# TEST (2026-09-11): delay before the first attach_mirror() call, to check
+# whether the permanent hang (isolated to attach_mirror() itself -- app
+# load/registration alone is confirmed clean via a real-hardware test with
+# this call skipped entirely) is a race against something still settling
+# right at insertion (I2C/EEPROM housekeeping, hexpansion power-on, etc.)
+# rather than a fault that develops during ongoing transmission. Deferred
+# via background_update() (ticked every ~50ms, see App.background_task())
+# rather than a blocking time.sleep() in __init__, so this doesn't itself
+# stall the badge during the delay.
+_ATTACH_DELAY_MS = 1500
+
+
 class MirrorApp(app.App):
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.buttons = Buttons(self)
         self.status = "starting..."
+        self._pending_attach_port = None
+        self._attach_delay_remaining_ms = 0
 
         port = getattr(config, "port", None) if config else None
         if port is not None:
             print("DEBUG: before HexpansionAppLauncherAddEvent emit")
             eventbus.emit(HexpansionAppLauncherAddEvent(port, "HDMI Mirror"))
             print("DEBUG: after HexpansionAppLauncherAddEvent emit")
-            self._attach(port)
+            print("DEBUG: deferring attach_mirror by %dms" % _ATTACH_DELAY_MS)
+            self._pending_attach_port = port
+            self._attach_delay_remaining_ms = _ATTACH_DELAY_MS
+
+    def background_update(self, delta):
+        if self._pending_attach_port is not None:
+            self._attach_delay_remaining_ms -= delta
+            if self._attach_delay_remaining_ms <= 0:
+                port = self._pending_attach_port
+                self._pending_attach_port = None
+                self._attach(port)
 
     def _attach(self, port):
         print("DEBUG: _attach entered, port=%d" % port)
@@ -506,6 +530,7 @@ class MirrorApp(app.App):
             print(self.status)
 
     def deinit(self):
+        self._pending_attach_port = None  # cancel a still-pending delayed attach
         port = getattr(self.config, "port", None) if self.config else None
         if port is not None:
             try:
@@ -522,6 +547,8 @@ class MirrorApp(app.App):
     def draw(self, ctx):
         ctx.save()
         clear_background(ctx)
+        ctx.text_align = ctx.CENTER
+        ctx.text_baseline = ctx.MIDDLE
         ctx.rgb(1, 1, 1).move_to(0, -30).text("HDMI Mirror")
         ctx.font_size = small_font_size
         ctx.rgb(1, 1, 0).move_to(0, 10).text(self.status)

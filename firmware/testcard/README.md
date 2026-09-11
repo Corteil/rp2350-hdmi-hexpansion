@@ -661,3 +661,67 @@ repo's own scope:**
    protocol has no denser sync signal than one marker per frame) -- catching a genuine
    mid-frame single-byte glitch would need a change inside hazanjon's C driver, which this
    project's own plan (`hdmi-mirror-plan.md`) explicitly avoids patching.
+
+**Important scope correction, written the same day: the practical, reliable end-to-end
+result has NOT actually been achieved yet -- most attempts show no signal on the monitor
+at all.** Everything above this line is real and independently verified: the SPI0/DMA
+receive layer is proven correct via direct instrumentation (UART debug capture showing
+`frame_synced=1` sustained, dozens of "frame landed" events, `swap_count` advancing in
+lockstep) -- that part of the pipeline genuinely works, in isolation, when checked directly.
+But that verification happened over a debug channel, with the badge's own screen and the
+external monitor not necessarily being watched at the same moment, and the one time
+recognizable menu content with correct selection-highlight colouring was actually seen on
+the monitor, it wasn't cleanly reproducible on demand afterward -- most later attempts (on
+plain `bringup`, no debug interference) showed no signal at all rather than either the
+fallback test card or real content. The exact cause of that unreliability is still open;
+it is NOT the same bug as bugs 1-4 above (those are confirmed fixed at the protocol level)
+and is NOT fully explained by the USB-CDC/HSTX clock-sharing issue either (plain `bringup`
+never touches USB stdio at all). Treat every "confirmed on real hardware" claim above as
+scoped to exactly what it verified (the byte-level protocol), not as a claim that the
+monitor reliably shows a clean picture end to end -- it has not, so far.
+
+**A separate, real, permanent hang was also found and is believed fixed, but needs
+re-confirmation.** Independent of the video-signal unreliability above: repeated
+insert/remove cycles could leave the badge in a state that never recovers even after 60+
+seconds -- not the ~184ms-per-frame slowness in limitation 1 above, a genuine deadlock.
+`mirror_sink_send_frame()` calls `spi_device_acquire_bus(mp->spi, portMAX_DELAY)` (an
+*unbounded* wait) and only reaches the matching `spi_device_release_bus()` at the very end
+of the function, with no early-return path and no error-path cleanup in between -- if
+anything goes wrong during the header or payload transmit, the bus is left permanently held
+by a context that can never release it, and every future call blocks forever waiting for a
+release that will never come. A test with `attach_mirror()` deliberately skipped (see
+`_ATTACH_DELAY_MS`/`background_update()` in `badge_app/app.py`) confirmed the app
+load/registration sequence alone is completely clean and the badge stays fully responsive
+with mirroring never started -- isolating the hang specifically to `attach_mirror()`/the
+send loop, not to anything about hexpansion detection or EEPROM loading (both independently
+confirmed solid on both stock and hazanjon firmware). Deferring the first `attach_mirror()`
+call by 1.5s past insertion (letting insertion-time housekeeping settle first) appeared to
+prevent the permanent hang across a 40-second continuous real-hardware capture (100
+successful `send_frame` cycles, no interruption) -- but this result needs treating with
+real caution: the first attempt at confirming it accidentally ran against a badge that
+turned out to still have stock firmware flashed (`AttributeError: 'module' object has no
+attribute 'attach_mirror'`, caught harmlessly by this app's own try/except -- of course
+there's no hang if the function being called doesn't exist), giving a false-positive "no
+hang" reading with two physical badges in play during testing. Re-flashing hazanjon's
+firmware fresh and re-running the same test did show `attach_mirror` succeeding
+repeatedly with no hang across another full capture -- but given how easily this specific
+test can silently pass for the wrong reason, do not treat the 1.5s delay as a confirmed fix
+without independently re-verifying `attach_mirror returned OK` (not a caught
+`AttributeError`) appears in the very same test run.
+
+**Also open: the badge's own native screen can go completely static while mirroring runs,
+independent of both issues above.** Confirmed even where the SPI/mirror send loop is
+verifiably still succeeding continuously (100 real `send_frame complete` cycles logged) --
+the badge's own round display showed zero perceptible change whatsoever over an extended
+period, not merely slow. Since `flow3r_bsp_display_send_fb()` (the real native-panel write)
+runs unconditionally before `dispatch_sinks()` in the same `tildagon_blit_fb()` call the
+mirror hooks into, a successfully-completing mirror send implies the native write path was
+reached too -- so this isn't simply "the render loop is stuck." The most likely
+explanation, not yet confirmed: the Launcher's own background-animation code
+(`bg.update(delta)`, see limitation 1 above) computes its animation step from `delta`
+(elapsed wall-clock time since the previous frame); at the ~184ms per frame this now takes
+(versus the ~50ms it was designed and tested against), an unusually large `delta` could
+alias to the exact same modular animation position on every call, producing genuinely
+identical rendered output frame after frame rather than a stuck render loop. Unconfirmed;
+would need reading `badge-2024-software`'s own background-pattern code directly, not yet
+done.
