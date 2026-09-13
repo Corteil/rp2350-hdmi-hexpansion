@@ -135,6 +135,19 @@ static uint32_t vblank_line_vsync_on[] = {
     HSTX_CMD_NOP
 };
 
+// A light border around the state-colour fill, so a genuinely-black/dark
+// diagnostic state (e.g. STATE_BOOT's dark grey) can never be mistaken for
+// "no signal" -- the border is always bright regardless of state. Inset
+// MARGIN_PX/MARGIN_LINES from the true screen edge (rather than flush
+// against it) since some monitors/capture chains crop or blank the very
+// edge pixels.
+#define MARGIN_PX    10
+#define MARGIN_LINES 10
+#define BORDER_PX    8
+#define BORDER_LINES 8
+#define BORDER_COLOUR_WORD (0xFFFFu | (0xFFFFu << 16))  // white, both packed pixels
+#define BLACK_COLOUR_WORD  (0x0000u | (0x0000u << 16))
+
 static uint32_t vactive_line[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
     SYNC_V1_H1,
@@ -142,10 +155,47 @@ static uint32_t vactive_line[] = {
     SYNC_V1_H0,
     HSTX_CMD_RAW_REPEAT | MODE_H_BACK_PORCH,
     SYNC_V1_H1,
-    HSTX_CMD_TMDS_REPEAT | MODE_H_ACTIVE_PIXELS,
+    HSTX_CMD_TMDS_REPEAT | MARGIN_PX,
+    BLACK_COLOUR_WORD,  // left margin
+    HSTX_CMD_TMDS_REPEAT | BORDER_PX,
+    BORDER_COLOUR_WORD,  // left border
+    HSTX_CMD_TMDS_REPEAT | (MODE_H_ACTIVE_PIXELS - 2 * MARGIN_PX - 2 * BORDER_PX),
     0x00000000u,  // mutated live: current diagnostic-state colour, packed as two RGB565 pixels
+    HSTX_CMD_TMDS_REPEAT | BORDER_PX,
+    BORDER_COLOUR_WORD,  // right border
+    HSTX_CMD_TMDS_REPEAT | MARGIN_PX,
+    BLACK_COLOUR_WORD,  // right margin
 };
-#define VACTIVE_LINE_COLOUR_IDX 7
+#define VACTIVE_LINE_COLOUR_IDX 11
+
+// Solid bright row (inset by MARGIN_PX left/right), used for the
+// BORDER_LINES rows above/below the fill to complete the border rectangle.
+static uint32_t vactive_border_row[] = {
+    HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
+    SYNC_V1_H1,
+    HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH,
+    SYNC_V1_H0,
+    HSTX_CMD_RAW_REPEAT | MODE_H_BACK_PORCH,
+    SYNC_V1_H1,
+    HSTX_CMD_TMDS_REPEAT | MARGIN_PX,
+    BLACK_COLOUR_WORD,
+    HSTX_CMD_TMDS_REPEAT | (MODE_H_ACTIVE_PIXELS - 2 * MARGIN_PX),
+    BORDER_COLOUR_WORD,
+    HSTX_CMD_TMDS_REPEAT | MARGIN_PX,
+    BLACK_COLOUR_WORD,
+};
+
+// Solid black row, used for the outermost MARGIN_LINES rows top/bottom.
+static uint32_t vactive_margin_row[] = {
+    HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
+    SYNC_V1_H1,
+    HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH,
+    SYNC_V1_H0,
+    HSTX_CMD_RAW_REPEAT | MODE_H_BACK_PORCH,
+    SYNC_V1_H1,
+    HSTX_CMD_TMDS_REPEAT | MODE_H_ACTIVE_PIXELS,
+    BLACK_COLOUR_WORD,
+};
 
 static void set_status_colour(uint16_t rgb565) {
     uint32_t word = (uint32_t)rgb565 | ((uint32_t)rgb565 << 16);
@@ -176,8 +226,19 @@ void __scratch_x("") dma_irq_handler(void) {
         ch->read_addr = (uintptr_t)vblank_line_vsync_off;
         ch->transfer_count = count_of(vblank_line_vsync_off);
     } else {
-        ch->read_addr = (uintptr_t)vactive_line;
-        ch->transfer_count = count_of(vactive_line);
+        uint v_active_start = MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH;
+        uint rel = v_scanline - v_active_start;
+        if (rel < MARGIN_LINES || rel >= MODE_V_ACTIVE_LINES - MARGIN_LINES) {
+            ch->read_addr = (uintptr_t)vactive_margin_row;
+            ch->transfer_count = count_of(vactive_margin_row);
+        } else if (rel < MARGIN_LINES + BORDER_LINES ||
+                   rel >= MODE_V_ACTIVE_LINES - MARGIN_LINES - BORDER_LINES) {
+            ch->read_addr = (uintptr_t)vactive_border_row;
+            ch->transfer_count = count_of(vactive_border_row);
+        } else {
+            ch->read_addr = (uintptr_t)vactive_line;
+            ch->transfer_count = count_of(vactive_line);
+        }
     }
     v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
 }
