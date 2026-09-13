@@ -365,6 +365,17 @@ static void spi0_slave_init(void) {
     gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
+    // RP2350 GPIOs reset with a pull-down enabled by default, and
+    // gpio_set_function() alone doesn't touch that (it's a separate PADS
+    // register from the function-select mux). PIN_MOSI/PIN_CS are also the
+    // board's STEMMA QT I2C0 SDA/SCL pins, which may carry an actual
+    // on-board hardware pull-up in addition. A real push-pull master
+    // shouldn't need any pull here -- disable them explicitly to rule
+    // stray loading out entirely.
+    gpio_disable_pulls(PIN_MOSI);
+    gpio_disable_pulls(PIN_CS);
+    gpio_disable_pulls(PIN_SCK);
+    gpio_disable_pulls(PIN_MISO);
 
     spi_rx_dma_chan = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(spi_rx_dma_chan);
