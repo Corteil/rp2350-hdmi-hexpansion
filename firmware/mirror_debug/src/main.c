@@ -62,6 +62,7 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
+#include "hardware/pio.h"
 #include "hardware/spi.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/hstx_ctrl.h"
@@ -69,6 +70,7 @@
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
+#include "ws2812.pio.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -291,7 +293,7 @@ static volatile uint32_t bytes_seen_last_frame = 0;   // snapshot of the above, 
 static volatile uint32_t header_matched_at_offset = 0xFFFFFFFFu;  // byte offset within the CS-low burst where TDHD last matched (0xFFFFFFFF = never, within the CURRENT burst)
 
 static void spi0_slave_init(void) {
-    spi_init(spi0, 1000 * 1000);  // nominal only -- slave derives timing from the badge's own SCK
+    spi_init(spi0, 10 * 1000 * 1000);  // hazanjon's real default baudrate; nominal only -- slave derives timing from the badge's own SCK
     spi_set_slave(spi0, true);
     // Mode 0 (CPOL=0, CPHA=0) -- deliberately matching hazanjon's own
     // hardcoded master config exactly, unlike testcard/src/main.c's
@@ -310,12 +312,35 @@ static void spi0_slave_init(void) {
     channel_config_set_write_increment(&c, true);
     channel_config_set_dreq(&c, spi_get_dreq(spi0, false));  // false = RX
     channel_config_set_ring(&c, true, SPI_RING_BITS);
+    // High priority: matches hstx_dvi_init()'s two video DMA channels,
+    // which are also boosted and stream continuously. Tried in isolation as
+    // a fix for the exactly-1-byte-per-frame symptom below -- on its own it
+    // did NOT fix it (retested on real hardware, no change), but left in as
+    // cheap insurance against a real, separate starvation risk while the
+    // actual fix (the overrun clear right below) is verified.
+    channel_config_set_high_priority(&c, true);
     dma_channel_configure(
         spi_rx_dma_chan, &c,
         spi_rx_ring, &spi_get_hw(spi0)->dr,
         0xFFFFFFFFu,
         true
     );
+
+    // Clear any latched receive-overrun/timeout condition before enabling
+    // the DMA request line (2026-09-13 fix attempt): on real hardware this
+    // firmware consistently captured EXACTLY one byte per CS-low burst,
+    // every single frame, hundreds of frames in a row -- badge-side
+    // ESP_LOG confirmed the full header+payload genuinely goes out over the
+    // wire every time, so the truncation is on this (RP2350) side. That
+    // signature -- one byte captured, then permanently stuck at one byte
+    // forever after, not zero and not a live race each time -- matches a
+    // classic SPI-slave gotcha: an unhandled RORIS (receive overrun) latched
+    // very early (e.g. before this init function finishes arming the DMA
+    // channel) can block the hardware FIFO from accepting further bytes
+    // until explicitly cleared, even though DMA is otherwise configured
+    // correctly. RORIC/RTIC are write-to-clear bits in SSPICR.
+    hw_set_bits(&spi_get_hw(spi0)->icr, SPI_SSPICR_RORIC_BITS | SPI_SSPICR_RTIC_BITS);
+
     spi_get_hw(spi0)->dmacr = SPI_SSPDMACR_RXDMAE_BITS;
 }
 
@@ -348,7 +373,23 @@ static void spi0_process_ring(void) {
 static volatile uint32_t frame_start_count = 0;
 static volatile uint32_t frame_end_count = 0;
 
+// Per-pin raw toggle counters (2026-09-13), added specifically to verify
+// mirror_debug.c's own PIN_MOSI/PIN_CS/PIN_SCK/PIN_MISO assignment against
+// the actual current badge-port-4 wiring -- three software-side fixes for
+// the "exactly 1 byte per frame" mystery (DMA priority, SPI overrun clear,
+// lower baudrate) all failed to change anything, so this checks the
+// wiring/pin-role-assignment itself instead of guessing further in
+// software. Works the same way the CS-edge counter always has: GPIO
+// edge-detect monitors the raw pad state independent of GPIO_FUNC_SPI, so
+// this doesn't require reconfiguring any pin's function.
+static volatile uint32_t pin_toggle_count[4] = {0, 0, 0, 0};  // indexed by which of the 4 pins below
+
 static void cs_edge_irq_handler(uint gpio, uint32_t events) {
+    if (gpio == PIN_MOSI) pin_toggle_count[0]++;
+    else if (gpio == PIN_CS) pin_toggle_count[1]++;
+    else if (gpio == PIN_SCK) pin_toggle_count[2]++;
+    else if (gpio == PIN_MISO) pin_toggle_count[3]++;
+
     if (gpio != PIN_CS) return;
     if (events & GPIO_IRQ_EDGE_FALL) {
         frame_start_count++;
@@ -388,6 +429,29 @@ static void advance_state(int new_state) {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Heartbeat/activity LED via the Metro's onboard NeoPixel (GPIO25) --
+// ported directly from testcard/src/main.c's own copy (see that file's
+// comment). RED blinks at 1Hz on a real wall clock, independent of the
+// on-monitor diagnostic colour -- this firmware never had a NeoPixel
+// heartbeat at all until now, which made "did it actually crash" vs. "it's
+// just showing a dark diagnostic colour" ambiguous from the monitor alone.
+// GREEN briefly overrides it whenever the "TDHD" header is ever matched.
+#define PIN_NEOPIXEL   25
+#define NEOPIXEL_PIO   pio0
+#define NEOPIXEL_SM    0
+
+static inline void neopixel_put(uint8_t r, uint8_t g, uint8_t b) {
+    uint32_t grb = ((uint32_t)g << 24) | ((uint32_t)r << 16) | ((uint32_t)b << 8);
+    pio_sm_put_blocking(NEOPIXEL_PIO, NEOPIXEL_SM, grb);
+}
+
+static void neopixel_init(void) {
+    uint offset = pio_add_program(NEOPIXEL_PIO, &ws2812_program);
+    ws2812_program_init(NEOPIXEL_PIO, NEOPIXEL_SM, offset, PIN_NEOPIXEL, 800000.0f, false);
+    neopixel_put(0, 0, 0);
+}
+
 int main(void) {
     dma_channel_claim(DMACH_PING);
     dma_channel_claim(DMACH_PONG);
@@ -395,21 +459,42 @@ int main(void) {
     set_sys_clock_khz(126000, true);
 
     vreg_set_voltage(VREG_VOLTAGE_1_20);
-    sleep_ms(10);
+    sleep_ms(50);
 
     set_status_colour(state_colours[STATE_BOOT]);
     spi0_slave_init();
 
-    gpio_set_irq_enabled_with_callback(PIN_CS, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &cs_edge_irq_handler);
-
+    // Nothing but the bare minimum happens between the vreg settle delay
+    // and multicore_launch_core1() -- both the CS-edge GPIO IRQ and (as of
+    // this build) neopixel_init()'s PIO setup are deferred until AFTER the
+    // launch. On real hardware, enabling the GPIO IRQ here (before launch)
+    // consistently left core1 stuck in the bootrom FIFO-handoff loop
+    // (RP2350 core1-launch erratum, see testcard/src/main.c's own comment
+    // on it) -- confirmed via GDB, core1's PC parked in an unresolved RAM
+    // address outside any loaded symbol. testcard/src/main.c has no such
+    // extra setup active on core0 during its own (reliable) core1 launch at
+    // all. Suspected cause: anything that can preempt or briefly block core0
+    // -- an IRQ, or PIO program loading/SM config -- disrupting
+    // multicore_launch_core1()'s SIO-FIFO-based handoff sequence if it lands
+    // mid-handshake.
     multicore_launch_core1(core1_video_entry);
+
+    neopixel_init();
+    gpio_set_irq_enabled_with_callback(PIN_CS, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &cs_edge_irq_handler);
+    gpio_set_irq_enabled(PIN_MOSI, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
+    gpio_set_irq_enabled(PIN_SCK, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
+    gpio_set_irq_enabled(PIN_MISO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
 
     stdio_init_all();
     sleep_ms(200);
     printf("\nmirror_debug: entering diagnostic loop (SPI0 mode 0, TDHD header, CS-edge tracking)\n");
 
     uint32_t last_printed_fs = 0, last_printed_fe = 0, last_printed_hdr = 0;
+    uint32_t last_hm_for_flash = 0;
     absolute_time_t next_periodic_print = make_timeout_time_ms(2000);
+    bool heartbeat_red_on = false;
+    absolute_time_t next_red_toggle = make_timeout_time_ms(500);
+    absolute_time_t green_flash_until = nil_time;
 
     for (;;) {
         spi0_process_ring();
@@ -419,6 +504,20 @@ int main(void) {
         if (fs > 0) advance_state(STATE_CS_EDGE_SEEN);
         if (tb > 0) advance_state(STATE_BYTES_SEEN);
         if (hm > 0) advance_state(STATE_HEADER_MATCHED);
+
+        if (hm != last_hm_for_flash) {
+            last_hm_for_flash = hm;
+            green_flash_until = make_timeout_time_ms(80);
+        }
+        if (time_reached(next_red_toggle)) {
+            heartbeat_red_on = !heartbeat_red_on;
+            next_red_toggle = delayed_by_ms(next_red_toggle, 500);
+        }
+        if (!is_nil_time(green_flash_until) && !time_reached(green_flash_until)) {
+            neopixel_put(0, 20, 0);
+        } else {
+            neopixel_put(heartbeat_red_on ? 20 : 0, 0, 0);
+        }
 
         // Print immediately on any new CS edge or header match -- these
         // are rare, high-value events worth seeing the instant they
@@ -436,9 +535,13 @@ int main(void) {
         if (time_reached(next_periodic_print)) {
             next_periodic_print = delayed_by_ms(next_periodic_print, 2000);
             printf("heartbeat frame_start=%lu frame_end=%lu total_bytes_seen=%lu header_match=%lu "
-                   "bytes_last_frame=%lu bytes_since_cs_low=%lu state=%d\n",
+                   "bytes_last_frame=%lu bytes_since_cs_low=%lu state=%d "
+                   "pin_toggles[MOSI=%d,CS=%d,SCK=%d,MISO/DC=%d]=%lu,%lu,%lu,%lu\n",
                    (unsigned long)fs, (unsigned long)fe, (unsigned long)tb, (unsigned long)hm,
-                   (unsigned long)bytes_seen_last_frame, (unsigned long)bytes_since_cs_low, best_state);
+                   (unsigned long)bytes_seen_last_frame, (unsigned long)bytes_since_cs_low, best_state,
+                   PIN_MOSI, PIN_CS, PIN_SCK, PIN_MISO,
+                   (unsigned long)pin_toggle_count[0], (unsigned long)pin_toggle_count[1],
+                   (unsigned long)pin_toggle_count[2], (unsigned long)pin_toggle_count[3]);
         }
 
         sleep_us(200);

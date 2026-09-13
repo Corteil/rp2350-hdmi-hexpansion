@@ -31,9 +31,16 @@ target_link_libraries(mirror_debug
     hardware_clocks
     hardware_dma
     hardware_irq
+    hardware_pio
     hardware_spi
     hardware_vreg
 )
+
+# Heartbeat LED via the Metro's onboard NeoPixel (GPIO25) -- same reasoning
+# and same pico-sdk stock ws2812.pio program as testcard/src/main.c: proves
+# core0's main loop is genuinely alive on a wall clock, independent of the
+# on-monitor diagnostic colour (which can be mistaken for "no signal").
+pico_generate_pio_header(mirror_debug ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
 
 # UART, not USB -- same reasoning as testcard/bringup_debug: stdio_usb
 # shares clock infra with clk_sys, which clk_hstx follows undivided at
