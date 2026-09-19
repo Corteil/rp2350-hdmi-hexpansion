@@ -634,6 +634,33 @@ project makes its own choice too, matched by badge-side driver code written for 
 | `HS_H` | 22 | SCK (`spi0_sclk`) |
 | `HS_I` | 23 | MISO (`spi0_tx`) |
 
+**IMPORTANT correction (2026-09-19), found the hard way while wiring for a real mirror
+test:** the table above is this project's own free choice for the RP2350 side, but it does
+**not** automatically agree with hazanjon's actual badge-side driver
+(`flow3r_bsp_display_mirror.c`'s `PORT_PINS`), which real mirroring on this project ended up
+depending on. For hexpansion **port 4** specifically, that badge-side code puts SCK on
+`HS_G` and CS on `HS_H` — the opposite of this project's own `HS_G`=CS, `HS_H`=SCK
+convention above. Since neither side's role assignment can be changed in software (RP2350
+GPIO21/22's SPI0 roles are silicon-fixed, per the correction above; the badge's `PORT_PINS`
+defaults are what the currently-deployed driver relies on), the only way to reconcile them
+is a **physical wire crossing at the RP2350 end**:
+
+| Badge signal | GPIO per the table above | Actually wire it here for port 4 |
+|---|---:|---:|
+| `HS_F` | 20 | 20 (unchanged) |
+| `HS_G` | 21 | **22** |
+| `HS_H` | 22 | **21** |
+| `HS_I` | 23 | 23 (unchanged) |
+
+Confirmed empirically via `mirror_debug`'s live per-pin GPIO edge counters: with the
+straight (uncrossed) wiring, CS and MOSI toggled together at ~160kHz (CS was receiving the
+badge's real SCK output by mistake) while the pin labelled SCK saw under 10Hz; after
+crossing `HS_G`↔`HS_H`, SCK showed ~14.47 million real toggles closely matching MOSI's own
+count, and CS showed a clean, correctly-scaled edge count. **Wire `HS_F`→20, `HS_G`→22,
+`HS_H`→21, `HS_I`→23 for any real mirror test on port 4** — the straight table above
+documents this project's own original intent, not what actually needs to be wired for
+compatibility with the badge's current mirror driver.
+
 | Pin | Function |
 |------|----------|
 | 0 | PSRAM chip select (QMI CS1 — GPIO0/8/19 are the only options on RP2350A, and 19 is taken by HSTX) |
@@ -644,7 +671,7 @@ project makes its own choice too, matched by badge-side driver code written for 
 | 6, 7 | **I2C1 (hardware) → Qwiic sockets J4/J5** |
 | 8–11 | **SPI1 → microSD** (8 MISO, 9 CS, 10 SCK, 11 MOSI) |
 | **12–19** | **HSTX → 4 TMDS pairs (clock + 3 data)** — fixed by silicon |
-| 20–23 | SPI0 slave ↔ `HS_F`(MOSI)/`HS_G`(CS)/`HS_H`(SCK)/`HS_I`(MISO) — see table above |
+| 20–23 | SPI0 slave ↔ `HS_F`(MOSI)/`HS_G`(CS)/`HS_H`(SCK)/`HS_I`(MISO) — see §4.1's tables above; **note the mandatory `HS_G`/`HS_H` wire-crossing correction for port 4** |
 | 24, 25 | I2C0 target ↔ badge SDA / SCL (the emulated EEPROM) |
 | 26 | → LS_B, attention/IRQ to the badge (proposed use of a spare line — see note) |
 | 27 | ← LS_C, proposed as a bootloader-entry request from the badge (see note) |
