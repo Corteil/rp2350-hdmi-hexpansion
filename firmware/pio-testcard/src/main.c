@@ -512,6 +512,30 @@ static volatile uint32_t total_bytes_seen = 0;
 static volatile uint32_t header_match_count = 0;
 static volatile uint32_t frames_received = 0;
 
+// Diagnostic for the "header_match_count runs ahead of frames_received"
+// mystery: badge-side CS is now a plain software-driven GPIO (see
+// flow3r_bsp_display_mirror.c's mirror_sink_send_frame(), which holds CS
+// low across the whole header+payload with no per-chunk toggle any more),
+// so a real cause candidate is a spurious/glitchy extra CS-falling edge
+// mid-frame, un-debounced, resetting header_matched and letting a
+// coincidental "TDHD" match land in ordinary pixel data. cs_fall_count is a
+// running total of every CS-falling edge seen since boot; cs_falls_at_
+// header_match snapshots it at the moment a header is matched;
+// last_frame_extra_cs_falls is set at frame-complete time to how many
+// additional CS falls happened after that snapshot -- should read 0 on
+// every single frame if this theory is wrong, nonzero if it's right.
+static volatile uint32_t cs_fall_count = 0;
+static volatile uint32_t cs_falls_at_header_match = 0;
+static volatile uint32_t last_frame_extra_cs_falls = 0;
+
+// Direct confirmation for the "a newer frame pre-empts an in-progress one"
+// theory: incremented whenever a fresh header match arrives while the
+// previous attempt's pixel_index was already > 0 and hadn't yet reached
+// TOTAL_PIXELS -- i.e. the previous frame was abandoned mid-stream, not
+// glitched (cs_fall_count == header_match_count and last_frame_extra_cs_
+// falls == 0 already ruled out a spurious CS edge as the cause).
+static volatile uint32_t abandoned_frame_count = 0;
+
 static void pio_spi_slave_init(void) {
     pio_gpio_init(SPI_SLAVE_PIO, PIN_MOSI);
     pio_gpio_init(SPI_SLAVE_PIO, PIN_CS);
@@ -580,6 +604,7 @@ static void pio_spi_slave_init(void) {
 static void cs_edge_irq_handler(uint gpio, uint32_t events) {
     if (gpio != PIN_CS) return;
     if (events & GPIO_IRQ_EDGE_FALL) {
+        cs_fall_count++;
         header_matched = false;
         marker_window = 0;
         have_high_byte = false;
@@ -604,6 +629,7 @@ static void spi0_process_ring(void) {
             if (marker_window == TDHD_MARKER_VALUE) {
                 header_matched = true;
                 header_match_count++;
+                cs_falls_at_header_match = cs_fall_count;
                 have_high_byte = false;
                 // Unconditionally treats every "TDHD" match as the start
                 // of a fresh frame (reset pixel_index, claim a new back
@@ -619,6 +645,9 @@ static void spi0_process_ring(void) {
                 // for that needs more careful investigation than this
                 // session had time for. See hexigfx-mirror-status memory,
                 // 2026-09-19/20, for the full evidence trail.
+                if (pixel_index > 0 && pixel_index < (uint32_t)TOTAL_PIXELS) {
+                    abandoned_frame_count++;
+                }
                 pixel_index = 0;
                 frame_start_pending = true;
             }
@@ -749,11 +778,13 @@ int main(void) {
             ever_received_frame = true;
             back_buffer_ready = true;
             green_flash_until = make_timeout_time_ms(80);
+            last_frame_extra_cs_falls = cs_fall_count - cs_falls_at_header_match;
 #ifdef DEBUG_SERIAL
-            printf("frame landed #%lu, recv_buf=%d, front_index=%d, swap_count=%lu, header_match_count=%lu, total_bytes_seen=%lu\n",
+            printf("frame landed #%lu, recv_buf=%d, front_index=%d, swap_count=%lu, header_match_count=%lu, total_bytes_seen=%lu, extra_cs_falls=%lu, abandoned_frames=%lu\n",
                    (unsigned long)frames_received, recv_buf, front_index,
                    (unsigned long)swap_count, (unsigned long)header_match_count,
-                   (unsigned long)total_bytes_seen);
+                   (unsigned long)total_bytes_seen, (unsigned long)last_frame_extra_cs_falls,
+                   (unsigned long)abandoned_frame_count);
 #endif
         }
 
