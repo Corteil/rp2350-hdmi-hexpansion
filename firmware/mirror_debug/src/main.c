@@ -63,13 +63,13 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
-#include "hardware/spi.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
+#include "spi_slave_rx.pio.h"
 #include "ws2812.pio.h"
 #include <stdio.h>
 #include <string.h>
@@ -323,16 +323,24 @@ static void core1_video_entry(void) {
 }
 
 // ----------------------------------------------------------------------------
-// SPI0 slave: same pins/DMA-ring-drain technique firmware/testcard/src/main.c
-// already proved reliable at high baudrate, but configured for hazanjon's
-// REAL protocol -- SPI mode 0 (his master's hardcoded
-// `spi_device_interface_config_t.mode = 0`), and scanning for his real
-// 4-byte "TDHD" header instead of the old, unrelated 8-byte 0xA55A marker.
+// SPI0 slave receiver -- PIO-based, replacing the RP2350's own hardware
+// SPI0 peripheral (see spi_slave_rx.pio's own comment and hexigfx-mirror-
+// status memory, 2026-09-19, for the full evidence trail: LA2016 proved the
+// wire electrically perfect, a fine-grained SSPSR/DMA trace proved DMA
+// healthy but the PL022 hardware itself losing byte-alignment mid-burst and
+// never recovering). Same downstream ring-buffer/byte-scanning logic as
+// before -- only the actual bit-sampling mechanism changed. Configured for
+// hazanjon's REAL protocol -- SPI mode 0 (his master's hardcoded
+// `spi_device_interface_config_t.mode = 0`), scanning for his real 4-byte
+// "TDHD" header.
 
 #define PIN_MOSI 20
 #define PIN_CS   21
 #define PIN_SCK  22
 #define PIN_MISO 23
+
+#define SPI_SLAVE_PIO pio1
+#define SPI_SLAVE_SM  0
 
 #define SPI_RING_BITS 12
 #define SPI_RING_SIZE (1u << SPI_RING_BITS)
@@ -353,67 +361,65 @@ static volatile uint32_t bytes_since_cs_low = 0;      // running count within th
 static volatile uint32_t bytes_seen_last_frame = 0;   // snapshot of the above, taken at the CS rising edge
 static volatile uint32_t header_matched_at_offset = 0xFFFFFFFFu;  // byte offset within the CS-low burst where TDHD last matched (0xFFFFFFFF = never, within the CURRENT burst)
 
-static void spi0_slave_init(void) {
-    spi_init(spi0, 10 * 1000 * 1000);  // hazanjon's real default baudrate; nominal only -- slave derives timing from the badge's own SCK
-    spi_set_slave(spi0, true);
-    // Mode 0 (CPOL=0, CPHA=0) -- deliberately matching hazanjon's own
-    // hardcoded master config exactly, unlike testcard/src/main.c's
-    // CPHA_1 (an empirical choice from the OLDER, different protocol's
-    // sender -- see this file's own top comment).
-    spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
-    gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
-    // RP2350 GPIOs reset with a pull-down enabled by default, and
-    // gpio_set_function() alone doesn't touch that (it's a separate PADS
-    // register from the function-select mux). PIN_MOSI/PIN_CS are also the
-    // board's STEMMA QT I2C0 SDA/SCL pins, which may carry an actual
-    // on-board hardware pull-up in addition. A real push-pull master
-    // shouldn't need any pull here -- disable them explicitly to rule
-    // stray loading out entirely.
+static void pio_spi_slave_init(void) {
+    // We only ever READ these three pins (this SM never drives an output);
+    // pio_gpio_init() mostly formalizes ownership/pad config rather than
+    // being electrically required (PIO's IN/WAIT/JMP-PIN instructions read
+    // the raw synchronized pad state regardless of FUNCSEL, same as the
+    // existing GPIO edge-IRQ pin_toggle_count counters below still do for
+    // these same pins). PIN_MISO/DC is left alone -- unused by this program.
+    pio_gpio_init(SPI_SLAVE_PIO, PIN_MOSI);
+    pio_gpio_init(SPI_SLAVE_PIO, PIN_CS);
+    pio_gpio_init(SPI_SLAVE_PIO, PIN_SCK);
+    // Same reasoning as the old hardware-SPI init: PIN_MOSI/PIN_CS double
+    // as the board's STEMMA QT I2C0 SDA/SCL pins, which may carry an actual
+    // on-board pull-up in addition to RP2350's own default pull-down. A
+    // real push-pull master shouldn't need any pull here.
     gpio_disable_pulls(PIN_MOSI);
     gpio_disable_pulls(PIN_CS);
     gpio_disable_pulls(PIN_SCK);
     gpio_disable_pulls(PIN_MISO);
 
+    uint offset = pio_add_program(SPI_SLAVE_PIO, &spi_slave_rx_program);
+    pio_sm_config c = pio_get_default_sm_config();
+    sm_config_set_wrap(&c, offset + spi_slave_rx_wrap_target, offset + spi_slave_rx_wrap);
+    // IN_BASE = PIN_MOSI: since PIN_MOSI/PIN_CS/PIN_SCK are contiguous
+    // GPIOs (20/21/22), this single base makes the .pio program's "pin 0"/
+    // "pin 1"/"pin 2" indices land on MOSI/CS/SCK respectively -- see
+    // spi_slave_rx.pio's own comment.
+    sm_config_set_in_pins(&c, PIN_MOSI);
+    sm_config_set_jmp_pin(&c, PIN_CS);
+    // Shift left (MSB-first byte assembly, matching SPI_MSB_FIRST on the
+    // old hardware-SPI config) with autopush every 8 bits, so a full byte
+    // reaches the RX FIFO -- and this DMA channel -- with no CPU/PIO-
+    // program involvement beyond the raw bit sampling itself.
+    sm_config_set_in_shift(&c, false, true, 8);
+    // Full system clock, no divider: at ~150MHz vs. the badge's 10MHz SCK,
+    // each half-clock period gets ~7-8 PIO cycles of margin for the
+    // "wait pin" instructions to detect the edge -- this is exactly the
+    // fine-grained-timing advantage PIO has over the CPU polling loop that
+    // couldn't resolve this bug's real timing earlier in this investigation.
+    sm_config_set_clkdiv(&c, 1.0f);
+
+    pio_sm_init(SPI_SLAVE_PIO, SPI_SLAVE_SM, offset, &c);
+    pio_sm_set_enabled(SPI_SLAVE_PIO, SPI_SLAVE_SM, true);
+
     spi_rx_dma_chan = dma_claim_unused_channel(true);
-    dma_channel_config c = dma_channel_get_default_config(spi_rx_dma_chan);
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_8);
-    channel_config_set_read_increment(&c, false);
-    channel_config_set_write_increment(&c, true);
-    channel_config_set_dreq(&c, spi_get_dreq(spi0, false));  // false = RX
-    channel_config_set_ring(&c, true, SPI_RING_BITS);
+    dma_channel_config c2 = dma_channel_get_default_config(spi_rx_dma_chan);
+    channel_config_set_transfer_data_size(&c2, DMA_SIZE_8);
+    channel_config_set_read_increment(&c2, false);
+    channel_config_set_write_increment(&c2, true);
+    channel_config_set_dreq(&c2, pio_get_dreq(SPI_SLAVE_PIO, SPI_SLAVE_SM, false));  // false = RX
+    channel_config_set_ring(&c2, true, SPI_RING_BITS);
     // High priority: matches hstx_dvi_init()'s two video DMA channels,
-    // which are also boosted and stream continuously. Tried in isolation as
-    // a fix for the exactly-1-byte-per-frame symptom below -- on its own it
-    // did NOT fix it (retested on real hardware, no change), but left in as
-    // cheap insurance against a real, separate starvation risk while the
-    // actual fix (the overrun clear right below) is verified.
-    channel_config_set_high_priority(&c, true);
+    // which are also boosted and stream continuously.
+    channel_config_set_high_priority(&c2, true);
     dma_channel_configure(
-        spi_rx_dma_chan, &c,
-        spi_rx_ring, &spi_get_hw(spi0)->dr,
+        spi_rx_dma_chan, &c2,
+        spi_rx_ring, &SPI_SLAVE_PIO->rxf[SPI_SLAVE_SM],
         0xFFFFFFFFu,
         true
     );
-
-    // Clear any latched receive-overrun/timeout condition before enabling
-    // the DMA request line (2026-09-13 fix attempt): on real hardware this
-    // firmware consistently captured EXACTLY one byte per CS-low burst,
-    // every single frame, hundreds of frames in a row -- badge-side
-    // ESP_LOG confirmed the full header+payload genuinely goes out over the
-    // wire every time, so the truncation is on this (RP2350) side. That
-    // signature -- one byte captured, then permanently stuck at one byte
-    // forever after, not zero and not a live race each time -- matches a
-    // classic SPI-slave gotcha: an unhandled RORIS (receive overrun) latched
-    // very early (e.g. before this init function finishes arming the DMA
-    // channel) can block the hardware FIFO from accepting further bytes
-    // until explicitly cleared, even though DMA is otherwise configured
-    // correctly. RORIC/RTIC are write-to-clear bits in SSPICR.
-    hw_set_bits(&spi_get_hw(spi0)->icr, SPI_SSPICR_RORIC_BITS | SPI_SSPICR_RTIC_BITS);
-
-    spi_get_hw(spi0)->dmacr = SPI_SSPDMACR_RXDMAE_BITS;
 }
 
 static void spi0_process_ring(void) {
@@ -468,6 +474,12 @@ static void cs_edge_irq_handler(uint gpio, uint32_t events) {
         bytes_since_cs_low = 0;
         marker_window = 0;
         header_matched_at_offset = 0xFFFFFFFFu;
+        // No PL022-style software SSE re-arm needed any more: the PIO
+        // program's own "wait 0 pin 1" (CS low) / "jmp pin idle" (CS high)
+        // logic re-synchronizes bit-level framing entirely in hardware,
+        // every single burst, with no CPU/IRQ involvement -- see
+        // spi_slave_rx.pio's own comment for why this avoids the PL022's
+        // demonstrated failure mode.
     }
     if (events & GPIO_IRQ_EDGE_RISE) {
         frame_end_count++;
@@ -534,7 +546,7 @@ int main(void) {
     sleep_ms(50);
 
     set_status_colour(state_colours[STATE_BOOT]);
-    spi0_slave_init();
+    pio_spi_slave_init();
 
     // Nothing but the bare minimum happens between the vreg settle delay
     // and multicore_launch_core1() -- both the CS-edge GPIO IRQ and (as of
@@ -610,7 +622,8 @@ int main(void) {
                    "bytes_last_frame=%lu bytes_since_cs_low=%lu state=%d "
                    "pin_toggles[MOSI=%d,CS=%d,SCK=%d,MISO/DC=%d]=%lu,%lu,%lu,%lu\n",
                    (unsigned long)fs, (unsigned long)fe, (unsigned long)tb, (unsigned long)hm,
-                   (unsigned long)bytes_seen_last_frame, (unsigned long)bytes_since_cs_low, best_state,
+                   (unsigned long)bytes_seen_last_frame, (unsigned long)bytes_since_cs_low,
+                   best_state,
                    PIN_MOSI, PIN_CS, PIN_SCK, PIN_MISO,
                    (unsigned long)pin_toggle_count[0], (unsigned long)pin_toggle_count[1],
                    (unsigned long)pin_toggle_count[2], (unsigned long)pin_toggle_count[3]);

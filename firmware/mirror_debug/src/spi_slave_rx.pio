@@ -1,0 +1,41 @@
+;
+; spi_slave_rx: mode-0 (CPOL=0, CPHA=0) SPI slave receiver, MOSI-only,
+; framed by a real hardware CS -- written to replace the RP2350's own PL022
+; hardware SPI0 peripheral for this exact job. See hexigfx-mirror-status
+; memory, 2026-09-19, for why: direct SSPSR + DMA-write-pointer tracing
+; (a tight busy-loop poll right after CS-fall, logged and read back over
+; SWD) proved the hardware SPI0 peripheral loses byte-alignment after the
+; first word or two of a long continuous CS-low burst and never recovers
+; (BSY stuck at 1, RNE essentially never observed, for the rest of every
+; burst) -- despite a real Kingst LA2016 logic-analyzer capture proving the
+; incoming SCK/MOSI signal is electrically perfect for 14+ bytes straight
+; through the exact point reception dies. DMA itself was separately proven
+; healthy (it drains every word the FIFO ever does produce). PIO gives full
+; software control over bit-level sampling with no PL022-style internal
+; shift-register framing state to lose sync in the first place.
+;
+; Pin mapping: the state machine's IN_BASE must be set to PIN_MOSI (via
+; sm_config_set_in_pins()) so these instruction-level pin indices land on
+; the right physical GPIOs -- PIN_MOSI, PIN_CS, PIN_SCK are contiguous
+; (GPIO20/21/22 on this board), so a single base covers all three:
+;   index 0 = MOSI (sampled)
+;   index 1 = CS   (waited on)
+;   index 2 = SCK  (waited on)
+; The JMP pin must be set to PIN_CS separately (via sm_config_set_jmp_pin())
+; -- checked once per received bit to detect the end of a burst without
+; needing a second "wait" instruction (which could stall a whole SCK period
+; waiting for an edge that CS's *level* already tells us happened).
+
+.program spi_slave_rx
+
+idle:
+    wait 0 pin 1        ; block until CS goes low -- start of a new burst
+bitloop:
+    wait 1 pin 2        ; block until SCK rises
+    in pins, 1          ; sample MOSI now (CPHA=0: data is valid at/after
+                         ; the rising edge) -- autopush (configured in C)
+                         ; flushes a full byte to the RX FIFO every 8 bits
+    wait 0 pin 2        ; block until SCK falls, so the next "wait 1 pin 2"
+                         ; can't immediately re-trigger on the same edge
+    jmp pin idle         ; CS has gone high again -> burst over, go idle
+    jmp bitloop           ; still asserted -> receive the next bit

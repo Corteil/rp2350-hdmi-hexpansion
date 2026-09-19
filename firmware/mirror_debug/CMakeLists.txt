@@ -32,7 +32,6 @@ target_link_libraries(mirror_debug
     hardware_dma
     hardware_irq
     hardware_pio
-    hardware_spi
     hardware_vreg
 )
 
@@ -41,6 +40,11 @@ target_link_libraries(mirror_debug
 # core0's main loop is genuinely alive on a wall clock, independent of the
 # on-monitor diagnostic colour (which can be mistaken for "no signal").
 pico_generate_pio_header(mirror_debug ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
+
+# PIO-based SPI0 slave receiver, replacing the RP2350's own hardware SPI0
+# peripheral for this job -- see spi_slave_rx.pio's own comment and
+# hexigfx-mirror-status memory (2026-09-19) for why.
+pico_generate_pio_header(mirror_debug ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave_rx.pio)
 
 # UART, not USB -- same reasoning as testcard/bringup_debug: stdio_usb
 # shares clock infra with clk_sys, which clk_hstx follows undivided at
