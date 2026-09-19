@@ -394,6 +394,16 @@ static void pio_spi_slave_init(void) {
     // reaches the RX FIFO -- and this DMA channel -- with no CPU/PIO-
     // program involvement beyond the raw bit sampling itself.
     sm_config_set_in_shift(&c, false, true, 8);
+    // This SM never transmits (RX-only) -- join the unused TX FIFO to the
+    // RX side, doubling it from 4 to 8 words for extra margin against
+    // momentary DMA-servicing delays. Added to pio-testcard after directly
+    // confirming (via PIO1's own FDEBUG.RXSTALL bit, read live over SWD) a
+    // genuine RX FIFO overflow there once its SPI RX DMA channel was made
+    // non-high-priority (needed to stop it from breaking HSTX's own zero-
+    // margin video timing) -- ported back here for the same hardening,
+    // even though this file's own SPI RX DMA channel is still marked
+    // high-priority below and hasn't shown the same symptom.
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     // Full system clock, no divider: at ~150MHz vs. the badge's 10MHz SCK,
     // each half-clock period gets ~7-8 PIO cycles of margin for the
     // "wait pin" instructions to detect the edge -- this is exactly the
