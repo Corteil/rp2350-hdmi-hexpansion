@@ -58,6 +58,26 @@ See `HISTORY.md` §4.1 for the full derivation and why the two sides disagree.
 VID/PID assigned for the eventual EEPROM-emulating hexpansion: `0x1969` /
 `0x4544`.
 
+## Reinsertion procedure (2026-09-20, still manual)
+
+Plugging the hexpansion into an already-running badge doesn't reliably start
+mirroring on its own yet, even with the auto-attach relay packed into the
+fake EEPROM (`firmware/testcard/badge_app/app.py`) and its LS_A-pulse
+hardware reset (`firmware/pio-testcard/src/main.c`'s own comments have the
+full root-cause trail on why a reset is needed at all). The sequence
+confirmed working on the bench tonight, in order:
+
+1. Insert the `HDMI-HEX` hexpansion.
+2. In `tildagon-hdmi-manager` (or `display_manager`), **detach** the mirror.
+3. **Attach** the mirror again, from the same app.
+4. Press the physical **reset button (SW2)** on the Metro RP2350 board.
+
+All four steps were needed together to get a reliably working mirror in
+tonight's testing — auto-attach alone was not enough. Not yet root-caused
+which of steps 2–4 is actually load-bearing versus just "worked this time";
+treat this as the known-good procedure until that's narrowed down further,
+not as a minimal one.
+
 ## Building and flashing
 
 ### RP2350 firmware (`pio-testcard`)
