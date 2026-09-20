@@ -16,12 +16,11 @@
 // fine-grained SSPSR/DMA trace, see spi_slave_rx.pio's own comment).
 //
 // Board: Metro RP2350, same bench rig as testcard/mirror_debug (SPI0 on
-// GPIO20-23, HSTX on GPIO12-19). No I2C0/EEPROM hexpansion emulation here
-// (unlike testcard) -- the real driver under test lives inside
-// badge-2024-software itself (triggered via its own sideloaded
-// mirror_screen_test/display_manager apps), not via anything this
-// hexpansion's own EEPROM would need to serve, and mirror_debug proved
-// this exact bench setup works fine without it.
+// GPIO20-23, HSTX on GPIO12-19, I2C0/EEPROM emulation on GPIO4/5 -- see
+// eeprom_i2c.h). Carries testcard's hexpansion-EEPROM emulation (copied
+// verbatim 2026-09-20) so the badge auto-enumerates this hexpansion and
+// auto-launches the packed app.py, instead of needing a manual sideload
+// of mirror_screen_test/display_manager on every badge used for testing.
 //
 // HSTX geometry, framebuffer layout, double-buffering, EMF test-card/
 // static-noise fallback patterns, and the DMA ping-pong scanout itself
@@ -44,6 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "eeprom_i2c.h"
 #include "spi_slave_rx.pio.h"
 #include "ws2812.pio.h"
 
@@ -758,23 +758,33 @@ int main(void) {
 
     // Nothing but the bare minimum happens between the vreg settle delay
     // and multicore_launch_core1() -- pio_spi_slave_init() (a PIO program
-    // load), neopixel_init() (also a PIO program load), and the CS-edge
-    // GPIO IRQ enable are ALL deferred until AFTER the launch. Matches
-    // mirror_debug's own hard-won lesson (see its src/main.c's identical
-    // comment): anything that can preempt or briefly block core0 -- an
-    // IRQ, or PIO program loading/SM config -- risks disrupting
-    // multicore_launch_core1()'s SIO-FIFO-based handoff sequence if it
-    // lands mid-handshake (a documented RP2350 core1-launch erratum).
-    // mirror_debug itself only moved neopixel_init() after the launch and
-    // left its own pio_spi_slave_init() call before it -- this file goes
-    // one step further and moves both, since this session's first attempt
-    // at this exact ordering (PIO SPI init before the launch) produced a
+    // load), neopixel_init() (also a PIO program load), the CS-edge GPIO
+    // IRQ enable, and eeprom_i2c_start() (enables I2C0_IRQ) are ALL
+    // deferred until AFTER the launch. Matches mirror_debug's own
+    // hard-won lesson (see its src/main.c's identical comment): anything
+    // that can preempt or briefly block core0 -- an IRQ, or PIO program
+    // loading/SM config -- risks disrupting multicore_launch_core1()'s
+    // SIO-FIFO-based handoff sequence if it lands mid-handshake (a
+    // documented RP2350 core1-launch erratum). mirror_debug itself only
+    // moved neopixel_init() after the launch and left its own
+    // pio_spi_slave_init() call before it -- this file goes one step
+    // further and moves both, since this session's first attempt at this
+    // exact ordering (PIO SPI init before the launch) produced a
     // healthy-looking SPI/frame-counter trail but no monitor picture at
     // all, consistent with core1 never actually reaching hstx_dvi_init().
+    // eeprom_i2c_start() hit the SAME symptom (2026-09-20) when placed at
+    // the very top of main(), ahead of this launch, despite
+    // eeprom_i2c.h's own "call first" instruction -- that instruction
+    // predates pio-testcard's multicore split (testcard/src/main.c is
+    // single-core) and doesn't hold here. Moved after the launch instead;
+    // it's still the very next thing that runs, so the enumeration-speed
+    // budget (section 5 mitigation #1, <20ms from power-good) is barely
+    // touched -- core1 launch itself takes on the order of microseconds.
     multicore_launch_core1(core1_video_entry);
 
     pio_spi_slave_init();
     neopixel_init();
+    eeprom_i2c_start();
     gpio_set_irq_enabled_with_callback(PIN_CS, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &cs_edge_irq_handler);
 
     bool heartbeat_red_on = false;

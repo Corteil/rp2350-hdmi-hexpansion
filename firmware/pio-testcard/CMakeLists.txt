@@ -13,10 +13,10 @@ cmake_minimum_required(VERSION 3.13)
 # generator in THIS repo) -- this firmware instead speaks hazanjon's REAL
 # `flow3r_bsp_display_mirror.c` protocol (mode 0, a real 4-byte "TDHD"
 # header, one continuous CS-low burst per frame), matching what mirror_debug
-# proved works on real hardware. No hexpansion-EEPROM emulation here
-# (unlike testcard) -- mirror_debug never needed it either for this exact
-# bench setup, and the real driver under test lives in badge-2024-software
-# itself, not in anything this hexpansion's own EEPROM would serve.
+# proved works on real hardware. Also carries testcard's hexpansion-EEPROM
+# emulation (src/eeprom_i2c.c, copied verbatim 2026-09-20 -- see that
+# file's own header comment) so this bench setup auto-enumerates and
+# auto-launches the packed app.py instead of needing a manual sideload.
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/../testcard/boards)
 set(PICO_BOARD adafruit_metro_rp2350)
 
@@ -30,15 +30,18 @@ pico_sdk_init()
 
 add_executable(pio_testcard
     src/main.c
+    src/eeprom_i2c.c
 )
 
 target_link_libraries(pio_testcard
     pico_stdlib
     pico_multicore
+    pico_unique_id
     hardware_dma
     hardware_irq
     hardware_pio
     hardware_vreg
+    hardware_i2c
 )
 
 pico_generate_pio_header(pio_testcard ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
@@ -59,14 +62,17 @@ pico_add_extra_outputs(pio_testcard)
 # bringup_debug.
 add_executable(pio_testcard_debug
     src/main.c
+    src/eeprom_i2c.c
 )
 target_link_libraries(pio_testcard_debug
     pico_stdlib
     pico_multicore
+    pico_unique_id
     hardware_dma
     hardware_irq
     hardware_pio
     hardware_vreg
+    hardware_i2c
 )
 target_compile_definitions(pio_testcard_debug PRIVATE DEBUG_SERIAL=1)
 pico_generate_pio_header(pio_testcard_debug ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
