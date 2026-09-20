@@ -429,34 +429,27 @@ class TestcardApp(app.App):
         ctx.restore()
 
 
-# No sck/mosi/cs override (2026-09-10): hazanjon's PORT_PINS table
-# (badge-2024-software feature/hdmi-mirror, flow3r_bsp_display_mirror.c)
-# disagreed with this repo's own README §4.1 role assignment for GPIO21/22
-# (SCK vs CS swapped) -- GPIO21/22 are hardware-fixed silicon roles on the
-# RP2350 side (confirmed against RP2350.svd, README §4.1/§9 risk 19), not
-# software-reassignable, so this can't be patched in either firmware's
-# code. Resolved instead by physically rewiring the bench connection
-# (HS_G/HS_H swapped to the RP2350's GPIO22/GPIO21 respectively) so both
-# sides' own unmodified defaults already agree -- see main.c's own
-# PIN_SCK/PIN_CS comment for the full story. Only dc still needs
-# overriding below.
+# No sck/mosi/cs/dc override (2026-09-10 -> superseded 2026-09-20):
+# hazanjon's PORT_PINS table (badge-2024-software feature/hdmi-mirror,
+# flow3r_bsp_display_mirror.c) disagreed with this repo's own README
+# §4.1 role assignment for GPIO21/22 (SCK vs CS swapped) -- resolved by
+# physically rewiring the bench connection instead (HS_G/HS_H swapped to
+# the RP2350's GPIO22/GPIO21 respectively), see main.c's own
+# PIN_SCK/PIN_CS comment. An early version of this file also overrode
+# `dc` (to GPIO6) after port 1's default dc pin (GPIO42 = HS_I = the
+# RP2350's SPI0 MISO line) crashed the badge on attach with the OLD
+# synthetic driver dict -- proven no longer needed: today's real
+# HDMI_DRIVER dict (see _attach() below) attaches cleanly on port 1 with
+# no dc override at all, matching display_manager/app.py's own working
+# HDMI-mode calls exactly.
 
-# hazanjon's mirror driver always drives a `dc` pin -- mirror_init_pins()
-# in flow3r_bsp_display_mirror.c configures it GPIO_MODE_OUTPUT and drives
-# it HIGH unconditionally on attach, whether or not an init sequence is
-# actually used (ours isn't). Left at its per-port default (PORT_PINS[port].dc,
-# which for port 1 is GPIO42 = this repo's own HS_I = the RP2350's SPI0 MISO
-# line, README §4.1), this crashes the badge the instant the hexpansion is
-# plugged in -- confirmed on real hardware (2026-09-10): the badge hard-resets
-# in a fast loop (flashing status LED, NeoPixel flashing red) rather than
-# raising a catchable Python error, consistent with a genuine electrical
-# contention between the badge driving that pin high and the RP2350's own
-# SPI0 peripheral driving its MISO output, not a software-level failure.
-# Redirect dc to GPIO6 instead: port 6's own DC line in hazanjon's own
-# PORT_PINS table, and genuinely unconnected as long as no hexpansion is
-# plugged into port 6 (only port 1 is populated here).
-_DC_OVERRIDE_PIN = 6
 
+# Delay (2026-09-20) before pulsing LS_A to reset the RP2350 -- gives the
+# physical connector's insertion bounce a moment to settle before yanking
+# RUN low, rather than pulsing during a still-unstable electrical
+# connection. Deferred the same way _ATTACH_DELAY_MS below is (via
+# background_update(), not a blocking time.sleep()).
+_RESET_DELAY_MS = 100
 
 # TEST (2026-09-11): delay before the first attach_mirror() call, to check
 # whether the permanent hang (isolated to attach_mirror() itself -- app
@@ -466,16 +459,47 @@ _DC_OVERRIDE_PIN = 6
 # rather than a fault that develops during ongoing transmission. Deferred
 # via background_update() (ticked every ~50ms, see App.background_task())
 # rather than a blocking time.sleep() in __init__, so this doesn't itself
-# stall the badge during the delay.
+# stall the badge during the delay. Now starts counting only AFTER the
+# reset pulse above fires (2026-09-20), not concurrently with it, so the
+# RP2350 has actually finished rebooting before attach_mirror() is tried.
 _ATTACH_DELAY_MS = 1500
 
 
 class MirrorApp(app.App):
+    def _reset_rp2350(self):
+        # Pulse LS_A low to hardware-reset the RP2350 -- HISTORY.md section
+        # 4.2's own documented pin table: "RUN pin <- LS_A (badge-controlled
+        # reset) and SW2 reset button" (cross-checked against two
+        # independent real hexpansion designs). Requires LS_A physically
+        # wired to the Metro's RUN pin on the bench rig -- if it isn't,
+        # this just prints and does nothing (no exception propagates).
+        #
+        # Added 2026-09-20: reinsertion sometimes left the RP2350's
+        # HSTX/core1 video output blank while its SPI0 receive path (core0)
+        # kept working fine underneath -- confirmed via live UART
+        # diagnostics (frames landing continuously, swap_count advancing,
+        # while the monitor stayed dark), so the bug is on the core1/HSTX
+        # side, not anything core0-side firmware changes so far have
+        # touched. A hardware reset on every insertion sidesteps it
+        # entirely, matching the project's own always-intended pin design
+        # rather than chasing the exact HSTX fault from the badge side.
+        try:
+            ls_a = self.config.ls_pin[0]
+            ls_a.init(ls_a.OUT)
+            ls_a.value(0)
+            time.sleep_ms(10)
+            ls_a.init(ls_a.IN)  # release -- RUN's own pull-up takes back over
+            print("DEBUG: pulsed LS_A to reset the RP2350")
+        except Exception as e:
+            print("DEBUG: LS_A reset pulse failed (not wired?):", e)
+
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.buttons = Buttons(self)
         self.status = "starting..."
+        self._pending_reset_port = None
+        self._reset_delay_remaining_ms = 0
         self._pending_attach_port = None
         self._attach_delay_remaining_ms = 0
 
@@ -484,11 +508,22 @@ class MirrorApp(app.App):
             print("DEBUG: before HexpansionAppLauncherAddEvent emit")
             eventbus.emit(HexpansionAppLauncherAddEvent(port, "HDMI Mirror"))
             print("DEBUG: after HexpansionAppLauncherAddEvent emit")
-            print("DEBUG: deferring attach_mirror by %dms" % _ATTACH_DELAY_MS)
-            self._pending_attach_port = port
-            self._attach_delay_remaining_ms = _ATTACH_DELAY_MS
+            print("DEBUG: deferring RP2350 reset by %dms" % _RESET_DELAY_MS)
+            self._pending_reset_port = port
+            self._reset_delay_remaining_ms = _RESET_DELAY_MS
 
     def background_update(self, delta):
+        if self._pending_reset_port is not None:
+            self._reset_delay_remaining_ms -= delta
+            if self._reset_delay_remaining_ms <= 0:
+                port = self._pending_reset_port
+                self._pending_reset_port = None
+                self._reset_rp2350()
+                print("DEBUG: deferring attach_mirror by %dms" % _ATTACH_DELAY_MS)
+                self._pending_attach_port = port
+                self._attach_delay_remaining_ms = _ATTACH_DELAY_MS
+                return
+
         if self._pending_attach_port is not None:
             self._attach_delay_remaining_ms -= delta
             if self._attach_delay_remaining_ms <= 0:
@@ -498,31 +533,27 @@ class MirrorApp(app.App):
 
     def _attach(self, port):
         print("DEBUG: _attach entered, port=%d" % port)
-        driver = {
-            # 20MHz tried and reverted (2026-09-10): real-hardware UART
-            # capture showed frame_synced stuck at 0 and corrupted marker
-            # values despite 1M+ bytes arriving -- genuine signal
-            # integrity limits on this bench dupont-wire setup at that
-            # rate. 1MHz tried (2026-09-11) to test whether a 1-byte
-            # row-alignment drift seen at 5MHz was signal-integrity-
-            # related -- it wasn't: the identical drift (same repeating
-            # byte pattern, shifted by exactly one byte between captures)
-            # showed up at 1MHz too, at a similar rate, ruling out clock
-            # speed as the cause. Most likely an occasional interrupt/
-            # task-switch hiccup on the badge's own ESP32-S3 corrupting a
-            # byte mid-transfer, independent of SPI rate -- fixing it
-            # would need changes inside hazanjon's C driver (out of scope;
-            # this project's own plan explicitly avoids patching that).
-            # Back to 5MHz: same artifact either way, but meaningfully
-            # more responsive (~184ms/frame block vs ~0.92s at 1MHz).
-            "baudrate": 5_000_000,
-            "init": [], "prefix": [], "postfix": [],
-            "header": FRAME_MARKER,  # bytes([0xA5, 0x5A] * 4) -- unchanged
-        }
-        print("DEBUG: calling display.attach_mirror dc=%d (sck/mosi/cs at hazanjon's defaults)" % (
-            _DC_OVERRIDE_PIN,))
+        # FIXED (2026-09-20): this used to build its own driver dict --
+        # baudrate 5MHz, header=FRAME_MARKER (bytes([0xA5, 0x5A] * 4)) --
+        # left over from testcard's OLD hardware-SPI0/PL022 receiver and
+        # its synthetic frame protocol. pio-testcard's PIO-based SPI0
+        # receiver (the current firmware -- see spi_slave_rx.pio) only
+        # ever recognizes hazanjon's REAL protocol: a 4-byte "TDHD"
+        # header at 10MHz, proven on real hardware (also the exact dict
+        # display_manager/display_drivers.py's own HDMI_DRIVER uses).
+        # Since this file is packed into the SAME fake EEPROM now served
+        # to pio-testcard, the old dict meant this auto-launched relay's
+        # own attach_mirror() call produced zero real frames -- silently,
+        # since a header mismatch just never triggers pio-testcard's
+        # frame-sync logic rather than raising an error. No dc= override
+        # either: display_manager's own working HDMI-mode calls don't
+        # pass one, and _DC_OVERRIDE_PIN was only ever needed for the old
+        # protocol's electrical-contention bug (see that constant's own
+        # comment above).
+        driver = {"header": b"TDHD", "baudrate": 10_000_000}
+        print("DEBUG: calling display.attach_mirror (HDMI_DRIVER, 10MHz)")
         try:
-            display.attach_mirror(port=port, driver=driver, dc=_DC_OVERRIDE_PIN)
+            display.attach_mirror(port=port, driver=driver, baudrate=driver["baudrate"])
             print("DEBUG: attach_mirror returned OK")
             self.status = "mirroring (attach_mirror)"
         except Exception as e:
@@ -530,6 +561,7 @@ class MirrorApp(app.App):
             print(self.status)
 
     def deinit(self):
+        self._pending_reset_port = None  # cancel a still-pending delayed reset
         self._pending_attach_port = None  # cancel a still-pending delayed attach
         port = getattr(self.config, "port", None) if self.config else None
         if port is not None:

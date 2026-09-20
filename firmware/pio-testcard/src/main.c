@@ -98,6 +98,17 @@ static volatile int front_index = 0;
 static volatile bool back_buffer_ready = false;
 static volatile uint32_t swap_count = 0;  // TEMP DEBUG: real front/back swaps done by dma_irq_handler
 
+// DIAGNOSTIC (2026-09-20): increments on every dma_irq_handler call --
+// several times per scanline, entirely independent of SPI0/core0 activity
+// -- so this is a direct "is core1/HSTX still alive" signal. Added to
+// disambiguate a reinsertion-triggered blank-monitor bug: UART evidence so
+// far shows core0 either stops printing "frame landed" or (this session)
+// goes silent after a handful of real frames, and it was never clear
+// whether core1/HSTX itself had also hung or was still scanning out fine
+// with nothing new to show. See the DEBUG_SERIAL heartbeat print in the
+// main loop below.
+static volatile uint32_t hstx_irq_count = 0;
+
 static inline int back_index(void) {
     return 1 - front_index;
 }
@@ -352,6 +363,7 @@ static volatile uint v_scanline = 2;
 static int active_phase = 0;
 
 void __scratch_x("") dma_irq_handler(void) {
+    hstx_irq_count++;
     uint ch_num = dma_pong ? DMACH_PONG : DMACH_PING;
     dma_channel_hw_t *ch = &dma_hw->ch[ch_num];
     dma_hw->intr = 1u << ch_num;
@@ -528,7 +540,18 @@ static uint spi_rx_dma_chan;
 
 // "TDHD" as hazanjon's driver sends it (MSB-first per byte).
 #define TDHD_MARKER_VALUE 0x54444844u
-static uint32_t marker_window = 0;
+// volatile (2026-09-20): written by cs_edge_irq_handler() (an ISR) and
+// read/written by spi0_process_ring() (main-loop context) -- without
+// volatile, the compiler is free to keep this cached in a register across
+// spi0_process_ring()'s byte-draining while loop and never notice the ISR
+// reset it in memory mid-loop, permanently desyncing header detection from
+// the real byte stream while cs_fall_count/total_bytes_seen (both
+// correctly volatile or ISR-local) keep advancing normally underneath it.
+// Root-caused via live UART diagnostics: header_match_count getting stuck
+// forever while total_bytes_seen and cs_fall_count kept climbing by
+// millions of bytes and dozens of CS pulses -- see hstx_irq_count's own
+// comment for the fuller diagnostic trail.
+static volatile uint32_t marker_window = 0;
 
 #define PIXELS_PER_ROW DBL_WORDS               // 240 real (undoubled) pixels/row
 #define TOTAL_PIXELS   (SRC_ROWS * PIXELS_PER_ROW)  // 57600 -- 115200 payload bytes / 2
@@ -536,7 +559,7 @@ static uint32_t marker_window = 0;
 static volatile bool header_matched = false;   // true once "TDHD" has been seen in the CURRENT CS-low burst
 static volatile uint32_t pixel_index = 0;      // 0..TOTAL_PIXELS-1 once header_matched
 static uint8_t pending_high_byte = 0;
-static bool have_high_byte = false;
+static volatile bool have_high_byte = false;   // also written by cs_edge_irq_handler() -- same reasoning as marker_window
 
 // Set the instant "TDHD" is matched; cleared by main() once it has safely
 // claimed a fresh back buffer for this frame (waiting out any in-progress
@@ -644,6 +667,29 @@ static void pio_spi_slave_init(void) {
 // CS-edge GPIO IRQ: only needed to reset header/marker state at the start
 // of each fresh burst (the PIO program itself handles bit-level framing
 // entirely in hardware -- see spi_slave_rx.pio's own comment).
+//
+// KNOWN UNFIXED RACE (2026-09-20, follow-up not done this session): this
+// handler unconditionally resets header_matched/marker_window/have_high_byte
+// on EVERY CS falling edge, regardless of whether spi0_process_ring() has
+// finished draining the PREVIOUS burst's bytes out of spi_rx_ring yet. If
+// the main loop ever falls behind by more than one burst, this ISR keeps
+// resetting scanner state for bursts whose bytes haven't been processed
+// yet, desyncing "which burst the parser thinks it's on" from "whose bytes
+// it's actually reading" -- observed as header_match_count freezing
+// permanently while total_bytes_seen/cs_fall_count kept climbing normally.
+// Root-caused via a Kingst LA2016 capture (SCK/CS/MOSI on GPIO22/21/20)
+// during a live freeze: manually reconstructing the wire bytes found 42
+// valid "TDHD" matches across 46 bursts over the same window the real
+// receiver's header_match_count was frozen at 10 -- proof the bug is here,
+// not in the badge's protocol. Confirmed specific to the DEBUG_SERIAL
+// build in testing (pio_testcard_debug, with printf() over slow 115200-baud
+// UART blocking the main loop long enough for bursts to back up); the
+// plain release build (pio_testcard, this file's normal deployed target)
+// did NOT reproduce it under the same reinsertion/static-content
+// conditions that froze the debug build every time. Real fix needs the
+// reset to be aware of backlog (e.g. a per-burst sequence number, or move
+// the reset into spi0_process_ring() itself instead of the ISR) rather
+// than relying on an ISR that can't know if the ring buffer has caught up.
 static void cs_edge_irq_handler(uint gpio, uint32_t events) {
     if (gpio != PIN_CS) return;
     if (events & GPIO_IRQ_EDGE_FALL) {
@@ -803,6 +849,16 @@ int main(void) {
     stdio_init_all();
     sleep_ms(200);
     printf("\npio_testcard DEBUG_SERIAL build: entering SPI0 receive loop (PIO-based, mode 0, TDHD header)\n");
+    // Heartbeat (2026-09-20): printed every second regardless of whether
+    // any frame has landed -- see hstx_irq_count's own comment. If this
+    // stops advancing, core0's main loop itself has hung (e.g. stuck in
+    // the frame_start_pending wait above, or somewhere in
+    // spi0_process_ring()). If hstx_irq_count stops while heartbeat_count
+    // keeps printing, core1/HSTX has hung independently. If both keep
+    // advancing but frames_received doesn't, the badge simply isn't
+    // sending -- not a firmware hang at all.
+    absolute_time_t next_heartbeat = make_timeout_time_ms(1000);
+    uint32_t heartbeat_count = 0;
 #endif
 
     for (;;) {
@@ -819,7 +875,20 @@ int main(void) {
             // multiples of one ~16ms vblank period, so in practice the
             // previous flip is always long done by the time a new frame's
             // header arrives -- this essentially never actually spins.
-            while (back_buffer_ready) {
+            // Bounded anyway (2026-09-20): a spurious frame_start_pending
+            // (e.g. CS-line electrical bounce during physical hexpansion
+            // reinsertion) landing while back_buffer_ready was
+            // unexpectedly still set spun this forever on real hardware
+            // -- confirmed via HDMI-capture evidence (identical
+            // static-noise frames byte-for-byte across several seconds,
+            // meaning the WHOLE main loop had stopped, not just the SPI
+            // link, since fill_static_noise() below re-randomizes every
+            // iteration in normal operation). A stuck flip is never
+            // expected, so this bailout should never actually fire
+            // normally -- if it ever does, pressing on with a possibly-
+            // torn frame beats hanging the firmware permanently.
+            absolute_time_t swap_wait_deadline = make_timeout_time_ms(50);
+            while (back_buffer_ready && !time_reached(swap_wait_deadline)) {
                 tight_loop_contents();
             }
             recv_buf = back_index();
@@ -847,6 +916,17 @@ int main(void) {
         if (genuinely_idle && ever_received_frame) {
             fill_static_noise();
         }
+
+#ifdef DEBUG_SERIAL
+        if (time_reached(next_heartbeat)) {
+            heartbeat_count++;
+            next_heartbeat = delayed_by_ms(next_heartbeat, 1000);
+            printf("heartbeat #%lu, hstx_irq_count=%lu, frames_received=%lu, header_match_count=%lu, total_bytes_seen=%lu, cs_fall_count=%lu\n",
+                   (unsigned long)heartbeat_count, (unsigned long)hstx_irq_count,
+                   (unsigned long)frames_received, (unsigned long)header_match_count,
+                   (unsigned long)total_bytes_seen, (unsigned long)cs_fall_count);
+        }
+#endif
 
         if (total_bytes_seen == 0 && time_reached(next_testcard_blink)) {
             testcard_logo_on = !testcard_logo_on;
