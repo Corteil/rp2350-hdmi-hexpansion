@@ -296,8 +296,50 @@ static uint32_t vactive_line[] = {
     HSTX_CMD_TMDS       | MODE_H_ACTIVE_PIXELS
 };
 
+// Mask fill -- the pillarbox bars either side, and the corners the circular
+// cutout excludes. Grey near the visible content, fading to black over
+// MASK_FADE_WORDS words as it approaches the true left/right screen edge, so
+// the mask reads as a vignette rather than a hard-edged grey band.
+#define MASK_COLOUR 0x738Eu
+#define MASK_FADE_WORDS 16  // 32px fade band (each word = 2 pixels)
+
 #define ZERO_BUF_WORDS 160
-static uint32_t zero_buf[ZERO_BUF_WORDS] = {0};
+// Both buffers put MASK_COLOUR at the word closest to the visible content
+// and fade to black over MASK_FADE_WORDS words moving away from it, staying
+// flat black the rest of the way to the true screen edge -- a mirror image
+// of each other. right_mask_buf's content-adjacent word is index 0 (phase 3
+// starts reading right where the content ends). left_mask_buf's
+// content-adjacent word is its LAST index (ZERO_BUF_WORDS - 1) instead,
+// since phase 1 reads towards the content, not away from it -- so its read
+// is started at an offset (see dma_irq_handler's phase 1 branch) chosen so
+// the read always ends on that last word, whatever the actual transfer
+// length for the current row.
+static uint32_t left_mask_buf[ZERO_BUF_WORDS];
+static uint32_t right_mask_buf[ZERO_BUF_WORDS];
+
+static uint16_t lerp565(uint16_t from, uint16_t to, float t) {
+    int fr = (from >> 11) & 0x1F, fg = (from >> 5) & 0x3F, fb = from & 0x1F;
+    int tr = (to >> 11) & 0x1F, tg = (to >> 5) & 0x3F, tb = to & 0x1F;
+    int r = fr + (int)((tr - fr) * t + 0.5f);
+    int g = fg + (int)((tg - fg) * t + 0.5f);
+    int b = fb + (int)((tb - fb) * t + 0.5f);
+    return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
+static void fill_mask_buf(void) {
+    for (int i = 0; i < ZERO_BUF_WORDS; i++) {
+        int dist_from_content_right = i;
+        int dist_from_content_left = ZERO_BUF_WORDS - 1 - i;
+        float t_right = (dist_from_content_right >= MASK_FADE_WORDS)
+            ? 1.0f : (float)dist_from_content_right / (float)MASK_FADE_WORDS;
+        float t_left = (dist_from_content_left >= MASK_FADE_WORDS)
+            ? 1.0f : (float)dist_from_content_left / (float)MASK_FADE_WORDS;
+        uint16_t right_px = lerp565(MASK_COLOUR, 0x0000, t_right);
+        uint16_t left_px = lerp565(MASK_COLOUR, 0x0000, t_left);
+        left_mask_buf[i] = (uint32_t)left_px | ((uint32_t)left_px << 16);
+        right_mask_buf[i] = (uint32_t)right_px | ((uint32_t)right_px << 16);
+    }
+}
 
 // ----------------------------------------------------------------------------
 // DMA scanout -- unchanged from testcard/src/main.c.
@@ -344,8 +386,9 @@ void __scratch_x("") dma_irq_handler(void) {
         ch->transfer_count = count_of(vactive_line);
         active_phase = 1;
     } else if (active_phase == 1) {
-        ch->read_addr = (uintptr_t)zero_buf;
-        ch->transfer_count = left_black / 2;
+        uint left_words = left_black / 2;
+        ch->read_addr = (uintptr_t)(&left_mask_buf[ZERO_BUF_WORDS - left_words]);
+        ch->transfer_count = left_words;
         active_phase = 2;
     } else if (active_phase == 2) {
         uint src_row = (v_active / 2) % SRC_ROWS;
@@ -354,7 +397,7 @@ void __scratch_x("") dma_irq_handler(void) {
         ch->transfer_count = half_width;
         active_phase = 3;
     } else {
-        ch->read_addr = (uintptr_t)zero_buf;
+        ch->read_addr = (uintptr_t)right_mask_buf;
         ch->transfer_count = right_black / 2;
         active_phase = 0;
         v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
@@ -709,6 +752,7 @@ int main(void) {
     sleep_ms(10);
 
     build_row_table();
+    fill_mask_buf();
     fill_test_card(back_index());
     back_buffer_ready = true;
 
