@@ -563,6 +563,154 @@ PSRAM and pulls ~37 MB/s of scanout bandwidth — the mode rated "needs measurem
 That is precisely why scale-during-scanout is the right approach for the primary path, and
 why the primary path leaves the second core untouched.
 
+### 3.5 The I2C side-channel — how much slack the badge bus actually has
+
+Everything above is about the SPI data plane. The separate question is whether the
+port's **I2C** link — the one currently doing nothing but pretending to be an EEPROM at
+plug-in time — has enough spare capacity to carry §3.2's command layer at run time,
+while the mirror is running.
+
+**Short answer: yes, with a lot of room, for control traffic — and never for pixels.**
+The numbers below are read out of `badge-2024-software` (`Corteil/badge-2024-software`,
+the fork this project builds against), not estimated.
+
+#### The bus is 133 kHz, and it is one bus
+
+`drivers/tildagon_i2c/tildagon_i2c.h`:
+
+```c
+#define TILDAGON_HOST_I2C_FREQ (133000)
+```
+
+That is the whole badge. There is exactly one ESP32-S3 I2C peripheral (GPIO45/46), and
+the TCA9548A fans it out into 8 channels: one per hexpansion port (1–6), plus `TOP` (0)
+and `SYS` (7). Per-port isolation is *addressing*, not bandwidth — every hexpansion
+shares the same 133 kHz of wire time with the badge's own housekeeping.
+
+Derived units, used throughout:
+
+| Quantity | Value |
+|---|---:|
+| Bit time | 7.52 µs |
+| Byte + ACK (9 bits) | 67.7 µs |
+| Theoretical payload ceiling | **~14.8 kB/s** |
+| Mux channel switch (2-byte write) | ~150 µs |
+
+The mux driver caches the selected channel (`tca9548a.c`, `self->active_port`), so a
+switch is only paid when the channel actually changes — but see the interleaving cost
+below, because in practice it changes constantly.
+
+#### What the badge already spends
+
+Less than expected, and it depends on which frontboard is fitted.
+
+* **LEDs are not on I2C.** `tildagonos.leds` is `neopixel.NeoPixel(Pin(21), 19)` —
+  a GPIO NeoPixel string. The pattern engine costs the I2C bus nothing.
+* **Power (BQ25895/FUSB302B) polls at 1 Hz** (`tildagon_power.c`, the event queue's
+  1000 ms `xQueueReceive` timeout). A handful of register reads per second: negligible.
+* **The IMU is read only when an app asks.** No background poll.
+* **2024 frontboard: buttons are interrupt-driven.** `frontboards/twentyfour.py`
+  registers `ePin.irq()` handlers and its background task sleeps 100 ms, touching I2C
+  only when the badge is booped. Baseline occupancy is **well under 1%**.
+* **2026 frontboard: buttons are polled at 100 Hz.** `frontboards/twentysix.py`'s
+  background task sleeps 10 ms and reads all six `BUTTON_PINS` live —
+  `ePin.value()` → `aw9523b_pin_get_input()` → a real 4-byte I2C read every time
+  (`aw9523b.c`; `last_input_values` exists only for the IRQ handler's edge detection, not as a read cache). At
+  ~293 µs per read that is 1.76 ms in every 10 ms tick: **~18% of the bus, continuously.**
+
+All three AW9523B expanders sit on `TILDAGON_SYS_I2C_PORT` (channel 7,
+`tildagon_pin.c`), so on a 2026 frontboard the mux is being yanked back to channel 7 a
+hundred times a second. Any hexpansion transaction interleaved with that pays a switch
+out *and* the next button poll pays a switch back — **charge ~300 µs of mux overhead to
+every hexpansion transaction**, on top of its own wire time.
+
+So the honest baseline is **~82% free on a 2026 frontboard, ~99% free on a 2024 one**,
+and during mirroring the port's own channel is completely idle — after the EEPROM is
+read and the filesystem mounted, nothing on the badge touches the port bus again.
+
+#### What a command channel costs
+
+Using 16-bit-addressed EEPROM-style transactions (`writeto_mem` / `readfrom_mem` with
+`addrsize=16`), including the ~300 µs interleave penalty:
+
+| Transaction | Wire time | With mux interleave |
+|---|---:|---:|
+| 8-byte status read | 0.83 ms | ~1.13 ms |
+| 16-byte command write | 1.31 ms | ~1.61 ms |
+| 32-byte write | 2.39 ms | ~2.69 ms |
+| 64-byte write | 4.56 ms | ~4.86 ms |
+
+Which turns into:
+
+| Control-plane pattern | Bus cost | Plus 2026 buttons |
+|---|---:|---:|
+| 10 Hz status poll only | 1.1% | ~19% |
+| 30 Hz command + 30 Hz status | 8.2% | ~26% |
+| 60 Hz command + 60 Hz status | 16.4% | ~34% |
+| One-shot 128-byte EDID handback | 9 ms | — |
+| One-shot 768-byte palette (64 B chunks) | ~55 ms | — |
+
+A per-frame command channel at badge frame rates costs under a tenth of the bus. There
+is no bandwidth argument against building §3.2's `mirror_config` / `set_mode` /
+`status` / `ping` / `blank` / `set_palette` / `i2c_scan` / `i2c_txn` set on top of the
+existing I2C target. Budget **~4 kB/s sustained** as a polite ceiling (≈30% of the bus)
+and the hard wall is 14.8 kB/s.
+
+#### What it cannot carry, by a factor of 60
+
+One mirrored frame is 240×240×2 = **115,200 bytes**. At the theoretical ceiling that is
+**7.8 seconds per frame** — 0.13 fps. Even a 60×60 RGB565 thumbnail is 7.2 kB, half a
+second. I2C is not a fallback for the SPI mirror path, not a degraded mode, not a
+"slow but working" option. It is three orders of magnitude short, and §1.2's
+`HS_F..HS_I` SPI link remains the only data plane there is.
+
+The one bulk transfer that *is* viable is the firmware-update-through-the-fake-EEPROM
+trick from §5, precisely because nobody is watching it in real time: a 256 KiB image at
+64-byte page writes lands in roughly **25–35 s**. Acceptable behind a progress bar.
+
+#### Two constraints that are not bandwidth
+
+1. **Hold the mutex briefly.** `tca9548a_master_cmd_begin()` takes a FreeRTOS semaphore
+   for the whole transaction, mux switch included. A 512-byte block read holds it for
+   ~35 ms — which starves the 2026 frontboard's 10 ms button tick and shows up as input
+   lag. **Keep any single transaction at or under 64 bytes (~4.9 ms)** and chunk
+   anything larger with an `await` between chunks.
+2. **Clock stretching is generously tolerated.** The per-transaction timeout is
+   `100 * (3 + data_len)` normalised to ms (`tildagon_i2c.c`), i.e. ≥ 300 ms for even a
+   1-byte transfer, and `i2c_set_timeout()` is handed 50000 units which clamps to the
+   hardware maximum. The RP2350 target can stretch while it reads flash — §5's
+   mitigation 2 has far more headroom than it needs.
+
+On the RP2350 side there is nothing to worry about either. `i2c_slave_isr()`
+(`eeprom_i2c.c`) is a RAM-resident handler of a few microseconds, firing once per byte —
+once every 67.7 µs at 133 kHz, so **~3% of core0 while a transaction is actually in
+flight** and nothing between them. The SPI receive path is DMA into a 2 KiB ring
+(`SPI_RING_SIZE`, `main.c`), which at 10 MHz is 1.6 ms of drain headroom; a 2 µs ISR
+every 68 µs cannot plausibly overrun it.
+
+#### There is already a free mailbox, and it needs no firmware change
+
+The emulated EEPROM is 8192 bytes with `fs_offset` = 64, and the badge computes its
+LittleFS partition as `(8192 − 64) / 512` = 15 blocks — covering bytes **64–7743**.
+Bytes **7744–8191 (0x1E40–0x1FFF), 448 of them**, are addressable over I2C and sit
+permanently outside the mounted filesystem. The existing ISR already services reads and
+writes across the whole 8 KiB buffer, so a badge app can do
+
+```python
+i2c.writeto_mem(0x50, 0x1E40, cmd, addrsize=16)
+status = i2c.readfrom_mem(0x50, 0x1E80, 8, addrsize=16)
+```
+
+today, against current firmware, with no protocol change on either side — the RP2350
+only needs to *look* at that window in its main loop. That is the cheapest possible
+place to prototype the command layer before committing to anything more structured.
+
+The one thing I2C cannot do is interrupt the badge: an I2C target cannot initiate. Either
+the badge polls the mailbox (1.1% of the bus at 10 Hz, as above) or §4.1's proposed
+`LS_B` attention line earns its keep — `ePin.irq()` on the badge side turns a standing
+poll into an on-demand read, which is the real argument for keeping that line's proposed
+role rather than reclaiming it as a spare.
+
 ## 4. Hardware architecture
 
 ```
