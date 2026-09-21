@@ -750,13 +750,91 @@ later.
 Command write + status read is ~2.7 ms of wire time at 16/8 bytes, plus MicroPython call
 overhead (unmeasured — that is what the bench script is for), plus up to one button-poll
 transaction of mutex wait on a 2026 frontboard. Budget **~5 ms typical and ~15 ms worst
-case** for a command and its acknowledgement, against a 50 ms app frame. Invisible.
+case** for a command and its acknowledgement, against a 50 ms app frame.
+
+**That figure holds only with the mirror detached.** With it running the answer is very
+different, and worse, for a reason that has nothing to do with I2C — see below.
 
 The one thing I2C cannot do is interrupt the badge: an I2C target cannot initiate. Either
 the badge polls the mailbox (1.1% of the bus at 10 Hz, as above) or §4.1's proposed
 `LS_B` attention line earns its keep — `ePin.irq()` on the badge side turns a standing
 poll into an on-demand read, which is the real argument for keeping that line's proposed
 role rather than reclaiming it as a spare.
+
+#### The real constraint is the badge's CPU, not the bus
+
+Everything above says the bus has room. It does. But bus capacity is not the binding
+constraint while mirroring, and the honest answer to "is there time for messaging" is
+governed by this call chain:
+
+```
+display.end_frame()  →  tildagon_blit_fb()                 (drivers/gc9a01/display.c)
+                     →  flow3r_bsp_display_dispatch_sinks()
+                     →  mirror_sink_send_frame()            (flow3r_bsp_display_mirror.c)
+                     →  spi_device_polling_transmit()  × 29 chunks
+```
+
+Two properties of that chain matter, and they compound:
+
+1. **It is entirely synchronous inside one MicroPython C call**, invoked from the
+   scheduler's `_render_task` coroutine. MicroPython's asyncio is cooperative within a
+   single FreeRTOS task, so while it runs, *no other coroutine runs* — not the
+   foreground app's `update()`, not the frontboard's 100 Hz button poll.
+2. **`spi_device_polling_transmit()` busy-waits.** It is ESP-IDF's polling API, which
+   spins on completion rather than blocking on a semaphore. The data movement is DMA,
+   but the CPU is held for the duration regardless.
+
+At the HDMI Manager's 10 MHz, one 240×240 RGB565 frame is 115,200 bytes = **~92 ms of
+wire time**, and the interpreter is parked inside that C call for all of it. Against
+§3.1's measured app frame rates (C1: 2.2–14.3 fps across three real apps), a ~100 ms
+frame period means **roughly 90% of the badge's wall-clock time is spent inside
+`end_frame()`**, leaving on the order of **8 ms per frame** for the app, the button
+poll, and any I2C — into which a ~2.7 ms command/status exchange fits, but only just,
+and only if the app is scheduled in that window at all.
+
+So the realistic runtime figure is not the 20 Hz of the previous subsection. It is
+**~5–10 messages/s with ~100 ms of jitter, and a worst-case command→acknowledgement
+round trip near 200 ms** when the command and its status land either side of a frame
+push. Fine for what the HDMI Manager actually does — attach, detach, mode change, an
+occasional status read, all human-initiated at a few per minute. Useless for anything
+wanting a bounded-latency ack or per-frame messaging.
+
+This also predicts two things that are independently observable, and one of them is
+already in the record: the **~12% abandoned-frame rate** noted in the README is exactly
+what a badge pushing frames back-to-back with no slack would produce, and buttons should
+feel noticeably laggy while mirroring is attached. If the second one is *not* observed,
+this model is wrong and worth re-deriving.
+
+`firmware/pio-testcard/i2c_under_mirror_bench.py` measures it rather than arguing it:
+it drives its own render loop with the mirror attached, interleaves mailbox exchanges,
+and reports achieved fps, exchanges/s and the worst gap between consecutive exchanges,
+then repeats detached to isolate the mirror's contribution.
+
+#### What would actually buy headroom
+
+In increasing order of invasiveness:
+
+1. **Design the protocol to not care.** Fire-and-forget commands, no synchronous ack,
+   status polled at 2–5 Hz, every command idempotent and safe to repeat. Works today,
+   needs no firmware change on either side, and is enough for the current command set.
+2. **Put commands on the SPI link instead.** The sink callback already owns the bus and
+   the CS line; a second header magic alongside `TDHD` would carry a command packet
+   immediately before or after the pixel payload, issued from the one place that is
+   guaranteed to be running. No scheduling problem, no added latency, and the RP2350's
+   PIO receiver already dispatches on the header. Costs a small change in the badge-side
+   fork.
+3. **Move the sink dispatch off the MicroPython task.** Have `dispatch_sinks()` hand the
+   frame to a dedicated FreeRTOS task (pinned to the other core) and return immediately,
+   so the interpreter keeps running during the 92 ms. This is the real fix: it gives the
+   app its CPU back, fixes the button lag, overlaps render with push so the mirror frame
+   rate rises, and makes the §3.5 bus arithmetic the binding constraint again — which is
+   where this section started, and where it would be comfortable. Costs a second 115 KB
+   framebuffer for double-buffering, or a skip-if-busy policy and no extra RAM.
+
+Swapping `polling_transmit` for the queued/interrupt-driven API is *not* on its own a
+fix: it would let other FreeRTOS tasks run, but `tildagon_end_frame()` is still a
+synchronous C call from the render coroutine, so MicroPython stays blocked either way.
+Only option 3 changes that.
 
 ## 4. Hardware architecture
 
