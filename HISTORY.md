@@ -628,6 +628,20 @@ So the honest baseline is **~82% free on a 2026 frontboard, ~99% free on a 2024 
 and during mirroring the port's own channel is completely idle — after the EEPROM is
 read and the filesystem mounted, nothing on the badge touches the port bus again.
 
+#### The app can't ask for more than the bus can give
+
+Worth settling before budgeting anything: a badge app cannot issue commands fast enough
+to matter. The scheduler's `mark_update_finished` does `await asyncio.sleep(0.05)`
+between frames (`system/scheduler/__init__.py`), so a foregrounded app's `update()` runs
+at **~20 Hz**. One command per frame is 20 messages/s. An app can beat that from its own
+`background_task()`, but it is then sharing one cooperative asyncio loop with the
+frontboard's 100 Hz button poll and the renderer, and it is competing for the same mux
+mutex it is trying to use.
+
+So the realistic ceiling on app↔hexpansion messaging is **tens of messages per second,
+not thousands** — and that is set by the badge's Python layer, not by I2C. Everything
+below is therefore a comfortable fit by construction.
+
 #### What a command channel costs
 
 Using 16-bit-addressed EEPROM-style transactions (`writeto_mem` / `readfrom_mem` with
@@ -704,6 +718,39 @@ status = i2c.readfrom_mem(0x50, 0x1E80, 8, addrsize=16)
 today, against current firmware, with no protocol change on either side — the RP2350
 only needs to *look* at that window in its main loop. That is the cheapest possible
 place to prototype the command layer before committing to anything more structured.
+
+`firmware/pio-testcard/i2c_cmd_bench.py` measures exactly this, on real hardware,
+against current firmware: round-trip time per payload size with min/median/max, so the
+MicroPython overhead this section cannot derive — and the mutex jitter it can only
+estimate — get real numbers. Run it with the mirror attached and running; that is the
+condition the command channel would actually live in, and the port's SDA/SCL are
+physically separate from the SPI mirror pins, so it does not disturb it.
+
+#### Two coherency rules the mailbox needs
+
+The ISR is a byte-at-a-time state machine with no transaction framing — `eeprom[addr++]`
+on write, `eeprom[addr]` on read request. Neither side can see where a message begins or
+ends, so both directions can tear:
+
+* **Badge → card.** The RP2350's main loop can poll the mailbox mid-write and read half
+  a command. Fix: write the payload first, then a *separate* transaction setting a
+  one-byte sequence/opcode at a fixed offset, and have the card act only when that byte
+  changes. The sequence byte is the commit.
+* **Card → badge.** The main loop can be rewriting status bytes while the ISR is serving
+  a read of them. Fix: seqlock — bump a counter, write the block, bump it again, and
+  have the badge re-read if the two counters disagree; or build the block in a shadow
+  and `memcpy` it under a brief `irq_set_enabled(I2C0_IRQ, false)`.
+
+Neither costs bandwidth worth counting. Both are the kind of thing that produces a rare,
+unreproducible wrong value if skipped, which is the worst class of bug to go looking for
+later.
+
+#### Round-trip latency, end to end
+
+Command write + status read is ~2.7 ms of wire time at 16/8 bytes, plus MicroPython call
+overhead (unmeasured — that is what the bench script is for), plus up to one button-poll
+transaction of mutex wait on a 2026 frontboard. Budget **~5 ms typical and ~15 ms worst
+case** for a command and its acknowledgement, against a 50 ms app frame. Invisible.
 
 The one thing I2C cannot do is interrupt the badge: an I2C target cannot initiate. Either
 the badge polls the mailbox (1.1% of the bus at 10 Hz, as above) or §4.1's proposed
