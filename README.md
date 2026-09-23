@@ -58,6 +58,69 @@ See `HISTORY.md` §4.1 for the full derivation and why the two sides disagree.
 VID/PID assigned for the eventual EEPROM-emulating hexpansion: `0x1969` /
 `0x4544`.
 
+### Alternative bench board: Waveshare RP2350-PiZero (not yet tested)
+
+The [Waveshare RP2350-PiZero](https://www.waveshare.com/wiki/RP2350-PiZero)
+can stand in for the Metro, with one big caveat: its onboard mini-HDMI is
+wired to **GPIO32–39**, and HSTX only reaches **GPIO12–19**, so the current
+firmware can't drive the onboard connector. Instead, wire HSTX from the
+40-pin header to an external DVI breakout, exactly as on the Metro.
+
+Its chip (RP2350B), flash (W25Q128, 16 MB) and 12 MHz crystal match the
+Metro, and every pin the firmware uses is on the header. The existing
+`pio_testcard` build should therefore run unmodified, but that hasn't been
+checked on real hardware yet.
+
+**The header is not Raspberry-Pi numbered.** Waveshare's J5 net labels are
+RP2350 GPIOs and differ from the silkscreen/BCM names (e.g. header pin 7 is
+BCM4 but RP2350 **GPIO14**). Wire by *header pin number* from this table,
+taken from Waveshare's schematic (`RP2350-PiZero.pdf`):
+
+| Function | RP2350 GPIO | PiZero header pin |
+|---|---|---|
+| HSTX D2+ / D2− | 12 / 13 | 21 / 33 |
+| HSTX CLK+ / CLK− | 14 / 15 | 7 / 29 |
+| HSTX D1+ / D1− | 16 / 17 | 36 / 11 |
+| HSTX D0+ / D0− | 18 / 19 | 12 / 35 |
+| SPI MOSI (`HS_F`) | 20 | 38 |
+| SPI CS (`HS_H` on port 4) | 21 | 40 |
+| SPI SCK (`HS_G` on port 4) | 22 | 15 |
+| SPI MISO (`HS_I`) | 23 | 16 |
+| EEPROM-emulation I2C0 SDA / SCL | 4 / 5 | 8 / 10 |
+| Debug UART0 TX / RX (`_debug` build) | 0 / 1 | 27 / 28 |
+| GND | — | 6, 9, 14, 20, 25, 30, 34, 39 |
+| `LS_A` → RUN | — | not on the header: solder to the RUN side of the reset button (Key2) |
+
+HSTX lane assignment comes from `hstx_dvi_init()` in
+`firmware/pio-testcard/src/main.c` (`lane_to_output_bit`), and the port-4
+SCK/CS crossover above is already applied. Other differences from the Metro:
+
+- **No addressable RGB LED.** The only LED is a red power LED. The firmware
+  still drives its status-LED signal on GPIO25 (header pin 22). That's
+  harmless, and you can wire a WS2812 there to get the status colours back.
+- **SD card-detect isn't on a GPIO** (the slot's CD pin goes to GND), so
+  GPIO22 is free for SCK.
+- **Buttons:** Key1 is BOOTSEL and Key2 is reset (RUN). Use Key2 for step 4
+  of the reinsertion procedure below.
+- **SWD** is on the 3-pin header H1 (SWCLK / GND / SWDIO), so Debug Probe
+  flashing works as documented. Holding Key1 while plugging in USB and
+  copying `pio_testcard.uf2` also works.
+- **Don't switch the build to the Pico SDK's `waveshare_rp2350_pizero` board
+  file** without overriding its default UART. It puts UART1 on GPIO4/5,
+  which collides with the EEPROM-emulation I2C in the `_debug` build. The
+  Metro board file already used here puts UART0 on GPIO0/1.
+- **Signal integrity:** the TMDS pairs are spread across the header, so they
+  run at 252 Mbit/s over hand-run wires rather than an FPC cable. Keep each
+  +/− pair short, equal-length and twisted together. Suspect the wiring
+  first if the picture sparkles or drops out.
+
+Using the onboard mini-HDMI would need one of two things. One is a PIO-based
+PicoDVI scanout: 252 MHz `clk_sys`, a PIO block set to see GPIO16–47, and a
+reworked framebuffer. The other is a board mod: remove the eight 200 Ω
+series resistors (R1–R4, R6, R7, R10, R12) and feed GPIO12–19 into their
+connector-side pads. Neither has been tried. The first diverges from the
+HSTX design the hexpansion PCB will use.
+
 ## Reinsertion procedure (2026-09-20, still manual)
 
 Plugging the hexpansion into an already-running badge doesn't reliably start
