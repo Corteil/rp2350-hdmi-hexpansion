@@ -58,6 +58,39 @@ See `HISTORY.md` §4.1 for the full derivation and why the two sides disagree.
 VID/PID assigned for the eventual EEPROM-emulating hexpansion: `0x1969` /
 `0x4544`.
 
+### Alternative bench board: Adafruit Feather RP2350 + HSTX (builds, not yet tested on hardware)
+
+Build with `-DHEXI_BOARD=feather` (see [Building and flashing](#building-and-flashing)).
+The Feather is an RP2350A, the chip variant the real hexpansion targets, and
+its 22-pin HSTX FPC connector carries GPIO12–19 in the same lane order the
+firmware already uses. So video needs no changes: plug in the same DVI
+breakout and FPC cable as on the Metro.
+
+Two things do move. GPIO21 is the Feather's onboard NeoPixel and isn't
+broken out, so the Metro's GPIO20–23 SPI block can't be used. The
+PIO-based receiver doesn't need hardware-SPI pins, just three consecutive
+GPIOs for MOSI/CS/SCK, so it moves to D9–D11:
+
+| Function | RP2350 GPIO | Feather pin |
+|---|---|---|
+| HSTX video (all 8 lines) | 12–19 | 22-pin HSTX FPC connector |
+| SPI MOSI (`HS_F`) | 9 | D9 |
+| SPI CS (`HS_H` on port 4) | 10 | D10 |
+| SPI SCK (`HS_G` on port 4) | 11 | D11 |
+| SPI MISO (`HS_I`, never driven) | 20 | MI |
+| EEPROM-emulation I2C0 SDA / SCL | 4 / 5 | GPIO4 (CircuitPython `D12`/`IO4`) / D5 |
+| Debug UART0 TX / RX (`_debug` build) | 0 / 1 | TX / RX |
+| Status NeoPixel | 21 | onboard |
+| `LS_A` → RUN | — | RST |
+| GND | — | GND |
+
+The port-4 SCK/CS crossover is already applied above. GPIO4 is labelled
+from CircuitPython's pin map, so check the board silkscreen for that pad.
+SWD is on the Feather's 3-pin JST-SH connector, so the Debug Probe cable
+plugs straight in. UF2 flashing (hold BOOT, tap RESET) also works. Flash
+is 8 MB, not 16 MB, which is plenty for this firmware. Use the RESET
+button for step 4 of the reinsertion procedure below.
+
 ### Alternative bench board: Waveshare RP2350-PiZero (not yet tested)
 
 The [Waveshare RP2350-PiZero](https://www.waveshare.com/wiki/RP2350-PiZero)
@@ -153,6 +186,15 @@ cd firmware/pio-testcard
 mkdir -p build && cd build
 cmake ..
 cmake --build .
+```
+
+That builds for the Metro RP2350 (the default). For the Adafruit Feather
+RP2350 + HSTX, configure a separate build directory from
+`firmware/pio-testcard` instead:
+
+```sh
+cmake -B build-feather -DHEXI_BOARD=feather
+cmake --build build-feather
 ```
 
 Flash over SWD with a Raspberry Pi Debug Probe:

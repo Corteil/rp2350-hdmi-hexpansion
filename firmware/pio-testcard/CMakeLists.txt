@@ -17,8 +17,24 @@ cmake_minimum_required(VERSION 3.13)
 # emulation (src/eeprom_i2c.c, copied verbatim 2026-09-20 -- see that
 # file's own header comment) so this bench setup auto-enumerates and
 # auto-launches the packed app.py instead of needing a manual sideload.
-set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/../testcard/boards)
-set(PICO_BOARD adafruit_metro_rp2350)
+#
+# HEXI_BOARD picks the bench board: "metro" (Adafruit Metro RP2350, the
+# default and the long-proven rig) or "feather" (Adafruit Feather RP2350
+# + HSTX -- RP2350A, the same chip variant the real hexpansion targets).
+# Board-specific pins are selected in src/main.c from the board header's
+# own detection macro. Use a separate build dir per board:
+#   cmake -B build-feather -DHEXI_BOARD=feather
+set(HEXI_BOARD metro CACHE STRING "Bench board: metro or feather")
+set_property(CACHE HEXI_BOARD PROPERTY STRINGS metro feather)
+if (HEXI_BOARD STREQUAL "metro")
+    set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/../testcard/boards)
+    set(PICO_BOARD adafruit_metro_rp2350)
+elseif (HEXI_BOARD STREQUAL "feather")
+    # Official pico-sdk board header -- no custom one needed.
+    set(PICO_BOARD adafruit_feather_rp2350)
+else()
+    message(FATAL_ERROR "HEXI_BOARD must be 'metro' or 'feather', got '${HEXI_BOARD}'")
+endif()
 
 include(pico_sdk_import.cmake)
 
