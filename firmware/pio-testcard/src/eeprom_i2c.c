@@ -24,7 +24,8 @@
 // Wired for this bench test only (see ../../../README.md's A2 section) --
 // the real product design keeps I2C0 target on GPIO24/25 (section 4.1);
 // GPIO4/5 here are a stand-in chosen for this specific Metro board's pin
-// accessibility, not a design change.
+// accessibility, not a design change. Also free and broken out on the
+// Feather RP2350 (-DHEXI_BOARD=feather), so unchanged there.
 #define I2C_SDA_PIN 4
 #define I2C_SCL_PIN 5
 #define I2C_HW i2c0

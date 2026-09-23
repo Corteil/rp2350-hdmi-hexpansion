@@ -15,12 +15,15 @@
 // and never recovers -- proven via a real logic-analyzer capture plus a
 // fine-grained SSPSR/DMA trace, see spi_slave_rx.pio's own comment).
 //
-// Board: Metro RP2350, same bench rig as testcard/mirror_debug (SPI0 on
-// GPIO20-23, HSTX on GPIO12-19, I2C0/EEPROM emulation on GPIO4/5 -- see
-// eeprom_i2c.h). Carries testcard's hexpansion-EEPROM emulation (copied
-// verbatim 2026-09-20) so the badge auto-enumerates this hexpansion and
-// auto-launches the packed app.py, instead of needing a manual sideload
-// of mirror_screen_test/display_manager on every badge used for testing.
+// Board: Metro RP2350 by default, same bench rig as testcard/mirror_debug
+// (SPI0 on GPIO20-23, HSTX on GPIO12-19, I2C0/EEPROM emulation on GPIO4/5
+// -- see eeprom_i2c.h). Or, with -DHEXI_BOARD=feather, an Adafruit Feather
+// RP2350 + HSTX: same HSTX and I2C0 pins, SPI slave moved to GPIO9-11 and
+// the NeoPixel to GPIO21 (see PIN_MOSI below). Carries testcard's
+// hexpansion-EEPROM emulation (copied verbatim 2026-09-20) so the badge
+// auto-enumerates this hexpansion and auto-launches the packed app.py,
+// instead of needing a manual sideload of mirror_screen_test/
+// display_manager on every badge used for testing.
 //
 // HSTX geometry, framebuffer layout, double-buffering, EMF test-card/
 // static-noise fallback patterns, and the DMA ping-pong scanout itself
@@ -501,10 +504,25 @@ static void core1_video_entry(void) {
 // this receiver writes real pixels straight into the framebuffer as they
 // arrive.
 
+// spi_slave_rx.pio reads CS and SCK as "pin 1" and "pin 2" relative to
+// its IN base (MOSI), so MOSI/CS/SCK MUST be three consecutive GPIOs.
+// MISO is never driven (RX-only) -- it only has its pulls disabled.
+#if defined(ADAFRUIT_FEATHER_RP2350)
+// Feather RP2350: GPIO21 is its onboard NeoPixel and isn't broken out, so
+// the Metro's GPIO20-23 block can't be used. The PIO receiver doesn't
+// need hardware-SPI0 pins, so any consecutive trio works; D9/D10/D11 is
+// a labelled one clear of the EEPROM emulation's I2C0 (GPIO4/5) and the
+// analog pins. MISO sits on the Feather's own "MI" pad.
+#define PIN_MOSI 9
+#define PIN_CS   10
+#define PIN_SCK  11
+#define PIN_MISO 20
+#else
 #define PIN_MOSI 20
 #define PIN_CS   21
 #define PIN_SCK  22
 #define PIN_MISO 23
+#endif
 
 #define SPI_SLAVE_PIO pio1
 #define SPI_SLAVE_SM  0
@@ -773,7 +791,11 @@ static void spi0_process_ring(void) {
 
 // ----------------------------------------------------------------------------
 
+#if defined(ADAFRUIT_FEATHER_RP2350)
+#define PIN_NEOPIXEL   21
+#else
 #define PIN_NEOPIXEL   25
+#endif
 #define NEOPIXEL_PIO   pio0
 #define NEOPIXEL_SM    0
 
