@@ -1,5 +1,5 @@
 Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boards,ExtUSD,DNP,Notes
-1,"C1,C2,C3,C4,C5,C6,C7,C10,C11,C12,C20,C32",Decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,12,Basic,0.006,0.072,,
+1,"C1,C2,C3,C4,C5,C6,C7,C10,C11,C12,C20,C32,C33",Decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,13,Basic,0.006,0.078,,
 2,"C13,C14,C15",Regulator caps,4.7uF,CL05A475MP5NRNC,C23733,C0402,3,Basic,0.0192,0.0576,,
 3,"C16,C21,C23,C25",Bulk / regulator caps,10uF,CL10A106KP8NNNC,C19702,C0603,4,Basic,0.0824,0.3296,,
 4,"C17,C18",Crystal load caps,15pF,0402CG150J500NT,C1548,C0402,2,Basic,0.0022,0.0044,,
@@ -7,11 +7,11 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 6,L1,RP2350 core regulator inductor,3.3uH,AOTA-B201610S3R3-101-T,C42411119,IND-SMD_L2.0-W1.6_AOTA-B201610S3R3-101-T,1,Extended,0.2822,0.2822,,Part named in the RP2350 hardware design guide
 7,"R1,R36,R37,R38,R39",Resistor,33R,0402WGF330JTCE,C25105,R0402,5,Basic,0.001,0.005,,
 8,"R2,R6,R40,R51",Resistor,1k,0402WGF1001TCE,C11702,R0402,4,Basic,0.0011,0.0044,,
-9,"R3,R7,R41",Resistor,10k,0402WGF1002TCE,C25744,R0402,3,Basic,0.0029,0.0087,,
-10,R4,Resistor,0R,0402WGF0000TCE,C17168,R0402,1,Basic,0.0011,0.0011,,R4 = LS_A to RUN link (see schematic notes)
-11,"SW1,SW2",BOOTSEL + RESET buttons,BOOTSEL/RESET,TS-1088-AR02016,C720477,SW-SMD_L3.9-W3.0-P4.45,2,Basic,0.0557,0.1114,,
-12,U1,"Microcontroller, 2 MB flash in package",RP2354A,RP2354A,C41378174,QFN-60_L7.0-W7.0-P0.40-TL-EP3.4,1,Extended,1.3097,1.3097,,Unit price from JLC list; you quoted GBP 1.00
-13,U9,QSPI PSRAM 8 MB (hand-solder),APS6404L-3SQR-SN,APS6404L-3SQR-SN,C5333729,SOIC-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,4.3423,,DNP,DNP. SOP-8 3.3 V part (the -ZR is USON-8). Buy separately for hand soldering
+9,"R3,R4,R7,R41",Resistor,10k,0402WGF1002TCE,C25744,R0402,4,Basic,0.0029,0.0116,,
+10,"SW1,SW2",BOOTSEL + RESET buttons,BOOTSEL/RESET,TS-1088-AR02016,C720477,SW-SMD_L3.9-W3.0-P4.45,2,Basic,0.0557,0.1114,,
+11,U1,"Microcontroller, 2 MB flash in package",RP2354A,RP2354A,C41378174,QFN-60_L7.0-W7.0-P0.40-TL-EP3.4,1,Extended,1.3097,1.3097,,Unit price from JLC list; you quoted GBP 1.00
+12,U9,QSPI PSRAM 8 MB (hand-solder),APS6404L-3SQR-SN,APS6404L-3SQR-SN,C5333729,SOIC-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,4.3423,,DNP,DNP. SOP-8 3.3 V part (the -ZR is USON-8). Buy separately for hand soldering
+13,U11,Badge LS_A -> RUN open-drain buffer,SN74LVC1G07,SN74LVC1G07DBVR,C7829,SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR,1,Extended,0.0915,0.0915,,"Badge reset buffer, powered from the badge rail (no backfeed)"
 14,Y1,12 MHz crystal,12MHz,ABM8-272-T3,C20625731,CRYSTAL-SMD_4P-L3.2-W2.5-BL,1,Extended,0.2938,0.2938,,Crystal named in the RP2350 hardware design guide
 15,"C22,C24,C26",Bulk caps,22uF,CL21A226MAQNNNE,C45783,C0805,3,Basic,0.1185,0.3555,,
 16,D1,VBUS TVS,SMF5.0A,SMF5.0A,C19077497,SOD-123FL_L2.7-W1.8-LS3.8-RD,1,Preferred,0.0273,0.0273,,
@@ -45,4 +45,4 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 44,J4,Qwiic,Qwiic,SM04B-SRSS-TB(LF)(SN),C160404,CONN-SMD_4P-P1.00_SM04B-SRSS-TB-LF-SN,1,Extended,0.2262,0.2262,,
 45,JP1,Qwiic pull-up solder jumper,Qwiic pull-ups,,,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,1,,,,,"Bare copper jumper, cut to remove Qwiic pull-ups"
 46,"R48,R49,R50",Resistor,4.7k,0402WGF4701TCE,C25900,R0402,3,Basic,0.0011,0.0033,,
-,,"Totals per board: fitted, JLC-assembled parts only",,,,,78,,,5.01,,Unit prices at the 10-board quantity tier
+,,"Totals per board: fitted, JLC-assembled parts only",,,,,80,,,5.11,,Unit prices at the 10-board quantity tier

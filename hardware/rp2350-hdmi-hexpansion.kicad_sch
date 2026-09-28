@@ -2871,47 +2871,27 @@
 				)
 			)
 		)
-		(symbol "jlc:0402WGF0000TCE"
+		(symbol "jlc:SN74LVC1G07DBVR"
+			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
-			(property "Reference" "R"
-				(id 0)
-				(at 0 5.08 0)
+			(property "Reference" "U"
+				(at 0 10.16 0)
 				(effects
 					(font
 						(size 1.27 1.27)
 					)
 				)
 			)
-			(property "Value" "0402WGF0000TCE"
-				(id 1)
-				(at 0 -5.08 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" "jlc:R0402"
-				(id 2)
-				(at 0 -7.62 0)
-				(effects hide
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_0R-0R0-1_C17168.html"
-				(id 3)
+			(property "Value" "SN74LVC1G07DBVR"
 				(at 0 -10.16 0)
-				(effects hide
+				(effects
 					(font
 						(size 1.27 1.27)
 					)
 				)
 			)
-			(property "Manufacturer" "UNI-ROYAL(厚声)"
-				(id 4)
+			(property "Footprint" "jlc:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR"
 				(at 0 -12.70 0)
 				(effects hide
 					(font
@@ -2919,8 +2899,7 @@
 					)
 				)
 			)
-			(property "MPN" "0402WGF0000TCE"
-				(id 5)
+			(property "Datasheet" "https://lcsc.com/product-detail/74-Series_TI_SN74LVC1G07DBVR_SN74LVC1G07DBVR_C7829.html"
 				(at 0 -15.24 0)
 				(effects hide
 					(font
@@ -2928,8 +2907,7 @@
 					)
 				)
 			)
-			(property "LCSC Part" "C17168"
-				(id 6)
+			(property "Manufacturer" "TI(德州仪器)"
 				(at 0 -17.78 0)
 				(effects hide
 					(font
@@ -2937,8 +2915,7 @@
 					)
 				)
 			)
-			(property "ki_keywords" "Resistors"
-				(id 8)
+			(property "MPN" "SN74LVC1G07DBVR"
 				(at 0 -20.32 0)
 				(effects hide
 					(font
@@ -2946,8 +2923,7 @@
 					)
 				)
 			)
-			(property "ki_description" "0Ω (0R0) ±1%"
-				(id 9)
+			(property "LCSC Part" "C7829"
 				(at 0 -22.86 0)
 				(effects hide
 					(font
@@ -2955,10 +2931,18 @@
 					)
 				)
 			)
-			(symbol "0402WGF0000TCE_0_1"
+			(property "ki_keywords" "Buffers / Drivers"
+				(at 0 -25.40 0)
+				(effects hide
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "SN74LVC1G07DBVR_0_1"
 				(rectangle
-					(start -2.54 1.02)
-					(end 2.54 -1.02)
+					(start -7.62 7.62)
+					(end 7.62 -7.62)
 					(stroke
 						(width 0)
 						(type default)
@@ -2967,10 +2951,117 @@
 						(type background)
 					)
 				)
+				(polyline
+					(pts
+						(xy -1.27 1.78)
+						(xy -1.27 -1.78)
+						(xy 1.78 -0.00)
+						(xy -1.27 1.78)
+						(xy -1.27 1.78)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(polyline
+					(pts
+						(xy -7.62 -0.00)
+						(xy -1.27 -0.00)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.78 -0.00)
+						(xy 7.62 -0.00)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -0.76 -0.00)
+						(xy -0.25 0.51)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.25 -0.00)
+						(xy -0.25 0.51)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.25 -0.00)
+						(xy -0.25 -0.51)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -0.25 -0.51)
+						(xy -0.76 -0.00)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.25 -0.51)
+						(xy -0.76 -0.51)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
 				(pin passive line
-					(at 5.08 -0.00 180)
-					(length 2.54)
-					(name "2"
+					(at -12.70 -0.00 0)
+					(length 5.08)
+					(name "A"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -2986,9 +3077,63 @@
 					)
 				)
 				(pin passive line
-					(at -5.08 -0.00 0)
-					(length 2.54)
-					(name "1"
+					(at -12.70 -5.08 0)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 12.70 5.08 180)
+					(length 5.08)
+					(name "VCC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 12.70 -0.00 180)
+					(length 5.08)
+					(name "Y"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -12.70 5.08 0)
+					(length 5.08)
+					(name "N.C."
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -11319,32 +11464,32 @@
 		)
 	)
 	(symbol
-		(lib_id "jlc:0402WGF0000TCE")
-		(at 99.06 267.97 0)
+		(lib_id "jlc:SN74LVC1G07DBVR")
+		(at 106.68 274.32 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "826d4801-7fc1-523f-be4b-db2c067095d3")
-		(property "Reference" "R4"
-			(at 99.06 264.41 0)
+		(uuid "3b09607d-62df-5a46-8bb5-cc2825fd52f8")
+		(property "Reference" "U11"
+			(at 106.68 264.16 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "0R"
-			(at 99.06 271.53 0)
+		(property "Value" "SN74LVC1G07"
+			(at 106.68 284.48 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Footprint" "jlc:R0402"
-			(at 99.06 267.97 0)
+		(property "Footprint" "jlc:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR"
+			(at 106.68 274.32 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11352,8 +11497,197 @@
 				(hide yes)
 			)
 		)
-		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_0R-0R0-1_C17168.html"
-			(at 99.06 267.97 0)
+		(property "Datasheet" "https://lcsc.com/product-detail/74-Series_TI_SN74LVC1G07DBVR_SN74LVC1G07DBVR_C7829.html"
+			(at 106.68 274.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "TI(德州仪器)"
+			(at 106.68 274.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "SN74LVC1G07DBVR"
+			(at 106.68 274.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC Part" "C7829"
+			(at 106.68 274.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "ki_keywords" "Buffers / Drivers"
+			(at 106.68 274.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "rp2350-hdmi-hexpansion"
+				(path "/fb9bfa6e-c44d-469c-aa90-8ec28bcdf17f"
+					(reference "U11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(no_connect
+		(at 93.98 269.24)
+		(uuid "8b2566e6-b6d9-533c-be19-7b3f2c8833cc")
+	)
+	(symbol
+		(lib_id "jlc:CL05B104KO5NNNC")
+		(at 157.48 269.24 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "47c46d60-3806-5e36-b0e8-eb2ac8cf0290")
+		(property "Reference" "C33"
+			(at 157.48 264.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 157.48 273.81 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "jlc:C0402"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL05B104KO5NNNC_100nF-104-10-16V_C1525.html"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "SAMSUNG(三星)"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "CL05B104KO5NNNC"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC Part" "C1525"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "ki_keywords" "Multilayer Ceramic Capacitors MLCC - SMD/SMT"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "ki_description" "100nF (104) ±10% 16V"
+			(at 157.48 269.24 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "rp2350-hdmi-hexpansion"
+				(path "/fb9bfa6e-c44d-469c-aa90-8ec28bcdf17f"
+					(reference "C33")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "jlc:0402WGF1002TCE")
+		(at 193.04 267.97 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "826d4801-7fc1-523f-be4b-db2c067095d3")
+		(property "Reference" "R4"
+			(at 193.04 264.41 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 193.04 271.53 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "jlc:R0402"
+			(at 193.04 267.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25744.html"
+			(at 193.04 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11362,7 +11696,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 99.06 267.97 0)
+			(at 193.04 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11370,8 +11704,8 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "0402WGF0000TCE"
-			(at 99.06 267.97 0)
+		(property "MPN" "0402WGF1002TCE"
+			(at 193.04 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11379,8 +11713,8 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC Part" "C17168"
-			(at 99.06 267.97 0)
+		(property "LCSC Part" "C25744"
+			(at 193.04 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11389,7 +11723,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 99.06 267.97 0)
+			(at 193.04 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11397,8 +11731,8 @@
 				(hide yes)
 			)
 		)
-		(property "ki_description" "0Ω (0R0) ±1%"
-			(at 99.06 267.97 0)
+		(property "ki_description" "10KΩ (1002) ±1%"
+			(at 193.04 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11417,7 +11751,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF1001TCE")
-		(at 133.35 267.97 0)
+		(at 228.6 267.97 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11425,7 +11759,7 @@
 		(dnp no)
 		(uuid "fb27335e-abfa-5793-931d-eb03f7fd75e4")
 		(property "Reference" "R6"
-			(at 133.35 264.41 0)
+			(at 228.6 264.41 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11433,7 +11767,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 133.35 271.53 0)
+			(at 228.6 271.53 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11441,7 +11775,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11450,7 +11784,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_1KR-1001-1_C11702.html"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11459,7 +11793,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11468,7 +11802,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11477,7 +11811,7 @@
 			)
 		)
 		(property "LCSC Part" "C11702"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11486,7 +11820,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11495,7 +11829,7 @@
 			)
 		)
 		(property "ki_description" "1KΩ (1001) ±1%"
-			(at 133.35 267.97 0)
+			(at 228.6 267.97 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11514,7 +11848,7 @@
 	)
 	(symbol
 		(lib_id "jlc:TS-1088-AR02016")
-		(at 180.34 266.7 0)
+		(at 41.91 304.8 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11522,7 +11856,7 @@
 		(dnp no)
 		(uuid "e101049f-68d4-5769-b05c-a928d8df3613")
 		(property "Reference" "SW1"
-			(at 180.34 263.65 0)
+			(at 41.91 301.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11530,7 +11864,7 @@
 			)
 		)
 		(property "Value" "BOOTSEL"
-			(at 180.34 270.51 0)
+			(at 41.91 308.61 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11538,7 +11872,7 @@
 			)
 		)
 		(property "Footprint" "jlc:SW-SMD_L3.9-W3.0-P4.45"
-			(at 180.34 266.7 0)
+			(at 41.91 304.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11547,7 +11881,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Tactile-Switches_XUNPU-TS-1088-AR02016_C720477.html"
-			(at 180.34 266.7 0)
+			(at 41.91 304.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11556,7 +11890,7 @@
 			)
 		)
 		(property "Manufacturer" "XUNPU(讯普)"
-			(at 180.34 266.7 0)
+			(at 41.91 304.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11565,7 +11899,7 @@
 			)
 		)
 		(property "MPN" "TS-1088-AR02016"
-			(at 180.34 266.7 0)
+			(at 41.91 304.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11574,7 +11908,7 @@
 			)
 		)
 		(property "LCSC Part" "C720477"
-			(at 180.34 266.7 0)
+			(at 41.91 304.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11583,7 +11917,7 @@
 			)
 		)
 		(property "ki_keywords" "Tactile Switches"
-			(at 180.34 266.7 0)
+			(at 41.91 304.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11602,7 +11936,7 @@
 	)
 	(symbol
 		(lib_id "jlc:BM03B-SRSS-TB")
-		(at 214.63 273.05 0)
+		(at 76.2 309.88 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11610,7 +11944,7 @@
 		(dnp no)
 		(uuid "7754c954-1008-5799-967f-8bb1b78dbf05")
 		(property "Reference" "J3"
-			(at 214.63 264.16 0)
+			(at 76.2 300.99 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11618,7 +11952,7 @@
 			)
 		)
 		(property "Value" "SWD"
-			(at 214.63 281.94 0)
+			(at 76.2 318.77 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11626,7 +11960,7 @@
 			)
 		)
 		(property "Footprint" "jlc:CONN-SMD-3P-P1.00_BM03B-SRSS-TB-LF-SN"
-			(at 214.63 273.05 0)
+			(at 76.2 309.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11635,7 +11969,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Others_JST-Sales-America__JST-Sales-America-BM03B-SRSS-TB-LF-SN_C160389.html"
-			(at 214.63 273.05 0)
+			(at 76.2 309.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11644,7 +11978,7 @@
 			)
 		)
 		(property "Manufacturer" "JST"
-			(at 214.63 273.05 0)
+			(at 76.2 309.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11653,7 +11987,7 @@
 			)
 		)
 		(property "MPN" "BM03B-SRSS-TB(LF)(SN)"
-			(at 214.63 273.05 0)
+			(at 76.2 309.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11662,7 +11996,7 @@
 			)
 		)
 		(property "LCSC Part" "C160389"
-			(at 214.63 273.05 0)
+			(at 76.2 309.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11671,7 +12005,7 @@
 			)
 		)
 		(property "ki_keywords" "Wire To Board / Wire To Wire Connector"
-			(at 214.63 273.05 0)
+			(at 76.2 309.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11689,16 +12023,16 @@
 		)
 	)
 	(no_connect
-		(at 224.79 276.86)
+		(at 86.36 313.69)
 		(uuid "18248ce1-2914-584a-962a-62067f465149")
 	)
 	(no_connect
-		(at 204.47 276.86)
+		(at 66.04 313.69)
 		(uuid "b320dc15-ded0-576d-82dc-c7864f6f4de5")
 	)
 	(symbol
 		(lib_id "jlc:APS6404L-3SQR-SN_C5333729")
-		(at 52.07 328.93 0)
+		(at 52.07 365.76 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11706,7 +12040,7 @@
 		(dnp yes)
 		(uuid "a15957b8-22b0-5300-867a-8703ba6b84f3")
 		(property "Reference" "U9"
-			(at 52.07 320.04 0)
+			(at 52.07 356.87 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11714,7 +12048,7 @@
 			)
 		)
 		(property "Value" "APS6404L-3SQR-SN"
-			(at 52.07 337.82 0)
+			(at 52.07 374.65 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11722,7 +12056,7 @@
 			)
 		)
 		(property "Footprint" "jlc:SOIC-8_L4.9-W3.9-P1.27-LS6.0-BL"
-			(at 52.07 328.93 0)
+			(at 52.07 365.76 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11731,7 +12065,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.lcsc.com/datasheet/C5333729.pdf"
-			(at 52.07 328.93 0)
+			(at 52.07 365.76 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11740,7 +12074,7 @@
 			)
 		)
 		(property "Manufacturer" "Apmemory"
-			(at 52.07 328.93 0)
+			(at 52.07 365.76 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11749,7 +12083,7 @@
 			)
 		)
 		(property "MPN" "APS6404L-3SQR-SN"
-			(at 52.07 328.93 0)
+			(at 52.07 365.76 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11758,7 +12092,7 @@
 			)
 		)
 		(property "LCSC Part" "C5333729"
-			(at 52.07 328.93 0)
+			(at 52.07 365.76 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11767,7 +12101,7 @@
 			)
 		)
 		(property "ki_keywords" "DRAM"
-			(at 52.07 328.93 0)
+			(at 52.07 365.76 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11786,7 +12120,7 @@
 	)
 	(symbol
 		(lib_id "jlc:CL05B104KO5NNNC")
-		(at 104.14 323.85 0)
+		(at 104.14 361.95 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11794,7 +12128,7 @@
 		(dnp no)
 		(uuid "bb73fb92-bbc7-513e-8d2c-cc04a7eb092a")
 		(property "Reference" "C20"
-			(at 104.14 319.28 0)
+			(at 104.14 357.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11802,7 +12136,7 @@
 			)
 		)
 		(property "Value" "100nF"
-			(at 104.14 328.42 0)
+			(at 104.14 366.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11810,7 +12144,7 @@
 			)
 		)
 		(property "Footprint" "jlc:C0402"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11819,7 +12153,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL05B104KO5NNNC_100nF-104-10-16V_C1525.html"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11828,7 +12162,7 @@
 			)
 		)
 		(property "Manufacturer" "SAMSUNG(三星)"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11837,7 +12171,7 @@
 			)
 		)
 		(property "MPN" "CL05B104KO5NNNC"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11846,7 +12180,7 @@
 			)
 		)
 		(property "LCSC Part" "C1525"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11855,7 +12189,7 @@
 			)
 		)
 		(property "ki_keywords" "Multilayer Ceramic Capacitors MLCC - SMD/SMT"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11864,7 +12198,7 @@
 			)
 		)
 		(property "ki_description" "100nF (104) ±10% 16V"
-			(at 104.14 323.85 0)
+			(at 104.14 361.95 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11883,7 +12217,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF1002TCE")
-		(at 135.89 323.85 0)
+		(at 135.89 360.68 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11891,7 +12225,7 @@
 		(dnp no)
 		(uuid "60059c92-f3e1-51ef-b1e1-8b0ce9d6f765")
 		(property "Reference" "R7"
-			(at 135.89 320.29 0)
+			(at 135.89 357.12 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11899,7 +12233,7 @@
 			)
 		)
 		(property "Value" "10k"
-			(at 135.89 327.41 0)
+			(at 135.89 364.24 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11907,7 +12241,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11916,7 +12250,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25744.html"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11925,7 +12259,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11934,7 +12268,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1002TCE"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11943,7 +12277,7 @@
 			)
 		)
 		(property "LCSC Part" "C25744"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11952,7 +12286,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11961,7 +12295,7 @@
 			)
 		)
 		(property "ki_description" "10KΩ (1002) ±1%"
-			(at 135.89 323.85 0)
+			(at 135.89 360.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11980,7 +12314,7 @@
 	)
 	(symbol
 		(lib_id "jlc:TYPE-C16PIN2MD")
-		(at 41.91 391.16 0)
+		(at 41.91 429.26 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11988,14 +12322,6 @@
 		(dnp no)
 		(uuid "89c88170-8bcb-5609-8973-c31c0f4299b1")
 		(property "Reference" "J2"
-			(at 44.45 372.11 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "USB-C"
 			(at 44.45 410.21 0)
 			(effects
 				(font
@@ -12003,8 +12329,16 @@
 				)
 			)
 		)
+		(property "Value" "USB-C"
+			(at 44.45 448.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(property "Footprint" "jlc:USB-C-SMD_TYPE-C-16PIN-2MD-073"
-			(at 41.91 391.16 0)
+			(at 41.91 429.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12013,7 +12347,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.lcsc.com/datasheet/C2765186.pdf"
-			(at 41.91 391.16 0)
+			(at 41.91 429.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12022,7 +12356,7 @@
 			)
 		)
 		(property "Manufacturer" "SHOU HAN(首韩)"
-			(at 41.91 391.16 0)
+			(at 41.91 429.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12031,7 +12365,7 @@
 			)
 		)
 		(property "MPN" "TYPE-C 16PIN 2MD(073)"
-			(at 41.91 391.16 0)
+			(at 41.91 429.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12040,7 +12374,7 @@
 			)
 		)
 		(property "LCSC Part" "C2765186"
-			(at 41.91 391.16 0)
+			(at 41.91 429.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12049,7 +12383,7 @@
 			)
 		)
 		(property "ki_keywords" "USB Connectors"
-			(at 41.91 391.16 0)
+			(at 41.91 429.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12067,16 +12401,16 @@
 		)
 	)
 	(no_connect
-		(at 35.56 382.27)
+		(at 35.56 420.37)
 		(uuid "2fb61660-10e0-5b9f-97ed-19b59bd3d4bd")
 	)
 	(no_connect
-		(at 35.56 397.51)
+		(at 35.56 435.61)
 		(uuid "d15eb6cb-42f0-5640-89aa-dcaa46e1acc3")
 	)
 	(symbol
 		(lib_id "jlc:0402WGF5101TCE")
-		(at 77.47 375.92 0)
+		(at 77.47 412.75 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12084,7 +12418,7 @@
 		(dnp no)
 		(uuid "e94bcb9e-5fe2-563c-94bb-4e461be9f24d")
 		(property "Reference" "R8"
-			(at 77.47 372.36 0)
+			(at 77.47 409.19 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12092,7 +12426,7 @@
 			)
 		)
 		(property "Value" "5.1k"
-			(at 77.47 379.48 0)
+			(at 77.47 416.31 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12100,7 +12434,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12109,7 +12443,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_5-1KR-5101-1_C25905.html"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12118,7 +12452,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12127,7 +12461,7 @@
 			)
 		)
 		(property "MPN" "0402WGF5101TCE"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12136,7 +12470,7 @@
 			)
 		)
 		(property "LCSC Part" "C25905"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12145,7 +12479,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12154,7 +12488,7 @@
 			)
 		)
 		(property "ki_description" "5.1KΩ (5101) ±1%"
-			(at 77.47 375.92 0)
+			(at 77.47 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12173,7 +12507,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF5101TCE")
-		(at 107.95 375.92 0)
+		(at 107.95 412.75 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12181,7 +12515,7 @@
 		(dnp no)
 		(uuid "96e10167-4056-54fe-b8a8-6a511fcedfb3")
 		(property "Reference" "R9"
-			(at 107.95 372.36 0)
+			(at 107.95 409.19 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12189,7 +12523,7 @@
 			)
 		)
 		(property "Value" "5.1k"
-			(at 107.95 379.48 0)
+			(at 107.95 416.31 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12197,7 +12531,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12206,7 +12540,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_5-1KR-5101-1_C25905.html"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12215,7 +12549,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12224,7 +12558,7 @@
 			)
 		)
 		(property "MPN" "0402WGF5101TCE"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12233,7 +12567,7 @@
 			)
 		)
 		(property "LCSC Part" "C25905"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12242,7 +12576,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12251,7 +12585,7 @@
 			)
 		)
 		(property "ki_description" "5.1KΩ (5101) ±1%"
-			(at 107.95 375.92 0)
+			(at 107.95 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12270,7 +12604,7 @@
 	)
 	(symbol
 		(lib_id "jlc:SMF5.0A_C19077497")
-		(at 139.7 377.19 0)
+		(at 139.7 414.02 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12278,7 +12612,7 @@
 		(dnp no)
 		(uuid "060aabd2-d5b7-5489-888a-0eaed9977ede")
 		(property "Reference" "D1"
-			(at 139.7 372.36 0)
+			(at 139.7 409.19 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12286,7 +12620,7 @@
 			)
 		)
 		(property "Value" "SMF5.0A"
-			(at 139.7 382.02 0)
+			(at 139.7 418.85 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12294,7 +12628,7 @@
 			)
 		)
 		(property "Footprint" "jlc:SOD-123FL_L2.7-W1.8-LS3.8-RD"
-			(at 139.7 377.19 0)
+			(at 139.7 414.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12303,7 +12637,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.lcsc.com/datasheet/C19077497.pdf"
-			(at 139.7 377.19 0)
+			(at 139.7 414.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12312,7 +12646,7 @@
 			)
 		)
 		(property "Manufacturer" "R+O(宏嘉诚)"
-			(at 139.7 377.19 0)
+			(at 139.7 414.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12321,7 +12655,7 @@
 			)
 		)
 		(property "MPN" "SMF5.0A"
-			(at 139.7 377.19 0)
+			(at 139.7 414.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12330,7 +12664,7 @@
 			)
 		)
 		(property "LCSC Part" "C19077497"
-			(at 139.7 377.19 0)
+			(at 139.7 414.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12339,7 +12673,7 @@
 			)
 		)
 		(property "ki_keywords" "TVS"
-			(at 139.7 377.19 0)
+			(at 139.7 414.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12358,7 +12692,7 @@
 	)
 	(symbol
 		(lib_id "jlc:USBLC6-2SC6_C2687116")
-		(at 184.15 379.73 0)
+		(at 184.15 417.83 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12366,7 +12700,7 @@
 		(dnp no)
 		(uuid "0a3951c2-fbb1-5a46-8b8e-1425a54a7fa9")
 		(property "Reference" "U8"
-			(at 184.15 372.11 0)
+			(at 184.15 410.21 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12374,7 +12708,7 @@
 			)
 		)
 		(property "Value" "USBLC6-2SC6"
-			(at 184.15 387.35 0)
+			(at 184.15 425.45 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12382,7 +12716,7 @@
 			)
 		)
 		(property "Footprint" "jlc:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL"
-			(at 184.15 379.73 0)
+			(at 184.15 417.83 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12391,7 +12725,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.lcsc.com/datasheet/C2687116.pdf"
-			(at 184.15 379.73 0)
+			(at 184.15 417.83 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12400,7 +12734,7 @@
 			)
 		)
 		(property "Manufacturer" "UMW(友台半导体)"
-			(at 184.15 379.73 0)
+			(at 184.15 417.83 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12409,7 +12743,7 @@
 			)
 		)
 		(property "MPN" "USBLC6-2SC6"
-			(at 184.15 379.73 0)
+			(at 184.15 417.83 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12418,7 +12752,7 @@
 			)
 		)
 		(property "LCSC Part" "C2687116"
-			(at 184.15 379.73 0)
+			(at 184.15 417.83 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12427,7 +12761,7 @@
 			)
 		)
 		(property "ki_keywords" "ESD Protection Devices"
-			(at 184.15 379.73 0)
+			(at 184.15 417.83 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12446,7 +12780,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF270JTCE")
-		(at 236.22 375.92 0)
+		(at 236.22 412.75 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12454,7 +12788,7 @@
 		(dnp no)
 		(uuid "577faa79-11a5-54e5-9b04-6daa14e8ffc2")
 		(property "Reference" "R10"
-			(at 236.22 372.36 0)
+			(at 236.22 409.19 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12462,7 +12796,7 @@
 			)
 		)
 		(property "Value" "27R"
-			(at 236.22 379.48 0)
+			(at 236.22 416.31 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12470,7 +12804,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12479,7 +12813,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_27R-27R0-1_C25100.html"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12488,7 +12822,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12497,7 +12831,7 @@
 			)
 		)
 		(property "MPN" "0402WGF270JTCE"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12506,7 +12840,7 @@
 			)
 		)
 		(property "LCSC Part" "C25100"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12515,7 +12849,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12524,7 +12858,7 @@
 			)
 		)
 		(property "ki_description" "27Ω (27R0) ±1%"
-			(at 236.22 375.92 0)
+			(at 236.22 412.75 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12543,7 +12877,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF270JTCE")
-		(at 40.64 430.53 0)
+		(at 40.64 468.63 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12551,7 +12885,7 @@
 		(dnp no)
 		(uuid "70a4abe5-32c9-5866-9546-bb9cb490e259")
 		(property "Reference" "R11"
-			(at 40.64 426.97 0)
+			(at 40.64 465.07 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12559,7 +12893,7 @@
 			)
 		)
 		(property "Value" "27R"
-			(at 40.64 434.09 0)
+			(at 40.64 472.19 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12567,7 +12901,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12576,7 +12910,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_27R-27R0-1_C25100.html"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12585,7 +12919,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12594,7 +12928,7 @@
 			)
 		)
 		(property "MPN" "0402WGF270JTCE"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12603,7 +12937,7 @@
 			)
 		)
 		(property "LCSC Part" "C25100"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12612,7 +12946,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12621,7 +12955,7 @@
 			)
 		)
 		(property "ki_description" "27Ω (27R0) ±1%"
-			(at 40.64 430.53 0)
+			(at 40.64 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12640,7 +12974,7 @@
 	)
 	(symbol
 		(lib_id "jlc:TLV62569DBVR")
-		(at 82.55 435.61 0)
+		(at 82.55 472.44 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12648,7 +12982,7 @@
 		(dnp no)
 		(uuid "378f0c89-a571-57a6-a38e-263143e97a0e")
 		(property "Reference" "U3"
-			(at 82.55 427.99 0)
+			(at 82.55 464.82 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12656,7 +12990,7 @@
 			)
 		)
 		(property "Value" "TLV62569DBVR"
-			(at 82.55 443.23 0)
+			(at 82.55 480.06 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12664,7 +12998,7 @@
 			)
 		)
 		(property "Footprint" "jlc:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR"
-			(at 82.55 435.61 0)
+			(at 82.55 472.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12673,7 +13007,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/DC-DC-Converters_Texas-Instruments_TLV62569DBVR_Texas-Instruments-TI-TLV62569DBVR_C141836.html"
-			(at 82.55 435.61 0)
+			(at 82.55 472.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12682,7 +13016,7 @@
 			)
 		)
 		(property "Manufacturer" "TI(德州仪器)"
-			(at 82.55 435.61 0)
+			(at 82.55 472.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12691,7 +13025,7 @@
 			)
 		)
 		(property "MPN" "TLV62569DBVR"
-			(at 82.55 435.61 0)
+			(at 82.55 472.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12700,7 +13034,7 @@
 			)
 		)
 		(property "LCSC Part" "C141836"
-			(at 82.55 435.61 0)
+			(at 82.55 472.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12709,7 +13043,7 @@
 			)
 		)
 		(property "ki_keywords" "DC-DC Converters"
-			(at 82.55 435.61 0)
+			(at 82.55 472.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12728,7 +13062,7 @@
 	)
 	(symbol
 		(lib_id "jlc:CL10A106KP8NNNC")
-		(at 123.19 431.8 0)
+		(at 123.19 469.9 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12736,7 +13070,7 @@
 		(dnp no)
 		(uuid "10aee55d-2755-5e25-8312-45aed771b6de")
 		(property "Reference" "C21"
-			(at 123.19 427.23 0)
+			(at 123.19 465.33 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12744,7 +13078,7 @@
 			)
 		)
 		(property "Value" "10uF"
-			(at 123.19 436.37 0)
+			(at 123.19 474.47 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12752,7 +13086,7 @@
 			)
 		)
 		(property "Footprint" "jlc:C0603"
-			(at 123.19 431.8 0)
+			(at 123.19 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12761,7 +13095,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10A106KP8NNNC_10uF-106-10-10V_C19702.html"
-			(at 123.19 431.8 0)
+			(at 123.19 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12770,7 +13104,7 @@
 			)
 		)
 		(property "Manufacturer" "SAMSUNG(三星)"
-			(at 123.19 431.8 0)
+			(at 123.19 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12779,7 +13113,7 @@
 			)
 		)
 		(property "MPN" "CL10A106KP8NNNC"
-			(at 123.19 431.8 0)
+			(at 123.19 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12788,7 +13122,7 @@
 			)
 		)
 		(property "LCSC Part" "C19702"
-			(at 123.19 431.8 0)
+			(at 123.19 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12797,7 +13131,7 @@
 			)
 		)
 		(property "ki_keywords" "Multilayer Ceramic Capacitors MLCC - SMD/SMT"
-			(at 123.19 431.8 0)
+			(at 123.19 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12816,7 +13150,7 @@
 	)
 	(symbol
 		(lib_id "jlc:FTC252012S2R2MBCA")
-		(at 156.21 430.53 0)
+		(at 156.21 467.36 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12824,7 +13158,7 @@
 		(dnp no)
 		(uuid "5978056d-ab27-544f-a693-8f7387e721eb")
 		(property "Reference" "L2"
-			(at 156.21 427.98 0)
+			(at 156.21 464.81 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12832,7 +13166,7 @@
 			)
 		)
 		(property "Value" "2.2uH"
-			(at 156.21 433.08 0)
+			(at 156.21 469.91 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12840,7 +13174,7 @@
 			)
 		)
 		(property "Footprint" "jlc:IND-SMD_L2.5-W2.0_MHCHL2520"
-			(at 156.21 430.53 0)
+			(at 156.21 467.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12849,7 +13183,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.lcsc.com/datasheet/C5832372.pdf"
-			(at 156.21 430.53 0)
+			(at 156.21 467.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12858,7 +13192,7 @@
 			)
 		)
 		(property "Manufacturer" "cjiang(长江微电)"
-			(at 156.21 430.53 0)
+			(at 156.21 467.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12867,7 +13201,7 @@
 			)
 		)
 		(property "MPN" "FTC252012S2R2MBCA"
-			(at 156.21 430.53 0)
+			(at 156.21 467.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12876,7 +13210,7 @@
 			)
 		)
 		(property "LCSC Part" "C5832372"
-			(at 156.21 430.53 0)
+			(at 156.21 467.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12885,7 +13219,7 @@
 			)
 		)
 		(property "ki_keywords" "Power Inductors"
-			(at 156.21 430.53 0)
+			(at 156.21 467.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12904,7 +13238,7 @@
 	)
 	(symbol
 		(lib_id "jlc:CL21A226MAQNNNE")
-		(at 194.31 431.8 0)
+		(at 194.31 469.9 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12912,7 +13246,7 @@
 		(dnp no)
 		(uuid "a88402c9-f945-5420-bf90-d6f2765a5aa8")
 		(property "Reference" "C22"
-			(at 194.31 427.23 0)
+			(at 194.31 465.33 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12920,7 +13254,7 @@
 			)
 		)
 		(property "Value" "22uF"
-			(at 194.31 436.37 0)
+			(at 194.31 474.47 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12928,7 +13262,7 @@
 			)
 		)
 		(property "Footprint" "jlc:C0805"
-			(at 194.31 431.8 0)
+			(at 194.31 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12937,7 +13271,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL21A226MAQNNNE_22uF-226-20-25V_C45783.html"
-			(at 194.31 431.8 0)
+			(at 194.31 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12946,7 +13280,7 @@
 			)
 		)
 		(property "Manufacturer" "SAMSUNG(三星)"
-			(at 194.31 431.8 0)
+			(at 194.31 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12955,7 +13289,7 @@
 			)
 		)
 		(property "MPN" "CL21A226MAQNNNE"
-			(at 194.31 431.8 0)
+			(at 194.31 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12964,7 +13298,7 @@
 			)
 		)
 		(property "LCSC Part" "C45783"
-			(at 194.31 431.8 0)
+			(at 194.31 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12973,7 +13307,7 @@
 			)
 		)
 		(property "ki_keywords" "Multilayer Ceramic Capacitors MLCC - SMD/SMT"
-			(at 194.31 431.8 0)
+			(at 194.31 469.9 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12992,7 +13326,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF1003TCE")
-		(at 228.6 430.53 0)
+		(at 228.6 468.63 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -13000,7 +13334,7 @@
 		(dnp no)
 		(uuid "f4c9a13a-f792-5d88-ba99-0ac9f8712849")
 		(property "Reference" "R12"
-			(at 228.6 426.97 0)
+			(at 228.6 465.07 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13008,7 +13342,7 @@
 			)
 		)
 		(property "Value" "100k"
-			(at 228.6 434.09 0)
+			(at 228.6 472.19 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13016,7 +13350,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13025,7 +13359,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_100KR-1003-1_C25741.html"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13034,7 +13368,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13043,7 +13377,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1003TCE"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13052,7 +13386,7 @@
 			)
 		)
 		(property "LCSC Part" "C25741"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13061,7 +13395,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13070,7 +13404,7 @@
 			)
 		)
 		(property "ki_description" "100KΩ (1003) ±1%"
-			(at 228.6 430.53 0)
+			(at 228.6 468.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13089,7 +13423,7 @@
 	)
 	(symbol
 		(lib_id "jlc:0402WGF2202TCE")
-		(at 35.56 463.55 0)
+		(at 35.56 500.38 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -13097,7 +13431,7 @@
 		(dnp no)
 		(uuid "8b11197c-23ff-5b49-8db3-ec41126c5891")
 		(property "Reference" "R13"
-			(at 35.56 459.99 0)
+			(at 35.56 496.82 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13105,7 +13439,7 @@
 			)
 		)
 		(property "Value" "22k"
-			(at 35.56 467.11 0)
+			(at 35.56 503.94 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13113,7 +13447,7 @@
 			)
 		)
 		(property "Footprint" "jlc:R0402"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13122,7 +13456,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_22KR-2202-1_C25768.html"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13131,7 +13465,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(厚声)"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13140,7 +13474,7 @@
 			)
 		)
 		(property "MPN" "0402WGF2202TCE"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13149,7 +13483,7 @@
 			)
 		)
 		(property "LCSC Part" "C25768"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13158,7 +13492,7 @@
 			)
 		)
 		(property "ki_keywords" "Resistors"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13167,7 +13501,7 @@
 			)
 		)
 		(property "ki_description" "22KΩ (2202) ±1%"
-			(at 35.56 463.55 0)
+			(at 35.56 500.38 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -18323,8 +18657,68 @@
 		)
 		(uuid "fd417c7a-e845-56a9-b675-6624e20fa2c4")
 	)
+	(label "LS_A"
+		(at 93.98 274.32 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c1e08755-75af-5e50-8dcf-2f939e62d67e")
+	)
+	(label "GND"
+		(at 93.98 279.4 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "ab32b7ee-f82d-5d7d-8805-b7fa3e8169b7")
+	)
+	(label "3V3_BADGE"
+		(at 119.38 269.24 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2ca007d9-4059-5aa7-8f50-e7c115c14c17")
+	)
 	(label "RUN"
-		(at 104.14 267.97 0)
+		(at 119.38 274.32 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "33622f82-38c1-5f22-8fa5-16bf944f94e4")
+	)
+	(label "GND"
+		(at 162.56 269.24 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "a29ccaf0-dd02-5f43-bb5e-283853f25753")
+	)
+	(label "3V3_BADGE"
+		(at 152.4 269.24 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "0b5a536d-6aaa-512b-8889-f67307999c35")
+	)
+	(label "LS_A"
+		(at 198.12 267.97 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18333,8 +18727,8 @@
 		)
 		(uuid "99447707-fe51-50de-a66a-350353e7b9c2")
 	)
-	(label "LS_A"
-		(at 93.98 267.97 180)
+	(label "3V3_BADGE"
+		(at 187.96 267.97 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18344,7 +18738,7 @@
 		(uuid "a323daa9-4f6c-54a0-aa1a-566e7e6fda28")
 	)
 	(label "BOOTSEL_SW"
-		(at 138.43 267.97 0)
+		(at 233.68 267.97 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18354,7 +18748,7 @@
 		(uuid "5357690c-e982-5973-9bd8-45e02423fb29")
 	)
 	(label "QSPI_SS"
-		(at 128.27 267.97 180)
+		(at 223.52 267.97 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18364,7 +18758,7 @@
 		(uuid "6824888c-f4be-5f35-8719-ce8cee7d5265")
 	)
 	(label "GND"
-		(at 187.96 267.97 0)
+		(at 49.53 306.07 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18374,7 +18768,7 @@
 		(uuid "a0260ada-ef0b-5806-a114-bb326ab5f573")
 	)
 	(label "BOOTSEL_SW"
-		(at 172.72 267.97 180)
+		(at 34.29 306.07 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18384,7 +18778,7 @@
 		(uuid "ff3c5ca7-a91a-5878-a60e-236e513bd3ef")
 	)
 	(label "SWCLK"
-		(at 212.09 266.7 90)
+		(at 73.66 303.53 90)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18394,7 +18788,7 @@
 		(uuid "3aa26e76-17aa-53ee-a711-3d375dcd9b8f")
 	)
 	(label "GND"
-		(at 214.63 266.7 90)
+		(at 76.2 303.53 90)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18404,7 +18798,7 @@
 		(uuid "64aa8442-3398-5dd9-8ee6-cee0494ab316")
 	)
 	(label "SWDIO"
-		(at 217.17 266.7 90)
+		(at 78.74 303.53 90)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18414,7 +18808,7 @@
 		(uuid "529dada7-0fd1-5a7d-9b2c-a68022df7313")
 	)
 	(label "PSRAM_CS"
-		(at 31.75 325.12 180)
+		(at 31.75 361.95 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18424,7 +18818,7 @@
 		(uuid "67c4fc82-d41a-5daf-9f93-c6418c4d039e")
 	)
 	(label "QSPI_SD1"
-		(at 31.75 327.66 180)
+		(at 31.75 364.49 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18434,7 +18828,7 @@
 		(uuid "75ecb404-251e-529d-96b6-656ea3ab1f34")
 	)
 	(label "QSPI_SD2"
-		(at 31.75 330.2 180)
+		(at 31.75 367.03 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18444,7 +18838,7 @@
 		(uuid "1810065d-6622-51df-83cd-11616e174133")
 	)
 	(label "GND"
-		(at 31.75 332.74 180)
+		(at 31.75 369.57 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18454,7 +18848,7 @@
 		(uuid "1e935ae4-c4fb-50ce-9466-b7ef67f8a1c1")
 	)
 	(label "QSPI_SD0"
-		(at 72.39 332.74 0)
+		(at 72.39 369.57 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18464,7 +18858,7 @@
 		(uuid "7f2c4cf2-ae00-5252-aceb-8c98e5aefce8")
 	)
 	(label "QSPI_SCLK"
-		(at 72.39 330.2 0)
+		(at 72.39 367.03 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18474,7 +18868,7 @@
 		(uuid "dfcac173-363d-533f-b1b7-039dde1fdd5a")
 	)
 	(label "QSPI_SD3"
-		(at 72.39 327.66 0)
+		(at 72.39 364.49 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18484,7 +18878,7 @@
 		(uuid "80640cf0-954a-5ad2-9037-fe2eb3986060")
 	)
 	(label "+3V3"
-		(at 72.39 325.12 0)
+		(at 72.39 361.95 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18494,7 +18888,7 @@
 		(uuid "1eefbca8-92f9-549b-abf3-fccd6b6ceb94")
 	)
 	(label "GND"
-		(at 109.22 323.85 0)
+		(at 109.22 361.95 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18504,7 +18898,7 @@
 		(uuid "49af85a0-027b-5c77-9ddd-e43a2769d427")
 	)
 	(label "+3V3"
-		(at 99.06 323.85 180)
+		(at 99.06 361.95 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18514,7 +18908,7 @@
 		(uuid "f717abe0-0d7c-5260-8a28-5edec96f182d")
 	)
 	(label "PSRAM_CS"
-		(at 140.97 323.85 0)
+		(at 140.97 360.68 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18524,7 +18918,7 @@
 		(uuid "dead8f6a-9490-5177-8000-7570ef6ec4a0")
 	)
 	(label "+3V3"
-		(at 130.81 323.85 180)
+		(at 130.81 360.68 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18534,7 +18928,7 @@
 		(uuid "f1c345a2-c2c7-5f5a-98ee-ec867f3cd266")
 	)
 	(label "GND"
-		(at 35.56 377.19 180)
+		(at 35.56 415.29 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18544,7 +18938,7 @@
 		(uuid "04e7e7f3-b204-5ff1-8ea1-7a58c6357d92")
 	)
 	(label "VBUS"
-		(at 35.56 379.73 180)
+		(at 35.56 417.83 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18554,7 +18948,7 @@
 		(uuid "96c31bc2-52a5-55fa-badb-737876f42c6a")
 	)
 	(label "CC1"
-		(at 35.56 384.81 180)
+		(at 35.56 422.91 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18564,7 +18958,7 @@
 		(uuid "66126315-33b8-5f88-9495-38684394b89d")
 	)
 	(label "USB_CONN_DN"
-		(at 35.56 387.35 180)
+		(at 35.56 425.45 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18574,7 +18968,7 @@
 		(uuid "dc30adfe-a38c-5cb2-94c4-a76975cb71a6")
 	)
 	(label "USB_CONN_DP"
-		(at 35.56 389.89 180)
+		(at 35.56 427.99 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18584,7 +18978,7 @@
 		(uuid "54a6f373-fc79-5759-8dea-ef7dacf692f1")
 	)
 	(label "USB_CONN_DN"
-		(at 35.56 392.43 180)
+		(at 35.56 430.53 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18594,7 +18988,7 @@
 		(uuid "d2be11da-c95d-544d-8cd9-aa806c88c7ec")
 	)
 	(label "USB_CONN_DP"
-		(at 35.56 394.97 180)
+		(at 35.56 433.07 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18604,7 +18998,7 @@
 		(uuid "4732b527-98b2-5ffc-b91c-a8711781e465")
 	)
 	(label "CC2"
-		(at 35.56 400.05 180)
+		(at 35.56 438.15 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18614,7 +19008,7 @@
 		(uuid "278c6da5-7604-5ae2-90d1-9f559b956d78")
 	)
 	(label "VBUS"
-		(at 35.56 402.59 180)
+		(at 35.56 440.69 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18624,7 +19018,7 @@
 		(uuid "63a819c2-2116-5974-a61d-c47161b5c96f")
 	)
 	(label "GND"
-		(at 35.56 405.13 180)
+		(at 35.56 443.23 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18634,7 +19028,7 @@
 		(uuid "6431fa3b-1d55-546a-b725-5dc2e2855fd3")
 	)
 	(label "GND"
-		(at 53.34 405.13 0)
+		(at 53.34 443.23 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18644,7 +19038,7 @@
 		(uuid "bb101d9e-4a75-58a3-b410-37e148386f9b")
 	)
 	(label "GND"
-		(at 53.34 377.19 0)
+		(at 53.34 415.29 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18654,7 +19048,7 @@
 		(uuid "5027774f-cf29-5f05-b24b-51c710fec8f6")
 	)
 	(label "GND"
-		(at 82.55 375.92 0)
+		(at 82.55 412.75 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18664,7 +19058,7 @@
 		(uuid "eef47817-f904-5f90-8ffe-729b7c24896c")
 	)
 	(label "CC1"
-		(at 72.39 375.92 180)
+		(at 72.39 412.75 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18674,7 +19068,7 @@
 		(uuid "4632e561-3be0-51e6-acec-5977322b0b9b")
 	)
 	(label "GND"
-		(at 113.03 375.92 0)
+		(at 113.03 412.75 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18684,7 +19078,7 @@
 		(uuid "e03f04da-04d8-5a6a-90bf-f4f99680c809")
 	)
 	(label "CC2"
-		(at 102.87 375.92 180)
+		(at 102.87 412.75 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18694,7 +19088,7 @@
 		(uuid "abb61ef1-dba3-5381-a2ce-807134608172")
 	)
 	(label "VBUS"
-		(at 134.62 377.19 180)
+		(at 134.62 414.02 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18704,7 +19098,7 @@
 		(uuid "b0da854c-6f4b-5cc8-8636-d4e0efd2370f")
 	)
 	(label "GND"
-		(at 144.78 377.19 0)
+		(at 144.78 414.02 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18714,7 +19108,7 @@
 		(uuid "c11cb9eb-4d08-5ec7-97ef-c196e9210fbf")
 	)
 	(label "USB_CONN_DP"
-		(at 172.72 377.19 180)
+		(at 172.72 415.29 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18724,7 +19118,7 @@
 		(uuid "d929f4f9-9d45-5bc2-a10c-78dde701d7d9")
 	)
 	(label "GND"
-		(at 172.72 379.73 180)
+		(at 172.72 417.83 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18734,7 +19128,7 @@
 		(uuid "8178fed9-2dad-5ce6-bdc6-6945471833ef")
 	)
 	(label "USB_CONN_DN"
-		(at 172.72 382.27 180)
+		(at 172.72 420.37 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18744,7 +19138,7 @@
 		(uuid "1d5b8d01-8ba1-57bc-8206-016fbd0c06ab")
 	)
 	(label "USB_CONN_DN"
-		(at 195.58 382.27 0)
+		(at 195.58 420.37 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18754,7 +19148,7 @@
 		(uuid "87f6e330-9094-55fb-9db6-f8ec02ca2573")
 	)
 	(label "VBUS"
-		(at 195.58 379.73 0)
+		(at 195.58 417.83 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18764,7 +19158,7 @@
 		(uuid "355c32ab-79e0-5b6a-99f9-9c14853c26fa")
 	)
 	(label "USB_CONN_DP"
-		(at 195.58 377.19 0)
+		(at 195.58 415.29 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18774,7 +19168,7 @@
 		(uuid "7e59b1ac-e24f-5a33-9575-c1ded1b19a11")
 	)
 	(label "USB_DP"
-		(at 241.3 375.92 0)
+		(at 241.3 412.75 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18784,7 +19178,7 @@
 		(uuid "08d9eaf1-418f-5c6b-a6c4-363e964ff511")
 	)
 	(label "USB_CONN_DP"
-		(at 231.14 375.92 180)
+		(at 231.14 412.75 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18794,7 +19188,7 @@
 		(uuid "e9c03e3b-7eb9-5ca7-86ec-b8f9fd9c5357")
 	)
 	(label "USB_DN"
-		(at 45.72 430.53 0)
+		(at 45.72 468.63 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18804,7 +19198,7 @@
 		(uuid "f6115da6-59b1-5e9d-96cc-20e97c153ee4")
 	)
 	(label "USB_CONN_DN"
-		(at 35.56 430.53 180)
+		(at 35.56 468.63 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18814,7 +19208,7 @@
 		(uuid "3e6b2e20-bfb7-5fc1-830a-66873824ea3f")
 	)
 	(label "VBUS"
-		(at 72.39 433.07 180)
+		(at 72.39 469.9 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18824,7 +19218,7 @@
 		(uuid "06e91933-5495-507a-9fa3-1bccacae1ecd")
 	)
 	(label "GND"
-		(at 72.39 435.61 180)
+		(at 72.39 472.44 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18834,7 +19228,7 @@
 		(uuid "1ee0704d-84e3-59a9-8e9f-de5300f0571a")
 	)
 	(label "BUCK_SW"
-		(at 72.39 438.15 180)
+		(at 72.39 474.98 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18844,7 +19238,7 @@
 		(uuid "30c33bae-d90e-5ca1-8bae-24afdf7fa78d")
 	)
 	(label "VBUS"
-		(at 92.71 438.15 0)
+		(at 92.71 474.98 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18854,7 +19248,7 @@
 		(uuid "2602483d-7db2-5ffb-9395-732dad85af91")
 	)
 	(label "BUCK_FB"
-		(at 92.71 433.07 0)
+		(at 92.71 469.9 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18864,7 +19258,7 @@
 		(uuid "b17a5a81-ff7e-511b-9489-8130e243bed4")
 	)
 	(label "VBUS"
-		(at 118.11 431.8 180)
+		(at 118.11 469.9 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18874,7 +19268,7 @@
 		(uuid "f38cb5b1-0cc8-564a-8830-1550580929e2")
 	)
 	(label "GND"
-		(at 128.27 431.8 0)
+		(at 128.27 469.9 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18884,7 +19278,7 @@
 		(uuid "c7e828d5-a387-5f54-9f28-4525ced23a7f")
 	)
 	(label "3V3_USB"
-		(at 161.29 430.53 0)
+		(at 161.29 467.36 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18894,7 +19288,7 @@
 		(uuid "4856ec08-4ad7-5860-a684-379c68dcd623")
 	)
 	(label "BUCK_SW"
-		(at 151.13 430.53 180)
+		(at 151.13 467.36 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18904,7 +19298,7 @@
 		(uuid "01ba7649-a8d9-59e7-98d6-335d20135d76")
 	)
 	(label "3V3_USB"
-		(at 189.23 431.8 180)
+		(at 189.23 469.9 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18914,7 +19308,7 @@
 		(uuid "d18e26b0-fc1a-52f1-b0e2-0bfecb84946a")
 	)
 	(label "GND"
-		(at 199.39 431.8 0)
+		(at 199.39 469.9 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18924,7 +19318,7 @@
 		(uuid "d2b05680-a156-5406-972b-86258f5b31a1")
 	)
 	(label "BUCK_FB"
-		(at 233.68 430.53 0)
+		(at 233.68 468.63 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18934,7 +19328,7 @@
 		(uuid "bd5c6d73-e704-5aa4-ab4c-dee9af6bc25b")
 	)
 	(label "3V3_USB"
-		(at 223.52 430.53 180)
+		(at 223.52 468.63 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18944,7 +19338,7 @@
 		(uuid "a74d22dd-e91e-52f0-8229-30e63dff0cb7")
 	)
 	(label "GND"
-		(at 40.64 463.55 0)
+		(at 40.64 500.38 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -18954,7 +19348,7 @@
 		(uuid "a4f4e57f-7774-5df8-9e53-fb0c7fc64354")
 	)
 	(label "BUCK_FB"
-		(at 30.48 463.55 180)
+		(at 30.48 500.38 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -20499,7 +20893,7 @@
 	)
 	(text "PSRAM - DNP, hand-solder (QSPI CS1 = GPIO0)"
 		(exclude_from_sim no)
-		(at 20 306.3 0)
+		(at 20 343.54 0)
 		(effects
 			(font
 				(size 2.54 2.54)
@@ -20511,7 +20905,7 @@
 	)
 	(text "USB-C input (sink only) and 5V -> 3V3 buck"
 		(exclude_from_sim no)
-		(at 20 359 0)
+		(at 20 396.24 0)
 		(effects
 			(font
 				(size 2.54 2.54)
@@ -20593,7 +20987,7 @@
 		)
 		(uuid "06acef6d-4edd-567d-bda8-fff3b318a24b")
 	)
-	(text "Notes:\n- Design rule: this hexpansion never powers the badge (HISTORY.md section 4.5).\n- Pull-ups on badge-facing lines go to 3V3_BADGE, never +3V3. No pull-ups on BADGE_SDA/SCL (badge has them).\n- Firmware: tri-state SPI_MISO and BADGE_IRQ until BADGE_SENSE (GPIO28) reads the badge rail live.\n- Firmware: do not enable internal pull-ups on BADGE_SDA/SCL (GPIO24/25).\n- OPEN: RUN pull-up (R3) can leak into an unpowered badge through LS_A via R4 (0R). Review before layout.\n- HS_G/HS_H are crossed (HS_H=CS on GPIO21, HS_G=SCK on GPIO22) to match the badge mirror driver (confirmed on port 4 only).\n- Spare GPIOs (no-connect): 3, 4, 5, 8, 9, 10, 11. microSD dropped.\n- HDMI DDC (EDID) not connected: output is fixed 640x480@60. HPD is read on GPIO2.\n- Decoupling: C1-C7 follow the Raspberry Pi minimal design (pins 44/45 and 53/54 share a cap).\n- U9 (PSRAM) and U10 (EEPROM) are DNP. C20 (PSRAM decoupling) and R7 (CS pull-up) are fitted.\n- HSTX lanes: D2=GPIO12/13, CK=14/15, D1=16/17, D0=18/19 (+ on even pin), as pio-testcard firmware."
+	(text "Notes:\n- Design rule: this hexpansion never powers the badge (HISTORY.md section 4.5).\n- Pull-ups on badge-facing lines go to 3V3_BADGE, never +3V3. No pull-ups on BADGE_SDA/SCL (badge has them).\n- Firmware: tri-state SPI_MISO and BADGE_IRQ until BADGE_SENSE (GPIO28) reads the badge rail live.\n- Firmware: do not enable internal pull-ups on BADGE_SDA/SCL (GPIO24/25).\n- Badge reset: LS_A drives RUN through U11, an open-drain buffer powered from 3V3_BADGE (no leak when the badge is off).\n- HS_G/HS_H are crossed (HS_H=CS on GPIO21, HS_G=SCK on GPIO22) to match the badge mirror driver (confirmed on port 4 only).\n- Spare GPIOs (no-connect): 3, 4, 5, 8, 9, 10, 11. microSD dropped.\n- HDMI DDC (EDID) not connected: output is fixed 640x480@60. HPD is read on GPIO2.\n- Decoupling: C1-C7 follow the Raspberry Pi minimal design (pins 44/45 and 53/54 share a cap).\n- U9 (PSRAM) and U10 (EEPROM) are DNP. C20 (PSRAM decoupling) and R7 (CS pull-up) are fitted.\n- HSTX lanes: D2=GPIO12/13, CK=14/15, D1=16/17, D0=18/19 (+ on even pin), as pio-testcard firmware."
 		(exclude_from_sim no)
 		(at 20 539 0)
 		(effects

@@ -854,8 +854,10 @@ cannot inject current into an unpowered bus. SCK, MOSI and CS are inputs to us. 
 §4.6 must not go to `3V3_LOCAL` on any badge-facing line. An unpowered badge would be fed
 through them, just as through a driven GPIO. In schematic v0.1, badge-side pull-ups go to
 `3V3_BADGE` only; `BADGE_SDA`/`SCL` get none (the badge has its own); and firmware must
-not enable internal pull-ups on GPIO24/25. One path is still open: the RUN pull-up reaches
-`LS_A` through R4 (0R).
+not enable internal pull-ups on GPIO24/25. The RUN pull-up reaching `LS_A` was closed the
+same day: `LS_A` now drives RUN through an SN74LVC1G07 open-drain buffer (U11) powered from
+`3V3_BADGE`, with `LS_A` pulled up to `3V3_BADGE`. The buffer's I_off spec (≤10 µA) blocks
+the path when the badge is off. A diode can't, because reset and leak flow the same way.
 
 #### USB-C sink requirements
 
@@ -954,7 +956,8 @@ crystal series resistor, USB series resistors, HDMI +5V PTC and test pads are ad
 A later trim the same day removed **U5 (PCA9306) and all of DDC/EDID**, because the
 output is fixed at 640×480; removed the **0 Ω TMDS resistors** (see §4.6); and cut the
 decoupling to Raspberry Pi's minimal design. **microSD (J6) was then dropped too**
-(see §10). Result: 78 JLC-placed parts, about $5.01 a board at the 10-board tier.
+(see §10). The badge reset gained a backfeed-proof buffer (U11, §4.5). Result: 80
+JLC-placed parts, about $5.11 a board at the 10-board tier.
 The README's Next step section has the details, including the §4.1 pin-map changes.
 
 Per board, 92 fitted placements (U8 is DNP and excluded from the totals). Prices are

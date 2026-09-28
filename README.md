@@ -278,9 +278,9 @@ Changes from the `HISTORY.md` plan:
   has one internally) and no RUN debounce cap. The ferrite beads are gone.
 - Kept from the design guide: the 1k crystal series resistor, 33R
   VREG_AVDD filter, 27R USB series resistors and a 10k RUN pull-up (because
-  of the `LS_A` link). Also added: an HDMI +5V PTC fuse and test pads.
-- Result: **78 JLC-placed parts, about $5.01 a board** at the 10-board price
-  tier (24 capacitors, 32 resistors).
+  of the badge reset). Also added: an HDMI +5V PTC fuse and test pads.
+- Result: **80 JLC-placed parts, about $5.11 a board** at the 10-board price
+  tier (25 capacitors, 32 resistors).
 
 **Pin map changes from `HISTORY.md` §4.1.** It had no free GPIOs for three
 signals, so `LS_C`/`LS_D`/`LS_E` are left unconnected and their GPIOs reused:
@@ -301,6 +301,10 @@ moves from GPIO4/5 to **GPIO24/25**, with its internal pull-ups *off*
 (they'd back-power an unpowered badge). The status NeoPixel moves to
 **GPIO27**. Set the flash size to 2 MB.
 
-**Open before layout:** the RUN pull-up can leak a little current into an
-unpowered badge through `LS_A` (R4, a 0R link). Decide whether to keep the
-badge-controlled reset, or fit R4 only when needed.
+**Badge reset without backfeed.** `LS_A` drives RUN through **U11, an
+SN74LVC1G07 open-drain buffer powered from `3V3_BADGE`**. R4 (10k to
+`3V3_BADGE`) holds `LS_A` high, so it idles at "not reset". When the badge
+is off, U11 is unpowered. Its partial-power-down (I_off) spec, ≤10 µA and
+typically far less, stops the RUN pull-up leaking into the badge, and the
+RP2354A keeps running from USB. A plain diode can't do this: the reset
+current and the leak flow the same way.
