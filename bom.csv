@@ -1,5 +1,5 @@
 Item,Designator,Description,MPN,LCSC,Package,Qty,UnitUSD_qty10,UnitUSD_qty50,ExtUSD_qty10,ExtUSD_qty50,Notes
-1,U1,Dual Cortex-M33 MCU with HSTX and 2 MB in-package flash,RP2354A,C41378174,QFN-60 7x7,1,,,,,Price TBD - verify at LCSC; excluded from totals. Replaces RP2350A + external flash
+1,U1,Dual Cortex-M33 MCU with HSTX and 2 MB in-package flash,RP2354A,C41378174,QFN-60 7x7,1,1.27,1.27,1.27,1.27,GBP 1.00 converted at 1.27 USD/GBP (HISTORY section 7 rate); verify at order. Replaces RP2350A + external flash
 3,U3,8 MB QSPI PSRAM,APS6404L-3SQR-ZR,C3040877,SOP-8,1,1.15,1.00,1.15,1.00,"DNP - footprint only, hand-solder if wanted. CS on GPIO0 (QMI CS1). Do not buy the -SN variant; 2.5x price"
 4,U4,Boost converter 3V3 to 5V 0.5 A,TPS61023DRLR,,SOT-563,1,0.55,0.45,0.55,0.45,Supplies HDMI +5V; EN gated from GPIO
 5,U5,Dual bidirectional level translator,PCA9306DCUR,,VSSOP-8,1,0.32,0.26,0.32,0.26,HDMI DDC/EDID level shift on PIO I2C GPIO3/4
@@ -28,4 +28,4 @@ Item,Designator,Description,MPN,LCSC,Package,Qty,UnitUSD_qty10,UnitUSD_qty50,Ext
 24,"SW1,SW2",Tactile switch - BOOT and RESET,,,3x2 mm,2,0.06,0.05,0.12,0.10,RESET pulls RUN low; shares pin with badge LS_A
 25,"LED1,LED2",Power LED (always on) + status LED,,,0603,2,0.02,0.02,0.04,0.04,LED1 on 4k7 for ~0.4 mA; LED2 on GPIO1
 26,LED3,SK6805 RGB status LED,,,2427,1,0.08,0.06,0.08,0.06,Optional
-,,,,,,90 fitted placements,,,5.50,4.43,Totals per board excluding DNP U3/U8 and U1 (price TBD)
+,,,,,,90 fitted placements,,,6.77,5.70,Totals per board excluding DNP U3/U8
