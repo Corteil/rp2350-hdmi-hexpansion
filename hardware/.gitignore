@@ -5,3 +5,6 @@
 *.lck
 fp-info-cache
 _autosave-*
+
+# STEP 3D models are large; re-fetch with easyeda2kicad (footprints use the .wrl models)
+lib/jlc.3dshapes/*.step

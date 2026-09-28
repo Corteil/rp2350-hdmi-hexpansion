@@ -1,31 +1,51 @@
-Item,Designator,Description,MPN,LCSC,Package,Qty,UnitUSD_qty10,UnitUSD_qty50,ExtUSD_qty10,ExtUSD_qty50,Notes
-1,U1,Dual Cortex-M33 MCU with HSTX and 2 MB in-package flash,RP2354A,C41378174,QFN-60 7x7,1,1.27,1.27,1.27,1.27,GBP 1.00 converted at 1.27 USD/GBP (HISTORY section 7 rate); verify at order. Replaces RP2350A + external flash
-3,U3,8 MB QSPI PSRAM,APS6404L-3SQR-ZR,C3040877,SOP-8,1,1.15,1.00,1.15,1.00,"DNP - footprint only, hand-solder if wanted. CS on GPIO0 (QMI CS1). Do not buy the -SN variant; 2.5x price"
-4,U4,Boost converter 3V3 to 5V 0.5 A,TPS61023DRLR,,SOT-563,1,0.55,0.45,0.55,0.45,Supplies HDMI +5V; EN gated from GPIO
-5,U5,Dual bidirectional level translator,PCA9306DCUR,,VSSOP-8,1,0.32,0.26,0.32,0.26,HDMI DDC/EDID level shift on PIO I2C GPIO3/4
-6,"U6,U7",4-channel ESD array 0.4 pF,TPD4E05U06DQAR,,USON-10,2,0.38,0.30,0.76,0.60,Low-cap required for TMDS
-7,U8,64 kbit I2C EEPROM (fallback),ZD24C64A-XGMT,C2875852,SOP-8,1,0.11,0.09,0.11,0.09,DNP - populate only if EEPROM emulation fails
-8,J1,Mini-HDMI Type C receptacle right-angle,,,SMD,1,0.65,0.52,0.65,0.52,Pin assignment differs from Type A - wire from datasheet
-9,J2,USB-C 16P receptacle,,,SMD,1,0.30,0.24,0.30,0.24,Power in + UF2 + USB CDC console
-10,J3,JST-SH 3-pin SWD debug,SM03B-SRSS-TB,,SMD,1,0.12,0.10,0.12,0.10,Raspberry Pi debug connector standard - SWCLK/GND/SWDIO
-11,"J4,J5",JST-SH 4-pin Qwiic / STEMMA QT,SM04B-SRSS-TB,,SMD,2,0.13,0.11,0.26,0.22,Parallel on hardware I2C1 GPIO6/7; both on side flat A
-11b,J6,microSD socket push-push,,,SMD,1,0.35,0.30,0.35,0.30,On SPI1 GPIO8-11; second side flat
-12,D1,USB ESD protection,USBLC6-2SC6,,SOT-23-6,1,0.10,0.08,0.10,0.08,
-13,U9,Power mux 2-input priority with reverse-current blocking,TPS2116DRLR,,SOT-23-6,1,0.55,0.45,0.55,0.45,Isolates badge 3V3 whenever USB present - the badge is never powered by this board
-13b,U10,Buck regulator 5V to 3V3 >=500 mA,AP3417 / TPS62203,,SOT-23-5,1,0.35,0.28,0.35,0.28,Feeds mux input A from VBUS
-13c,L3,2.2 uH shielded inductor,,,0805,1,0.09,0.07,0.09,0.07,USB buck
-13d,D2,TVS 5.0 V on VBUS,SMF5.0A,,SOD-123,1,0.05,0.04,0.05,0.04,Protects buck input from a misbehaving PD supply
-14,Y1,12 MHz crystal +/-30 ppm,,,3225,1,0.16,0.13,0.16,0.13,RP2350 reference clock
-15,L1,3.3 uH shielded inductor,,,0805,1,0.10,0.08,0.10,0.08,RP2350 VREG_LX core buck
-16,L2,2.2 uH shielded inductor,,,0805,1,0.09,0.07,0.09,0.07,Boost converter
-17,"FB1,FB2",Ferrite bead 600R @100 MHz,,,0402,2,0.02,0.015,0.04,0.03,
-18,C1-C2,22 uF 6.3 V X5R,,,0805,2,0.05,0.04,0.10,0.08,Keep total bulk near 40 uF for inrush
-19,C3-C6,10 uF 6.3 V X5R,,,0603,4,0.02,0.015,0.08,0.06,
-20,C7-C10,1 uF 16 V X7R,,,0402,4,0.01,0.008,0.04,0.03,
-21,C11-C32,100 nF 16 V X7R + buck in/out,,,0402,22,0.004,0.003,0.09,0.07,Decoupling
-22,"C29,C30",15 pF C0G,,,0402,2,0.004,0.003,0.01,0.01,Crystal load
-23,R1-R30,Pulls / dividers / Qwiic 4k7 / SD pulls / 5k1 CC / badge sense / 33R HS series / LED,,,0402,30,0.003,0.002,0.10,0.06,5k1 CC1/CC2 mandatory for USB-C sink; 33R doubles as HS source termination
-24,"SW1,SW2",Tactile switch - BOOT and RESET,,,3x2 mm,2,0.06,0.05,0.12,0.10,RESET pulls RUN low; shares pin with badge LS_A
-25,"LED1,LED2",Power LED (always on) + status LED,,,0603,2,0.02,0.02,0.04,0.04,LED1 on 4k7 for ~0.4 mA; LED2 on GPIO1
-26,LED3,SK6805 RGB status LED,,,2427,1,0.08,0.06,0.08,0.06,Optional
-,,,,,,90 fitted placements,,,6.77,5.70,Totals per board excluding DNP U3/U8
+Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boards,ExtUSD,DNP,Notes
+1,"C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12,C19,C20,C27,C28,C30,C32",Decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,18,Basic,0.006,0.108,,
+2,"C13,C14,C15,C31",Regulator caps,4.7uF,CL05A475MP5NRNC,C23733,C0402,4,Basic,0.0192,0.0768,,
+3,"C16,C21,C23,C25",Bulk / regulator caps,10uF,CL10A106KP8NNNC,C19702,C0603,4,Basic,0.0824,0.3296,,
+4,"C17,C18",Crystal load caps,15pF,0402CG150J500NT,C1548,C0402,2,Basic,0.0022,0.0044,,
+5,J3,SWD debug (RPi 3-pin),SWD,BM03B-SRSS-TB(LF)(SN),C160389,CONN-SMD-3P-P1.00_BM03B-SRSS-TB-LF-SN,1,Extended,0.2686,0.2686,,Vertical (top-entry) JST-SH
+6,L1,RP2350 core regulator inductor,3.3uH,AOTA-B201610S3R3-101-T,C42411119,IND-SMD_L2.0-W1.6_AOTA-B201610S3R3-101-T,1,Extended,0.2822,0.2822,,Part named in the RP2350 hardware design guide
+7,"R1,R36,R37,R38,R39",Resistor,33R,0402WGF330JTCE,C25105,R0402,5,Basic,0.001,0.005,,
+8,"R2,R6,R40,R51",Resistor,1k,0402WGF1001TCE,C11702,R0402,4,Basic,0.0011,0.0044,,
+9,"R3,R5,R7,R41,R42,R43,R44,R45,R46,R47",Resistor,10k,0402WGF1002TCE,C25744,R0402,10,Basic,0.0029,0.029,,
+10,"R4,R21,R22,R23,R24,R25,R26,R27,R28",Resistor,0R,0402WGF0000TCE,C17168,R0402,9,Basic,0.0011,0.0099,,R4 = LS_A to RUN link (see schematic notes)
+11,"SW1,SW2",BOOTSEL + RESET buttons,BOOTSEL/RESET,TS-1088-AR02016,C720477,SW-SMD_L3.9-W3.0-P4.45,2,Basic,0.0557,0.1114,,
+12,U1,"Microcontroller, 2 MB flash in package",RP2354A,RP2354A,C41378174,QFN-60_L7.0-W7.0-P0.40-TL-EP3.4,1,Extended,1.3097,1.3097,,Unit price from JLC list; you quoted GBP 1.00
+13,U9,QSPI PSRAM 8 MB (hand-solder),APS6404L-3SQR-SN,APS6404L-3SQR-SN,C5333729,SOIC-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,4.3423,,DNP,DNP. SOP-8 3.3 V part (the -ZR is USON-8). Buy separately for hand soldering
+14,Y1,12 MHz crystal,12MHz,ABM8-272-T3,C20625731,CRYSTAL-SMD_4P-L3.2-W2.5-BL,1,Extended,0.2938,0.2938,,Crystal named in the RP2350 hardware design guide
+15,"C22,C24,C26",Bulk caps,22uF,CL21A226MAQNNNE,C45783,C0805,3,Basic,0.1185,0.3555,,
+16,D1,VBUS TVS,SMF5.0A,SMF5.0A,C19077497,SOD-123FL_L2.7-W1.8-LS3.8-RD,1,Preferred,0.0273,0.0273,,
+17,J2,USB-C receptacle (sink),USB-C,TYPE-C 16PIN 2MD(073),C2765186,USB-C-SMD_TYPE-C-16PIN-2MD-073,1,Extended,0.0742,0.0742,,Same part as the badge. Footprint drawn for 1.6 mm boards; check legs on 1.0 mm
+18,L2,Buck inductor,2.2uH,FTC252012S2R2MBCA,C5832372,IND-SMD_L2.5-W2.0_MHCHL2520,1,Extended,0.0341,0.0341,,
+19,"R8,R9",Resistor,5.1k,0402WGF5101TCE,C25905,R0402,2,Basic,0.0009,0.0018,,
+20,"R10,R11",Resistor,27R,0402WGF270JTCE,C25100,R0402,2,Extended,0.001,0.002,,Low JLC stock (enough for small runs)
+21,"R12,R16,R17,R18,R34,R35",Resistor,100k,0402WGF1003TCE,C25741,R0402,6,Basic,0.004,0.024,,
+22,"R13,R15",Resistor,22k,0402WGF2202TCE,C25768,R0402,2,Basic,0.0013,0.0026,,
+23,U3,Buck 5V -> 3V3 (2 A),TLV62569DBVR,TLV62569DBVR,C141836,SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR,1,Extended,0.0733,0.0733,,
+24,U8,USB ESD,USBLC6-2SC6,USBLC6-2SC6,C2687116,SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL,1,Extended,0.0476,0.0476,,
+25,R14,Resistor,33k,0402WGF3302TCE,C25779,R0402,1,Basic,0.0008,0.0008,,
+26,U2,"Power mux, USB priority, reverse blocking",TPS2116DRLR,TPS2116DRLR,C3235557,SOT-583-8_L2.1-W1.6-P0.50-LS1.6-BL,1,Extended,0.5491,0.5491,,
+27,F1,HDMI +5V resettable fuse,200mA PTC,JK-SMD0805-020-30V,C516070,F0805,1,Extended,0.031,0.031,,
+28,L3,Boost inductor,1uH,FTC252010S1R0MBCA,C5832356,IND-SMD_L2.5-W2.0_FTC252010S,1,Extended,0.0396,0.0396,,
+29,"R19,R29",Resistor,200k,0402WGF2003TCE,C25764,R0402,2,Basic,0.0009,0.0018,,
+30,R20,Resistor,27k,0402WGF2702TCE,C25771,R0402,1,Preferred,0.0011,0.0011,,
+31,U4,Boost 3V3 -> 5V for HDMI pin 18,TPS61023DRLR,TPS61023DRLR,C919459,SOT-563_L1.6-W1.2-P0.50-LS1.6-BR,1,Extended,0.268,0.268,,
+32,J1,HDMI Type A receptacle,HDMI-A,HDMI-001 19PCBTP,C138388,HDMI-SMD_19P-P0.50-H-F,1,Extended,0.2332,0.2332,,Full-size HDMI Type A. Check fit on the board edge
+33,"R30,R31,R48,R49,R50",Resistor,4.7k,0402WGF4701TCE,C25900,R0402,5,Basic,0.0011,0.0055,,
+34,"R32,R33",Resistor,2k,0402WGF2001TCE,C4109,R0402,2,Basic,0.0008,0.0016,,
+35,U5,HDMI DDC level shifter,PCA9306DCUR,PCA9306DCUR,C33196,SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR,1,Extended,0.3319,0.3319,,
+36,"U6,U7",HDMI TMDS ESD (0.5 pF),TPD4E05U06,TPD4E05U06DQAR,C138714,USON-10_L2.5-W1.0-P0.50-BL,2,Extended,0.0819,0.1638,,
+37,C29,EEPROM decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,1,Basic,0.006,,DNP,DNP with U10
+38,J6,Hexpansion edge connector (PCB edge),Hexpansion-Connector,,,hexpansion-edge-connector,1,,,,,"PCB edge fingers, no part"
+39,U10,Hexpansion ID EEPROM (fallback),ZD24C64A (fallback),ZD24C64A-SSGMT,C2896793,SOP-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,0.1419,,DNP,DNP. Fit only if EEPROM emulation fails
+40,J4,Qwiic,Qwiic,SM04B-SRSS-TB(LF)(SN),C160404,CONN-SMD_4P-P1.00_SM04B-SRSS-TB-LF-SN,1,Extended,0.2262,0.2262,,
+41,J5,microSD socket,microSD,TF-01A,C91145,TF-SMD_TF-01A,1,Extended,0.192,0.192,,
+42,JP1,Qwiic pull-up solder jumper,Qwiic pull-ups,,,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,1,,,,,"Bare copper jumper, cut to remove Qwiic pull-ups"
+43,"H1,H2",Mounting holes,MountingHole,,,MountingHole_2.2mm_M2_Pad_Via,2,,,,,Bare pads
+44,"LED1,LED2",Power + status LEDs,PWR/STATUS,KT-0603R,C2286,LED-SMD_L1.6-W0.8-R-RD,2,Basic,0.0073,0.0146,,
+45,LED3,RGB status LED,SK6805,SK6805MICRO-J,C2909056,LED-SMD_4P-L2.7-W2.4_SK6805MICRO-J,1,Extended,0.0899,0.0899,,
+46,R52,Resistor,330R,0402WGF3300TCE,C25104,R0402,1,Basic,0.0012,0.0012,,
+47,TP1,Test pad,+3V3,,,TestPoint_Pad_D1.0mm,1,,,,,Bare pads
+48,TP2,Test pad,V5_HDMI,,,TestPoint_Pad_D1.0mm,1,,,,,
+49,TP3,Test pad,GND,,,TestPoint_Pad_D1.0mm,1,,,,,
+,,"Totals per board: fitted, JLC-assembled parts only",,,,,107,,,5.63,,Unit prices at the 10-board quantity tier

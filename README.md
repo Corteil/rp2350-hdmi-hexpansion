@@ -14,8 +14,9 @@ This file covers what's true *now*.
 **Real mirroring and stable HSTX video work together, confirmed on real
 hardware** — not just clean logs, actual moving content on a monitor. Current
 firmware is `firmware/pio-testcard/`, running on an **Adafruit Metro RP2350**
-dev board wired to a real badge hexpansion port; the custom hexpansion PCB
-design has only just started, in `hardware/` (see [Next step](#next-step)).
+dev board wired to a real badge hexpansion port. The custom hexpansion PCB's
+schematic is drafted in `hardware/`; layout hasn't started (see
+[Next step](#next-step)).
 
 - Badge side: `display.attach_mirror()`, from a fork of
   [hazanjon/badge-2024-software](https://github.com/hazanjon/badge-2024-software)
@@ -42,9 +43,9 @@ design has only just started, in `hardware/` (see [Next step](#next-step)).
 | `firmware/phase0-*/` | Individual bring-up experiments from early de-risking (HSTX/DVI basics, colour-channel fix, SPI speed sweep, EEPROM emulation, ctx rasterisation benchmark, microSD). Each has its own README. |
 | `hdmi-mirror-plan.md` | Implementation notes for switching to hazanjon's real `attach_mirror()` protocol (SPI mode, byte order, per-port pin overrides). Completed; kept for reference. |
 | `HISTORY.md` | The full design journal — rationale, bench measurements, BOM, costing, risk register, phase plan. Read this for *why*, not *what's true now*. |
-| `hardware/` | KiCad 10 project for the hexpansion PCB (started from the EMF Camp hexpansion template; schematic in progress) and `hexpansion_bom.xlsx`, the JLCPCB assembly BOM tracker. |
+| `hardware/` | KiCad 10 project for the hexpansion PCB (schematic v0.1 done, layout not started), `lib/jlc.*` (JLCPCB/LCSC symbols, footprints and 3D models), and `hexpansion_bom.xlsx`, the JLCPCB assembly BOM tracker. |
 | `tildagon-base/` | Tildagon KiCad symbol and footprint library (hexpansion edge connector etc.), used by `hardware/`. |
-| `bom.csv` | Machine-readable bill of materials for the planned PCB (not yet built). |
+| `bom.csv` | Machine-readable bill of materials, generated from the schematic (LCSC numbers, JLC Basic/Extended, prices). |
 
 ## Hardware today
 
@@ -239,16 +240,56 @@ HDMI power isolation) — the whole plan for it, including the pin map, power
 architecture, BOM, and costing this bench work was de-risking, is in
 [`HISTORY.md`](HISTORY.md).
 
-The KiCad project has been started in `hardware/`. Changes from the
-`HISTORY.md` plan so far (2026-09-28):
+**Schematic v0.1 is done** (`hardware/rp2350-hdmi-hexpansion.kicad_sch`,
+2026-09-28). The PCB layout hasn't started: open the project and run
+*Tools → Update PCB from Schematic*. Every part has a JLCPCB/LCSC number,
+and its symbol, footprint and 3D model are in the project library
+`hardware/lib/jlc.*`, pulled with
+[easyeda2kicad](https://github.com/uPesy/easyeda2kicad.py). KiCad's ERC is
+clean apart from one expected warning (HEXP_DET tied to GND is how the
+badge detects a hexpansion), and the exported netlist was checked
+pin-for-pin against the design. `bom.csv` and `hardware/hexpansion_bom.xlsx`
+are generated from the schematic.
+
+Changes from the `HISTORY.md` plan:
 
 - **MCU is the RP2354A**, not the RP2350A: the same die and QFN-60 pinout,
   with 2 MB of flash in the package on QSPI CS0. There's no external flash
   chip (the W25Q128 is gone). 2 MB is plenty: the largest firmware build is
   about 260 KB. Build with `PICO_FLASH_SIZE_BYTES` set to 2 MB.
-- **The APS6404L PSRAM is footprint-only (DNP)**, for optional hand
-  soldering (SOP-8). It stays on QSPI CS1 = GPIO0, with a 10k pull-up on
+- **The PSRAM is footprint-only (DNP)**, for optional hand soldering. The
+  part is the **APS6404L-3SQR-SN** (SOP-8, 3.3 V); the `-ZR` that the old
+  BOM listed is USON-8. It stays on QSPI CS1 = GPIO0, with a 10k pull-up on
   CS that is fitted even when the PSRAM isn't, so firmware must detect it
   at boot rather than assume it.
+- **Full-size HDMI Type A** socket instead of mini-HDMI. It's wider, so check
+  the fit on the outer flat.
+- **One Qwiic socket** instead of two, to save edge space.
+- **TLV62569** 2 A buck instead of the TPS62203 (300 mA, poor stock).
+- Added the design guide's robustness parts: 10k external pull-ups on
+  RUN and BOOTSEL (RP2350-E9), RUN debounce cap, 1k crystal series
+  resistor, 27R USB series resistors, HDMI +5V PTC fuse, test pads. The two
+  ferrite beads are dropped.
 
-See `bom.csv` and `hardware/hexpansion_bom.xlsx` for the current parts list.
+**Pin map changes from `HISTORY.md` §4.1.** It had no free GPIOs for three
+signals, so `LS_C`/`LS_D`/`LS_E` are left unconnected and their GPIOs reused:
+
+| GPIO | Now | Was |
+|---:|---|---|
+| 27 | SK6805 RGB LED data | `LS_C` (bootloader-entry idea) |
+| 28 | Badge-rail sense (ADC2, 100k/100k from `3V3_BADGE`) | `LS_D` spare |
+| 29 | HDMI +5V boost enable (100k pull-down) | `LS_E` spare |
+
+On the board, `HS_G`→GPIO22 (SCK) and `HS_H`→GPIO21 (CS). That's the
+crossing the bench needed for the badge's mirror driver on port 4. It's
+only been confirmed on port 4, so check hazanjon's `PORT_PINS` for the
+other ports before layout.
+
+**Firmware changes the PCB needs** (from `pio-testcard`): EEPROM emulation
+moves from GPIO4/5 to **GPIO24/25**, with its internal pull-ups *off*
+(they'd back-power an unpowered badge). The status NeoPixel moves to
+**GPIO27**. Set the flash size to 2 MB.
+
+**Open before layout:** the RUN pull-up can leak a little current into an
+unpowered badge through `LS_A` (R4, a 0R link). Decide whether to keep the
+badge-controlled reset, or fit R4 only when needed.

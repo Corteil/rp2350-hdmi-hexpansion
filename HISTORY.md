@@ -673,6 +673,7 @@ compatibility with the badge's current mirror driver.
 
 | Pin | Function |
 |------|----------|
+| — | **Update (2026-09-28, schematic v0.1):** GPIO27 = SK6805 data, GPIO28 = badge-rail sense, GPIO29 = HDMI boost enable. `LS_C`/`LS_D`/`LS_E` are left unconnected. `HS_G`/`HS_H` are crossed on the PCB (see above). The table below is otherwise unchanged. |
 | 0 | PSRAM chip select (QMI CS1 — GPIO0/8/19 are the only options on RP2350A, and 19 is taken by HSTX) |
 | 1 | Status LED (LED2) |
 | 2 | HDMI hot-plug detect, via 100k/100k divider from +5 V |
@@ -849,6 +850,13 @@ cannot inject current into an unpowered bus. SCK, MOSI and CS are inputs to us. 
 * **33 Ω series on each HS line.** It caps fault current and doubles as source-series
   termination, which 40 MHz edges want anyway.
 
+**Addendum (2026-09-28): pull resistors are a fifth backfeed path.** The E9 pull-ups in
+§4.6 must not go to `3V3_LOCAL` on any badge-facing line. An unpowered badge would be fed
+through them, just as through a driven GPIO. In schematic v0.1, badge-side pull-ups go to
+`3V3_BADGE` only; `BADGE_SDA`/`SCL` get none (the badge has its own); and firmware must
+not enable internal pull-ups on GPIO24/25. One path is still open: the RUN pull-up reaches
+`LS_A` through R4 (0R).
+
 #### USB-C sink requirements
 
 * **5k1 CC1/CC2 pulldowns.** Without them a Type-C source delivers nothing at all.
@@ -934,8 +942,16 @@ no cable.
 
 **Update (2026-09-28):** U1 is now the **RP2354A** (the RP2350A die with 2 MB of
 flash in the package), so U2, the external W25Q128, is removed. U3, the PSRAM, is
-now **DNP**: footprint only, for optional hand soldering. `bom.csv` has been updated
-to match; the table below is the original plan. See §10.
+now **DNP**: footprint only, for optional hand soldering. See §10.
+
+**Update (2026-09-28, schematic v0.1):** the schematic is drawn, and `bom.csv` is now
+generated from it with LCSC numbers for every part, so the table below is the original
+plan only. Differences: full-size **HDMI Type A** (J1); **one** Qwiic socket; **TLV62569**
+buck (the TPS62203 is 300 mA); the PSRAM part is the **APS6404L-3SQR-SN** (SOP-8), because
+the `-ZR` below is actually USON-8; the ferrite beads are gone; and the design guide's
+E9 pull-ups, crystal series resistor, USB series resistors, HDMI +5V PTC and test pads
+are added. That's about 107 JLC-assembled parts at about $5.63 a board (10-board tier).
+The README's Next step section has the details, including the §4.1 pin-map changes.
 
 Per board, 92 fitted placements (U8 is DNP and excluded from the totals). Prices are
 LCSC/JLCPCB indicative in USD *(est.)* — **verify at order time**,
