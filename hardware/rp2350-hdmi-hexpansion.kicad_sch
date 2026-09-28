@@ -14904,8 +14904,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b6081629-7535-5476-81c6-f4e12e0b15ec")
-		(property "Reference" "J1"
+		(uuid "ebcb2c03-2e57-5d86-bf0e-2287944ddf63")
+		(property "Reference" "J5"
 			(at 325.12 190.5 0)
 			(effects
 				(font
@@ -14978,7 +14978,7 @@
 		(instances
 			(project "rp2350-hdmi-hexpansion"
 				(path "/fb9bfa6e-c44d-469c-aa90-8ec28bcdf17f"
-					(reference "J1")
+					(reference "J5")
 					(unit 1)
 				)
 			)
@@ -14986,19 +14986,19 @@
 	)
 	(no_connect
 		(at 350.52 233.68)
-		(uuid "21738207-a0cc-5a49-b957-49a86d7df7e0")
+		(uuid "1139faeb-ee92-5df5-942a-b6b6903924fd")
 	)
 	(no_connect
 		(at 299.72 231.14)
-		(uuid "2ebaf1ad-eadc-59b3-a1fb-1b755fc5c9d7")
+		(uuid "6523cdc4-659e-5c0a-99a0-3fb4692b3202")
 	)
 	(no_connect
 		(at 350.52 228.6)
-		(uuid "811026cc-d3a3-5ce5-84ef-25f610b47ca1")
+		(uuid "4fafc5b8-6bf7-5704-a16d-70c2f9bc21df")
 	)
 	(no_connect
 		(at 299.72 226.06)
-		(uuid "d91f5b00-4cb6-5719-bfec-0fc37277d336")
+		(uuid "e106f5d2-01bb-5355-b15e-5fa83b56abca")
 	)
 	(symbol
 		(lib_id "jlc:TPD4E05U06DQAR_C138714")
@@ -15379,7 +15379,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "7acb244c-9302-4616-826d-21d1c8515c2d")
-		(property "Reference" "J6"
+		(property "Reference" "J1"
 			(at 312.42 312.42 0)
 			(effects
 				(font
@@ -15434,7 +15434,7 @@
 		(instances
 			(project "rp2350-hdmi-hexpansion"
 				(path "/fb9bfa6e-c44d-469c-aa90-8ec28bcdf17f"
-					(reference "J6")
+					(reference "J1")
 					(unit 1)
 				)
 			)
@@ -15442,15 +15442,15 @@
 	)
 	(no_connect
 		(at 325.12 327.66)
-		(uuid "2a9b80dd-4c4c-5483-806a-31c56520fe33")
+		(uuid "81ad2f17-25d8-5bcf-8b8c-0a8c363c5e4d")
 	)
 	(no_connect
 		(at 325.12 330.2)
-		(uuid "e564ee54-297d-5092-ac4a-a4f562aa74b0")
+		(uuid "b87238c7-ac42-5ab6-a934-367171189399")
 	)
 	(no_connect
 		(at 325.12 332.74)
-		(uuid "862c6bf5-80f5-57f8-8105-8637eab21ac4")
+		(uuid "e6b500c2-7469-562f-98b0-4cdc485bac2c")
 	)
 	(symbol
 		(lib_id "jlc:0402WGF330JTCE")
@@ -19755,7 +19755,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "79a0cae6-2226-59f3-a04f-e05252d4dccf")
+		(uuid "7c5628cc-b8f2-5e9a-8d2e-cabe531bd3f8")
 	)
 	(label "V5_HDMI"
 		(at 350.52 238.76 0)
@@ -19765,7 +19765,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "4191406a-a61c-53ff-ac30-0c0ee085d5ee")
+		(uuid "7c8d8e5b-501a-5abf-8459-0a63a74c075d")
 	)
 	(label "GND"
 		(at 299.72 236.22 180)
@@ -19775,7 +19775,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "a470d952-416d-57f7-8ae6-1cd4a67f0b5a")
+		(uuid "baad4410-e238-5115-9df2-86365c49e240")
 	)
 	(label "HDMI_CK_N"
 		(at 350.52 223.52 0)
@@ -19785,7 +19785,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "46d4967d-a13a-521d-954a-727a4fc16fd9")
+		(uuid "d0f8402e-88a2-5ec5-ab2d-8dd91c33d089")
 	)
 	(label "GND"
 		(at 299.72 220.98 180)
@@ -19795,7 +19795,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "9f3ca81a-f865-5169-8981-c2da4921fa7a")
+		(uuid "795e2e53-98c8-560e-afff-f821221da659")
 	)
 	(label "HDMI_CK_P"
 		(at 350.52 218.44 0)
@@ -19805,7 +19805,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "9f56bfe2-771c-5d08-8c4d-29a2cb095ce4")
+		(uuid "3a970b05-841d-543c-bbdc-e5174804ef8d")
 	)
 	(label "HDMI_D0_N"
 		(at 299.72 215.9 180)
@@ -19815,7 +19815,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "5c9e3326-d10b-5588-b8b8-2a2eba179793")
+		(uuid "eaebb4d2-38b7-5f6c-88de-49c34e01827d")
 	)
 	(label "GND"
 		(at 350.52 213.36 0)
@@ -19825,7 +19825,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "14024dd7-ebdf-5aa3-be28-a7c2c451417c")
+		(uuid "4fea1dec-9b43-57b2-9a55-0262480e5224")
 	)
 	(label "HDMI_D0_P"
 		(at 299.72 210.82 180)
@@ -19835,7 +19835,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "d69d58b8-df88-5db1-b4bc-93a29c6504ae")
+		(uuid "b76f8dab-0e53-5f93-a117-196420534e61")
 	)
 	(label "HDMI_D1_N"
 		(at 350.52 208.28 0)
@@ -19845,7 +19845,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "75821467-390d-5f97-a7ed-e51ac9340064")
+		(uuid "117af6c3-c19a-5acf-82c4-f35cba230a4d")
 	)
 	(label "GND"
 		(at 299.72 205.74 180)
@@ -19855,7 +19855,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "b0b15371-e8ea-5e62-b8c4-33097a5a9874")
+		(uuid "76905b04-8c3c-537c-b22e-8fdf29193fbe")
 	)
 	(label "HDMI_D1_P"
 		(at 350.52 203.2 0)
@@ -19865,7 +19865,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "b0bbc38e-70a8-5b19-bd75-730b3443a12f")
+		(uuid "6cc1d051-3769-52e2-9275-98f1ab2604fd")
 	)
 	(label "HDMI_D2_N"
 		(at 299.72 200.66 180)
@@ -19875,7 +19875,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "dca83558-8be0-5ff2-b490-ea16bdea2638")
+		(uuid "1eec520f-5775-5052-852f-ff3b5aebc237")
 	)
 	(label "GND"
 		(at 350.52 198.12 0)
@@ -19885,7 +19885,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "2550cedf-3e20-5d13-90a2-3c930a88d43f")
+		(uuid "d135402d-da3a-5fa7-a413-b5ac227764d9")
 	)
 	(label "HDMI_D2_P"
 		(at 299.72 195.58 180)
@@ -19895,7 +19895,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "30b1cf9c-5285-56a7-8d62-dd918f348e54")
+		(uuid "75645adc-17cd-517c-952b-b99f32a68668")
 	)
 	(label "GND"
 		(at 327.66 248.92 270)
@@ -19905,7 +19905,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "1c20cc38-47c9-5a24-b561-1f3e1829232f")
+		(uuid "0ee1c1e8-3a5a-5db2-9357-104f4f55b68e")
 	)
 	(label "GND"
 		(at 320.04 248.92 270)
@@ -19915,7 +19915,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "2c021f70-020c-5a66-9495-6f964f633ca4")
+		(uuid "af8e8620-6a97-5bdb-8be6-a110f7ce0e1e")
 	)
 	(label "GND"
 		(at 322.58 248.92 270)
@@ -19925,7 +19925,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "8db8dbd0-0699-575e-b4ab-8397a5a44356")
+		(uuid "031c5ccf-6550-527e-8a8f-1d14129ea9c3")
 	)
 	(label "GND"
 		(at 325.12 248.92 270)
@@ -19935,7 +19935,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "91c8403e-fc4b-54d3-9b28-06b63f0ebca3")
+		(uuid "bc7c3582-e016-524e-b9a6-6d82c4076166")
 	)
 	(label "HDMI_D2_P"
 		(at 382.27 195.58 180)
@@ -20185,7 +20185,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "ef9f0929-5e8b-5720-bd35-9494d4337064")
+		(uuid "b0bbc38e-70a8-5b19-bd75-730b3443a12f")
 	)
 	(label "BADGE_SCL"
 		(at 299.72 325.12 180)
@@ -20195,7 +20195,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "ccb04973-8a50-5c01-9510-b2f7b93c73a1")
+		(uuid "b0b15371-e8ea-5e62-b8c4-33097a5a9874")
 	)
 	(label "GND"
 		(at 299.72 347.98 180)
@@ -20205,7 +20205,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "93caa778-b24c-5a09-8e20-d2f605b9e158")
+		(uuid "75821467-390d-5f97-a7ed-e51ac9340064")
 	)
 	(label "GND"
 		(at 307.34 358.14 270)
@@ -20215,7 +20215,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "a36f5916-3a1c-5c6b-975c-4a53ff2530f5")
+		(uuid "9f56bfe2-771c-5d08-8c4d-29a2cb095ce4")
 	)
 	(label "GND"
 		(at 309.88 358.14 270)
@@ -20225,7 +20225,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "6b2b7fb1-c2df-5c0c-8755-f7ddc8fd37d4")
+		(uuid "9f3ca81a-f865-5169-8981-c2da4921fa7a")
 	)
 	(label "GND"
 		(at 312.42 358.14 270)
@@ -20235,7 +20235,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "b66f7440-9a3c-5233-b97f-6ae47bb17d1e")
+		(uuid "30b1cf9c-5285-56a7-8d62-dd918f348e54")
 	)
 	(label "GND"
 		(at 314.96 358.14 270)
@@ -20245,7 +20245,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "ae071800-cbe7-56e0-ad87-103ac14eeaf8")
+		(uuid "60cb7130-7169-5edb-aef7-c810f256ed20")
 	)
 	(label "GND"
 		(at 317.5 358.14 270)
@@ -20255,7 +20255,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "114719d7-155f-5a2e-8125-23f6c1202501")
+		(uuid "a470d952-416d-57f7-8ae6-1cd4a67f0b5a")
 	)
 	(label "GND"
 		(at 320.04 358.14 270)
@@ -20265,7 +20265,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "2e1abb08-d906-54ee-9928-b9c6198d90f8")
+		(uuid "2c021f70-020c-5a66-9495-6f964f633ca4")
 	)
 	(label "3V3_BADGE"
 		(at 325.12 317.5 0)
@@ -20275,7 +20275,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "190b708a-302f-52c3-b871-4375fd330940")
+		(uuid "46691347-66e1-5143-986c-d6cd6d56eeb7")
 	)
 	(label "3V3_BADGE"
 		(at 325.12 317.5 0)
@@ -20285,7 +20285,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "eb5985b0-f943-5beb-b48a-3073b3cb9fb3")
+		(uuid "53303b28-1cbc-5641-a5a8-ce80371db969")
 	)
 	(label "LS_A"
 		(at 325.12 322.58 0)
@@ -20295,7 +20295,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "f49f3965-fe24-5b1d-a64b-41443a8cdc2c")
+		(uuid "2550cedf-3e20-5d13-90a2-3c930a88d43f")
 	)
 	(label "LS_B"
 		(at 325.12 325.12 0)
@@ -20305,7 +20305,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "dc92eb8b-2af3-5f66-805a-889e42d47f5a")
+		(uuid "dca83558-8be0-5ff2-b490-ea16bdea2638")
 	)
 	(label "HS_F"
 		(at 325.12 337.82 0)
@@ -20315,7 +20315,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "8b930b11-f9e0-5c25-8e78-6a72a8ab4e53")
+		(uuid "46d4967d-a13a-521d-954a-727a4fc16fd9")
 	)
 	(label "HS_G"
 		(at 325.12 340.36 0)
@@ -20325,7 +20325,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "018c9926-b4f1-5a6b-bc09-275d4705afe0")
+		(uuid "a534af92-98b9-5c77-b1f3-63cc9f6f10cf")
 	)
 	(label "HS_H"
 		(at 325.12 342.9 0)
@@ -20335,7 +20335,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "f23c5e9e-945f-537d-a361-00d4f5fef69a")
+		(uuid "4191406a-a61c-53ff-ac30-0c0ee085d5ee")
 	)
 	(label "HS_I"
 		(at 325.12 345.44 0)
@@ -20345,7 +20345,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "cb1f41df-214c-55c5-a8f0-8347ac734664")
+		(uuid "79a0cae6-2226-59f3-a04f-e05252d4dccf")
 	)
 	(label "SPI_MOSI"
 		(at 361.95 314.96 0)

@@ -30,10 +30,10 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 29,R19,Resistor,200k,0402WGF2003TCE,C25764,R0402,1,Basic,0.0009,0.0009,,
 30,R20,Resistor,27k,0402WGF2702TCE,C25771,R0402,1,Preferred,0.0011,0.0011,,
 31,U4,Boost 3V3 -> 5V for HDMI pin 18,TPS61023DRLR,TPS61023DRLR,C919459,SOT-563_L1.6-W1.2-P0.50-LS1.6-BR,1,Extended,0.268,0.268,,
-32,J1,HDMI Type A receptacle,HDMI-A,HDMI-001 19PCBTP,C138388,HDMI-SMD_19P-P0.50-H-F,1,Extended,0.2332,0.2332,,Full-size HDMI Type A. Check fit on the board edge
+32,J5,HDMI Type A receptacle,HDMI-A,HDMI-001 19PCBTP,C138388,HDMI-SMD_19P-P0.50-H-F,1,Extended,0.2332,0.2332,,Full-size HDMI Type A. Check fit on the board edge
 33,"U6,U7",HDMI TMDS ESD (0.5 pF),TPD4E05U06,TPD4E05U06DQAR,C138714,USON-10_L2.5-W1.0-P0.50-BL,2,Extended,0.0819,0.1638,,
 34,C29,EEPROM decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,1,Basic,0.006,,DNP,DNP with U10
-35,J6,Hexpansion edge connector (PCB edge),Hexpansion-Connector,,,hexpansion-edge-connector,1,,,,,"PCB edge fingers, no part"
+35,J1,Hexpansion edge connector (PCB edge),Hexpansion-Connector,,,hexpansion-edge-connector,1,,,,,"PCB edge fingers, no part"
 36,U10,Hexpansion ID EEPROM (fallback),ZD24C64A (fallback),ZD24C64A-SSGMT,C2896793,SOP-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,0.1419,,DNP,DNP. Fit only if EEPROM emulation fails
 37,"H1,H2",Mounting holes,MountingHole,,,MountingHole_2.2mm_M2_Pad_Via,2,,,,,Bare pads
 38,"LED1,LED2",Power + status LEDs,PWR/STATUS,KT-0603R,C2286,LED-SMD_L1.6-W0.8-R-RD,2,Basic,0.0073,0.0146,,

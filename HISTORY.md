@@ -952,7 +952,9 @@ now **DNP**: footprint only, for optional hand soldering. See §10.
 
 **Update (2026-09-28, schematic v0.1):** the schematic is drawn, and `bom.csv` is now
 generated from it with LCSC numbers for every part, so the table below is the original
-plan only. Differences: full-size **HDMI Type A** (J1); **one** Qwiic socket; **TLV62569**
+plan only. Connector references in the schematic: J1 = hexpansion edge connector,
+J2 = USB-C, J3 = SWD, J4 = Qwiic, J5 = HDMI. Differences: full-size **HDMI Type A** (J5);
+**one** Qwiic socket; **TLV62569**
 buck (the TPS62203 is 300 mA); the PSRAM part is the **APS6404L-3SQR-SN** (SOP-8), because
 the `-ZR` below is actually USON-8; the ferrite beads are gone; and the design guide's
 crystal series resistor, USB series resistors, HDMI +5V PTC and test pads are added.
