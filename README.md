@@ -266,10 +266,21 @@ Changes from the `HISTORY.md` plan:
   the fit on the outer flat.
 - **One Qwiic socket** instead of two, to save edge space.
 - **TLV62569** 2 A buck instead of the TPS62203 (300 mA, poor stock).
-- Added the design guide's robustness parts: 10k external pull-ups on
-  RUN and BOOTSEL (RP2350-E9), RUN debounce cap, 1k crystal series
-  resistor, 27R USB series resistors, HDMI +5V PTC fuse, test pads. The two
-  ferrite beads are dropped.
+- **No HDMI DDC/EDID.** The output is always 640×480@60, which every
+  monitor must accept, so there's nothing to read. The PCA9306 and its six
+  passives are gone. Hot-plug detect stays (GPIO2).
+- **No microSD.** That frees the second side flat and GPIO5 and 8–11.
+  Spare GPIOs are now **3, 4, 5, 8, 9, 10, 11**, all left no-connect.
+- **Trimmed to the Raspberry Pi minimal design.** TMDS lines go straight
+  from GPIO12–19 to the ESD chips and socket, with no 0R insurance resistors,
+  as the bench has always run. There are 7 × 100 nF on 3.3 V (pins 44/45 and
+  53/54 share, as in Raspberry Pi's reference), no BOOTSEL pull-up (QSPI_SS
+  has one internally) and no RUN debounce cap. The ferrite beads are gone.
+- Kept from the design guide: the 1k crystal series resistor, 33R
+  VREG_AVDD filter, 27R USB series resistors and a 10k RUN pull-up (because
+  of the `LS_A` link). Also added: an HDMI +5V PTC fuse and test pads.
+- Result: **78 JLC-placed parts, about $5.01 a board** at the 10-board price
+  tier (24 capacitors, 32 resistors).
 
 **Pin map changes from `HISTORY.md` §4.1.** It had no free GPIOs for three
 signals, so `LS_C`/`LS_D`/`LS_E` are left unconnected and their GPIOs reused:

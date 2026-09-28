@@ -673,7 +673,7 @@ compatibility with the badge's current mirror driver.
 
 | Pin | Function |
 |------|----------|
-| — | **Update (2026-09-28, schematic v0.1):** GPIO27 = SK6805 data, GPIO28 = badge-rail sense, GPIO29 = HDMI boost enable. `LS_C`/`LS_D`/`LS_E` are left unconnected. `HS_G`/`HS_H` are crossed on the PCB (see above). The table below is otherwise unchanged. |
+| — | **Update (2026-09-28, schematic v0.1):** GPIO27 = SK6805 data, GPIO28 = badge-rail sense, GPIO29 = HDMI boost enable. `LS_C`/`LS_D`/`LS_E` are left unconnected. `HS_G`/`HS_H` are crossed on the PCB (see above). DDC and microSD are dropped, so **GPIO3, 4, 5 and 8–11 are spare**. The table below is otherwise unchanged. |
 | 0 | PSRAM chip select (QMI CS1 — GPIO0/8/19 are the only options on RP2350A, and 19 is taken by HSTX) |
 | 1 | Status LED (LED2) |
 | 2 | HDMI hot-plug detect, via 100k/100k divider from +5 V |
@@ -874,7 +874,8 @@ not enable internal pull-ups on GPIO24/25. One path is still open: the RUN pull-
 * **TMDS drive.** The Pico DVI Sock / Adafruit HSTX-DVI approach — GPIOs driven directly
   into the sink's 50 Ω terminations with drive strength set to 12 mA, no buffers — is
   proven and is what we use. Series-resistor footprints stay on the board as 0 Ω, as
-  insurance.
+  insurance. *(2026-09-28: dropped. The bench has always driven TMDS directly, and the
+  eight footprints cost space next to the socket.)*
 * **HDMI +5 V** must be supplied to the sink, 55 mA minimum, or many monitors
   will not present EDID. Boost it, and gate the boost's EN pin from a GPIO so it comes
   up *after* firmware, not during inrush.
@@ -949,8 +950,11 @@ generated from it with LCSC numbers for every part, so the table below is the or
 plan only. Differences: full-size **HDMI Type A** (J1); **one** Qwiic socket; **TLV62569**
 buck (the TPS62203 is 300 mA); the PSRAM part is the **APS6404L-3SQR-SN** (SOP-8), because
 the `-ZR` below is actually USON-8; the ferrite beads are gone; and the design guide's
-E9 pull-ups, crystal series resistor, USB series resistors, HDMI +5V PTC and test pads
-are added. That's about 107 JLC-assembled parts at about $5.63 a board (10-board tier).
+crystal series resistor, USB series resistors, HDMI +5V PTC and test pads are added.
+A later trim the same day removed **U5 (PCA9306) and all of DDC/EDID**, because the
+output is fixed at 640×480; removed the **0 Ω TMDS resistors** (see §4.6); and cut the
+decoupling to Raspberry Pi's minimal design. **microSD (J6) was then dropped too**
+(see §10). Result: 78 JLC-placed parts, about $5.01 a board at the 10-board tier.
 The README's Next step section has the details, including the §4.1 pin-map changes.
 
 Per board, 92 fitted placements (U8 is DNP and excluded from the totals). Prices are
@@ -1486,11 +1490,11 @@ primary mode.
 | Flash / MCU package (2026-09-28) | **RP2354A** in place of RP2350A + W25Q128. It's the same die and QFN-60 pinout, so the §4.1 pin map is unchanged; the in-package 2 MB flash sits on QSPI CS0. That removes a SOIC-8 and its routing from a board with no slack. 2 MB is ample, since the largest firmware build is about 260 KB. The QSPI pins still come out of the package, so the PSRAM on CS1/GPIO0 works as planned, but an external flash on CS0 can't be added alongside the internal one. |
 | PSRAM (2026-09-28) | **APS6404L footprint kept, not assembled (DNP)**: hand-solder if wanted. Phase 0 B1/B2 (§3.2, §8) showed a PSRAM-backed framebuffer isn't needed for the mirror path. The 10k pull-up on CS1 stays fitted regardless, and firmware detects PSRAM at boot. |
 | Board size | **44 mm across flats** (was the 32 mm template). Smallest size where mini-HDMI and USB-C fit on the outer flat. Costs ~$2/board. |
-| microSD | **Back in**, on SPI1 GPIO8–11, on the second side flat. First thing to cut if the placement study fails. |
+| microSD | **Back in**, on SPI1 GPIO8–11, on the second side flat. First thing to cut if the placement study fails. *(2026-09-28: **dropped** from schematic v0.1. It frees the second side flat and GPIO5 and 8–11, and eases the space taken by the full-size HDMI socket.)* |
 
 ### Still open
 
 * **Run size.** The fixed-cost curve in §7 says 50 if there is any chance of 50.
 * **Whether the outer flat closes at 44 mm**, or the board wants the wedge outline. Decided by the placement study, not now.
 * **Whether ctx drawlist forwarding is viable** — **measured (Phase 0 B1, §3.2): not for animation** (2.9 fps typical / 0.7 fps worst case). Occasional static-content redraws still plausible; not settled. LGPL-3.0+ review still outstanding. Not on the v1 path.
-* **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant. *(2026-09-28: flash is now 2 MB with the RP2354A, which strengthens the case for keeping microSD if assets are ever needed.)*
+* **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant. *(2026-09-28: flash is now 2 MB with the RP2354A, which strengthens the case for keeping microSD if assets are ever needed.)* **Resolved 2026-09-28: dropped.** Mirroring needs no storage.

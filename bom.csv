@@ -1,14 +1,14 @@
 Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boards,ExtUSD,DNP,Notes
-1,"C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12,C19,C20,C27,C28,C30,C32",Decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,18,Basic,0.006,0.108,,
-2,"C13,C14,C15,C31",Regulator caps,4.7uF,CL05A475MP5NRNC,C23733,C0402,4,Basic,0.0192,0.0768,,
+1,"C1,C2,C3,C4,C5,C6,C7,C10,C11,C12,C20,C32",Decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,12,Basic,0.006,0.072,,
+2,"C13,C14,C15",Regulator caps,4.7uF,CL05A475MP5NRNC,C23733,C0402,3,Basic,0.0192,0.0576,,
 3,"C16,C21,C23,C25",Bulk / regulator caps,10uF,CL10A106KP8NNNC,C19702,C0603,4,Basic,0.0824,0.3296,,
 4,"C17,C18",Crystal load caps,15pF,0402CG150J500NT,C1548,C0402,2,Basic,0.0022,0.0044,,
 5,J3,SWD debug (RPi 3-pin),SWD,BM03B-SRSS-TB(LF)(SN),C160389,CONN-SMD-3P-P1.00_BM03B-SRSS-TB-LF-SN,1,Extended,0.2686,0.2686,,Vertical (top-entry) JST-SH
 6,L1,RP2350 core regulator inductor,3.3uH,AOTA-B201610S3R3-101-T,C42411119,IND-SMD_L2.0-W1.6_AOTA-B201610S3R3-101-T,1,Extended,0.2822,0.2822,,Part named in the RP2350 hardware design guide
 7,"R1,R36,R37,R38,R39",Resistor,33R,0402WGF330JTCE,C25105,R0402,5,Basic,0.001,0.005,,
 8,"R2,R6,R40,R51",Resistor,1k,0402WGF1001TCE,C11702,R0402,4,Basic,0.0011,0.0044,,
-9,"R3,R5,R7,R41,R42,R43,R44,R45,R46,R47",Resistor,10k,0402WGF1002TCE,C25744,R0402,10,Basic,0.0029,0.029,,
-10,"R4,R21,R22,R23,R24,R25,R26,R27,R28",Resistor,0R,0402WGF0000TCE,C17168,R0402,9,Basic,0.0011,0.0099,,R4 = LS_A to RUN link (see schematic notes)
+9,"R3,R7,R41",Resistor,10k,0402WGF1002TCE,C25744,R0402,3,Basic,0.0029,0.0087,,
+10,R4,Resistor,0R,0402WGF0000TCE,C17168,R0402,1,Basic,0.0011,0.0011,,R4 = LS_A to RUN link (see schematic notes)
 11,"SW1,SW2",BOOTSEL + RESET buttons,BOOTSEL/RESET,TS-1088-AR02016,C720477,SW-SMD_L3.9-W3.0-P4.45,2,Basic,0.0557,0.1114,,
 12,U1,"Microcontroller, 2 MB flash in package",RP2354A,RP2354A,C41378174,QFN-60_L7.0-W7.0-P0.40-TL-EP3.4,1,Extended,1.3097,1.3097,,Unit price from JLC list; you quoted GBP 1.00
 13,U9,QSPI PSRAM 8 MB (hand-solder),APS6404L-3SQR-SN,APS6404L-3SQR-SN,C5333729,SOIC-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,4.3423,,DNP,DNP. SOP-8 3.3 V part (the -ZR is USON-8). Buy separately for hand soldering
@@ -27,25 +27,22 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 26,U2,"Power mux, USB priority, reverse blocking",TPS2116DRLR,TPS2116DRLR,C3235557,SOT-583-8_L2.1-W1.6-P0.50-LS1.6-BL,1,Extended,0.5491,0.5491,,
 27,F1,HDMI +5V resettable fuse,200mA PTC,JK-SMD0805-020-30V,C516070,F0805,1,Extended,0.031,0.031,,
 28,L3,Boost inductor,1uH,FTC252010S1R0MBCA,C5832356,IND-SMD_L2.5-W2.0_FTC252010S,1,Extended,0.0396,0.0396,,
-29,"R19,R29",Resistor,200k,0402WGF2003TCE,C25764,R0402,2,Basic,0.0009,0.0018,,
+29,R19,Resistor,200k,0402WGF2003TCE,C25764,R0402,1,Basic,0.0009,0.0009,,
 30,R20,Resistor,27k,0402WGF2702TCE,C25771,R0402,1,Preferred,0.0011,0.0011,,
 31,U4,Boost 3V3 -> 5V for HDMI pin 18,TPS61023DRLR,TPS61023DRLR,C919459,SOT-563_L1.6-W1.2-P0.50-LS1.6-BR,1,Extended,0.268,0.268,,
 32,J1,HDMI Type A receptacle,HDMI-A,HDMI-001 19PCBTP,C138388,HDMI-SMD_19P-P0.50-H-F,1,Extended,0.2332,0.2332,,Full-size HDMI Type A. Check fit on the board edge
-33,"R30,R31,R48,R49,R50",Resistor,4.7k,0402WGF4701TCE,C25900,R0402,5,Basic,0.0011,0.0055,,
-34,"R32,R33",Resistor,2k,0402WGF2001TCE,C4109,R0402,2,Basic,0.0008,0.0016,,
-35,U5,HDMI DDC level shifter,PCA9306DCUR,PCA9306DCUR,C33196,SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR,1,Extended,0.3319,0.3319,,
-36,"U6,U7",HDMI TMDS ESD (0.5 pF),TPD4E05U06,TPD4E05U06DQAR,C138714,USON-10_L2.5-W1.0-P0.50-BL,2,Extended,0.0819,0.1638,,
-37,C29,EEPROM decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,1,Basic,0.006,,DNP,DNP with U10
-38,J6,Hexpansion edge connector (PCB edge),Hexpansion-Connector,,,hexpansion-edge-connector,1,,,,,"PCB edge fingers, no part"
-39,U10,Hexpansion ID EEPROM (fallback),ZD24C64A (fallback),ZD24C64A-SSGMT,C2896793,SOP-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,0.1419,,DNP,DNP. Fit only if EEPROM emulation fails
-40,J4,Qwiic,Qwiic,SM04B-SRSS-TB(LF)(SN),C160404,CONN-SMD_4P-P1.00_SM04B-SRSS-TB-LF-SN,1,Extended,0.2262,0.2262,,
-41,J5,microSD socket,microSD,TF-01A,C91145,TF-SMD_TF-01A,1,Extended,0.192,0.192,,
-42,JP1,Qwiic pull-up solder jumper,Qwiic pull-ups,,,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,1,,,,,"Bare copper jumper, cut to remove Qwiic pull-ups"
-43,"H1,H2",Mounting holes,MountingHole,,,MountingHole_2.2mm_M2_Pad_Via,2,,,,,Bare pads
-44,"LED1,LED2",Power + status LEDs,PWR/STATUS,KT-0603R,C2286,LED-SMD_L1.6-W0.8-R-RD,2,Basic,0.0073,0.0146,,
-45,LED3,RGB status LED,SK6805,SK6805MICRO-J,C2909056,LED-SMD_4P-L2.7-W2.4_SK6805MICRO-J,1,Extended,0.0899,0.0899,,
-46,R52,Resistor,330R,0402WGF3300TCE,C25104,R0402,1,Basic,0.0012,0.0012,,
-47,TP1,Test pad,+3V3,,,TestPoint_Pad_D1.0mm,1,,,,,Bare pads
-48,TP2,Test pad,V5_HDMI,,,TestPoint_Pad_D1.0mm,1,,,,,
-49,TP3,Test pad,GND,,,TestPoint_Pad_D1.0mm,1,,,,,
-,,"Totals per board: fitted, JLC-assembled parts only",,,,,107,,,5.63,,Unit prices at the 10-board quantity tier
+33,"U6,U7",HDMI TMDS ESD (0.5 pF),TPD4E05U06,TPD4E05U06DQAR,C138714,USON-10_L2.5-W1.0-P0.50-BL,2,Extended,0.0819,0.1638,,
+34,C29,EEPROM decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,1,Basic,0.006,,DNP,DNP with U10
+35,J6,Hexpansion edge connector (PCB edge),Hexpansion-Connector,,,hexpansion-edge-connector,1,,,,,"PCB edge fingers, no part"
+36,U10,Hexpansion ID EEPROM (fallback),ZD24C64A (fallback),ZD24C64A-SSGMT,C2896793,SOP-8_L4.9-W3.9-P1.27-LS6.0-BL,1,Extended,0.1419,,DNP,DNP. Fit only if EEPROM emulation fails
+37,"H1,H2",Mounting holes,MountingHole,,,MountingHole_2.2mm_M2_Pad_Via,2,,,,,Bare pads
+38,"LED1,LED2",Power + status LEDs,PWR/STATUS,KT-0603R,C2286,LED-SMD_L1.6-W0.8-R-RD,2,Basic,0.0073,0.0146,,
+39,LED3,RGB status LED,SK6805,SK6805MICRO-J,C2909056,LED-SMD_4P-L2.7-W2.4_SK6805MICRO-J,1,Extended,0.0899,0.0899,,
+40,R52,Resistor,330R,0402WGF3300TCE,C25104,R0402,1,Basic,0.0012,0.0012,,
+41,TP1,Test pad,+3V3,,,TestPoint_Pad_D1.0mm,1,,,,,Bare pads
+42,TP2,Test pad,V5_HDMI,,,TestPoint_Pad_D1.0mm,1,,,,,
+43,TP3,Test pad,GND,,,TestPoint_Pad_D1.0mm,1,,,,,
+44,J4,Qwiic,Qwiic,SM04B-SRSS-TB(LF)(SN),C160404,CONN-SMD_4P-P1.00_SM04B-SRSS-TB-LF-SN,1,Extended,0.2262,0.2262,,
+45,JP1,Qwiic pull-up solder jumper,Qwiic pull-ups,,,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,1,,,,,"Bare copper jumper, cut to remove Qwiic pull-ups"
+46,"R48,R49,R50",Resistor,4.7k,0402WGF4701TCE,C25900,R0402,3,Basic,0.0011,0.0033,,
+,,"Totals per board: fitted, JLC-assembled parts only",,,,,78,,,5.01,,Unit prices at the 10-board quantity tier
