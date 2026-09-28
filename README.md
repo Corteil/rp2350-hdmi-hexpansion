@@ -52,11 +52,13 @@ schematic is drafted in `hardware/`; layout hasn't started (see
 Bench rig: an Adafruit Metro RP2350 (SPI0 slave on GPIO20–23, HSTX on
 GPIO12–19), wired to a real hexpansion port on an EMF Tildagon badge.
 
-**Port 4 wiring gotcha:** hazanjon's badge-side `PORT_PINS` table for port 4
-puts SCK on `HS_G` and CS on `HS_H` — the opposite of this project's own
-`HS_G`=CS / `HS_H`=SCK convention. For a real mirror test on port 4, wire
+**HS wiring gotcha (all ports):** hazanjon's badge-side `PORT_PINS` table
+puts SCK on `HS_G` and CS on `HS_H`, the opposite of this project's original
+`HS_G`=CS / `HS_H`=SCK convention. For a real mirror test, wire
 `HS_F`→GPIO20, `HS_G`→GPIO22, `HS_H`→GPIO21, `HS_I`→GPIO23 at the RP2350 end.
-See `HISTORY.md` §4.1 for the full derivation and why the two sides disagree.
+First found on port 4, since tested on all six ports; the PCB is wired this
+way. See `HISTORY.md` §4.1 for the full derivation and why the two sides
+disagree.
 
 VID/PID assigned for the eventual EEPROM-emulating hexpansion: `0x1969` /
 `0x4544`.
@@ -292,9 +294,7 @@ signals, so `LS_C`/`LS_D`/`LS_E` are left unconnected and their GPIOs reused:
 | 29 | HDMI +5V boost enable (100k pull-down) | `LS_E` spare |
 
 On the board, `HS_G`→GPIO22 (SCK) and `HS_H`→GPIO21 (CS). That's the
-crossing the bench needed for the badge's mirror driver on port 4. It's
-only been confirmed on port 4, so check hazanjon's `PORT_PINS` for the
-other ports before layout.
+crossing the badge's mirror driver needs, **tested on all six ports**.
 
 **Firmware changes the PCB needs** (from `pio-testcard`): EEPROM emulation
 moves from GPIO4/5 to **GPIO24/25**, with its internal pull-ups *off*

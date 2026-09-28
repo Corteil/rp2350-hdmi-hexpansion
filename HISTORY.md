@@ -671,6 +671,9 @@ count, and CS showed a clean, correctly-scaled edge count. **Wire `HS_F`→20, `
 documents this project's own original intent, not what actually needs to be wired for
 compatibility with the badge's current mirror driver.
 
+**Update (2026-09-29):** the same crossing has now been tested on **all six ports**, not
+just port 4, so the PCB wires `HS_G`→GPIO22 and `HS_H`→GPIO21 unconditionally.
+
 | Pin | Function |
 |------|----------|
 | — | **Update (2026-09-28, schematic v0.1):** GPIO27 = SK6805 data, GPIO28 = badge-rail sense, GPIO29 = HDMI boost enable. `LS_C`/`LS_D`/`LS_E` are left unconnected. `HS_G`/`HS_H` are crossed on the PCB (see above). DDC and microSD are dropped, so **GPIO3, 4, 5 and 8–11 are spare**. The table below is otherwise unchanged. |
