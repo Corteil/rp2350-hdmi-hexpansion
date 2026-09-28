@@ -932,6 +932,11 @@ no cable.
 
 ## 6. Bill of materials
 
+**Update (2026-09-28):** U1 is now the **RP2354A** (the RP2350A die with 2 MB of
+flash in the package), so U2, the external W25Q128, is removed. U3, the PSRAM, is
+now **DNP**: footprint only, for optional hand soldering. `bom.csv` has been updated
+to match; the table below is the original plan. See §10.
+
 Per board, 92 fitted placements (U8 is DNP and excluded from the totals). Prices are
 LCSC/JLCPCB indicative in USD *(est.)* — **verify at order time**,
 they move constantly and the RP2350A in particular has swung between $1.03 and $1.71.
@@ -1462,6 +1467,8 @@ primary mode.
 | Qwiic | **Two JST-SH 4-pin sockets in parallel** on hardware I2C1 (GPIO6/7), with jumper-removable 4k7 pull-ups. Both on side flat A. |
 | Badge power | **The hexpansion never powers the badge** — not in normal use, not during hot-plug, not under a single-component failure. Enforced by the TPS2116 mux and firmware tri-stating, not by convention. |
 | MCU variant | **RP2350A (QFN-60).** The B halves the pin pressure but doubles package area on a board with no slack, and adds no peripherals. Recorded as the fallback, not pursued further — Phase 0 B3 deliberately skipped populating the Feather's PSRAM footprint to run a direct A-vs-B comparison (§8), a decision made rather than an oversight, since A2/A1/A3/A4 already confirm the A map works on real silicon and the B was only ever the fallback. |
+| Flash / MCU package (2026-09-28) | **RP2354A** in place of RP2350A + W25Q128. It's the same die and QFN-60 pinout, so the §4.1 pin map is unchanged; the in-package 2 MB flash sits on QSPI CS0. That removes a SOIC-8 and its routing from a board with no slack. 2 MB is ample, since the largest firmware build is about 260 KB. The QSPI pins still come out of the package, so the PSRAM on CS1/GPIO0 works as planned, but an external flash on CS0 can't be added alongside the internal one. |
+| PSRAM (2026-09-28) | **APS6404L footprint kept, not assembled (DNP)**: hand-solder if wanted. Phase 0 B1/B2 (§3.2, §8) showed a PSRAM-backed framebuffer isn't needed for the mirror path. The 10k pull-up on CS1 stays fitted regardless, and firmware detects PSRAM at boot. |
 | Board size | **44 mm across flats** (was the 32 mm template). Smallest size where mini-HDMI and USB-C fit on the outer flat. Costs ~$2/board. |
 | microSD | **Back in**, on SPI1 GPIO8–11, on the second side flat. First thing to cut if the placement study fails. |
 
@@ -1470,4 +1477,4 @@ primary mode.
 * **Run size.** The fixed-cost curve in §7 says 50 if there is any chance of 50.
 * **Whether the outer flat closes at 44 mm**, or the board wants the wedge outline. Decided by the placement study, not now.
 * **Whether ctx drawlist forwarding is viable** — **measured (Phase 0 B1, §3.2): not for animation** (2.9 fps typical / 0.7 fps worst case). Occasional static-content redraws still plausible; not settled. LGPL-3.0+ review still outstanding. Not on the v1 path.
-* **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant.
+* **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant. *(2026-09-28: flash is now 2 MB with the RP2354A, which strengthens the case for keeping microSD if assets are ever needed.)*

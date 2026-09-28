@@ -15,7 +15,7 @@ This file covers what's true *now*.
 hardware** — not just clean logs, actual moving content on a monitor. Current
 firmware is `firmware/pio-testcard/`, running on an **Adafruit Metro RP2350**
 dev board wired to a real badge hexpansion port; the custom hexpansion PCB
-itself hasn't been designed yet (see [Next step](#next-step)).
+design has only just started, in `hardware/` (see [Next step](#next-step)).
 
 - Badge side: `display.attach_mirror()`, from a fork of
   [hazanjon/badge-2024-software](https://github.com/hazanjon/badge-2024-software)
@@ -42,6 +42,8 @@ itself hasn't been designed yet (see [Next step](#next-step)).
 | `firmware/phase0-*/` | Individual bring-up experiments from early de-risking (HSTX/DVI basics, colour-channel fix, SPI speed sweep, EEPROM emulation, ctx rasterisation benchmark, microSD). Each has its own README. |
 | `hdmi-mirror-plan.md` | Implementation notes for switching to hazanjon's real `attach_mirror()` protocol (SPI mode, byte order, per-port pin overrides). Completed; kept for reference. |
 | `HISTORY.md` | The full design journal — rationale, bench measurements, BOM, costing, risk register, phase plan. Read this for *why*, not *what's true now*. |
+| `hardware/` | KiCad 10 project for the hexpansion PCB (started from the EMF Camp hexpansion template; schematic in progress) and `hexpansion_bom.xlsx`, the JLCPCB assembly BOM tracker. |
+| `tildagon-base/` | Tildagon KiCad symbol and footprint library (hexpansion edge connector etc.), used by `hardware/`. |
 | `bom.csv` | Machine-readable bill of materials for the planned PCB (not yet built). |
 
 ## Hardware today
@@ -61,7 +63,8 @@ VID/PID assigned for the eventual EEPROM-emulating hexpansion: `0x1969` /
 ### Alternative bench board: Adafruit Feather RP2350 + HSTX (builds, not yet tested on hardware)
 
 Build with `-DHEXI_BOARD=feather` (see [Building and flashing](#building-and-flashing)).
-The Feather is an RP2350A, the chip variant the real hexpansion targets, and
+The Feather is an RP2350A: the same die as the RP2354A the real hexpansion
+uses (the RP2354A just adds 2 MB of flash in the package), and
 its 22-pin HSTX FPC connector carries GPIO12–19 in the same lane order the
 firmware already uses. So video needs no changes: plug in the same DVI
 breakout and FPC cable as on the Metro.
@@ -235,3 +238,17 @@ Designing the actual hexpansion PCB (44 mm hexagon, EEPROM emulation, USB-C +
 HDMI power isolation) — the whole plan for it, including the pin map, power
 architecture, BOM, and costing this bench work was de-risking, is in
 [`HISTORY.md`](HISTORY.md).
+
+The KiCad project has been started in `hardware/`. Changes from the
+`HISTORY.md` plan so far (2026-09-28):
+
+- **MCU is the RP2354A**, not the RP2350A: the same die and QFN-60 pinout,
+  with 2 MB of flash in the package on QSPI CS0. There's no external flash
+  chip (the W25Q128 is gone). 2 MB is plenty: the largest firmware build is
+  about 260 KB. Build with `PICO_FLASH_SIZE_BYTES` set to 2 MB.
+- **The APS6404L PSRAM is footprint-only (DNP)**, for optional hand
+  soldering (SOP-8). It stays on QSPI CS1 = GPIO0, with a 10k pull-up on
+  CS that is fitted even when the PSRAM isn't, so firmware must detect it
+  at boot rather than assume it.
+
+See `bom.csv` and `hardware/hexpansion_bom.xlsx` for the current parts list.

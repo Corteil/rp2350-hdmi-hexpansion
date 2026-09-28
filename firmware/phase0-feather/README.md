@@ -1,9 +1,11 @@
 # Phase 0, Part A / B3 — Adafruit Feather RP2350 (+ HSTX) bring-up
 
 Bench firmware for the Feather in the design's [Phase 0
-plan](../../README.md#phase-0--de-risk-on-the-bench-23-weekends) —
+plan](../../HISTORY.md#phase-0--de-risk-on-the-bench-23-weekends) —
 RP2350A, the chip variant the actual hexpansion design targets (see
-README §4.1, "Why the RP2350A and not the B").
+`HISTORY.md` §4.1, "Why the RP2350A and not the B"). The PCB now uses the
+RP2354A, which is the same RP2350A die with 2 MB of flash in the package,
+so this bench is still representative.
 
 Board: **Adafruit Feather RP2350 (+ HSTX)**, RP2350A, no PSRAM populated
 by default (DNP footprint) unless someone's soldered an APS6404L onto it.
@@ -90,7 +92,7 @@ worked as designed: toolchain/board bring-up on real RP2350A silicon,
 USB-CDC-wait logic, and both benchmarks skipping themselves cleanly with
 a clear reason rather than hanging or crashing. No RP2350A vs. RP2350B
 PSRAM/ctx comparison numbers without either populating the DNP PSRAM
-footprint with an APS6404L (~$1.15, BOM line 3 — see main README §8's
+footprint with an APS6404L (~$1.15, BOM line 3 — see `HISTORY.md` §8's
 Phase 0 rig note) or accepting that this comparison isn't available on
 this board as-is.
 
