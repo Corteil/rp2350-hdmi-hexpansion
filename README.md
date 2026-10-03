@@ -9,12 +9,15 @@ For the full design rationale, bench measurements, BOM, costing, and the
 phase-by-phase delivery plan that got here, see [`HISTORY.md`](HISTORY.md).
 This file covers what's true *now*.
 
-## Status (2026-09-20)
+## Status (2026-10-03)
 
 **Real mirroring and stable HSTX video work together, confirmed on real
 hardware** — not just clean logs, actual moving content on a monitor. Current
 firmware is `firmware/pio-testcard/`, running on an **Adafruit Metro RP2350**
-dev board wired to a real badge hexpansion port. The custom hexpansion PCB's
+dev board wired to a real badge hexpansion port, and since 2026-10-03 also on
+a **Raspberry Pi Pico 2 + Adafruit DVI Sock** (`-DHEXI_BOARD=pico2`, see
+[its section](#alternative-bench-board-raspberry-pi-pico-2--adafruit-dvi-sock-tested)),
+powered straight from the badge's 3V3. The custom hexpansion PCB's
 schematic is drafted in `hardware/`; layout hasn't started (see
 [Next step](#next-step)).
 
@@ -22,16 +25,22 @@ schematic is drafted in `hardware/`; layout hasn't started (see
   [hazanjon/badge-2024-software](https://github.com/hazanjon/badge-2024-software)
   PR #454, with three real bugs found and fixed (SPI acquire-bus timeout, a
   non-idempotent display init that froze the badge's own screen, and an
-  SPI-host/GPIO-pin ordering bug). Fixes are up as
-  [hazanjon/badge-2024-software#1](https://github.com/hazanjon/badge-2024-software/pull/1),
-  not yet merged upstream.
+  SPI-host/GPIO-pin ordering bug). Fixes were merged into hazanjon's
+  `feature/hdmi-mirror` branch as
+  [hazanjon/badge-2024-software#1](https://github.com/hazanjon/badge-2024-software/pull/1);
+  that branch was rebuilt and flashed to the badge on 2026-10-03 and the
+  mirror was confirmed working with the Pico 2.
 - RP2350 side: a from-scratch PIO-based SPI0 slave receiver (the hardware
   SPI0/PL022 peripheral loses byte alignment mid-burst on this chip and never
   recovers), double-buffered HSTX/DVI scanout, and a grey-to-black vignette
   fade on the pillarbox/mask area around the circular content.
-- Known, understood, non-blocking: ~12% of frames get abandoned when the badge
-  starts a new frame before the RP2350 finishes the previous one — benign,
-  fully instrumented, not a bug to fix.
+- Known, understood, non-blocking: ~12% of frames (Metro) to ~18% (Pico 2,
+  one sample) get abandoned when the badge starts a new frame before the
+  RP2350 finishes the previous one — benign, fully instrumented, not a bug
+  to fix.
+- Known, benign: on the Pico 2 each port insertion resets the board twice
+  about 2 s apart (likely the badge power-cycling the port); the mirror
+  re-attaches by itself.
 
 ## Repo layout
 
