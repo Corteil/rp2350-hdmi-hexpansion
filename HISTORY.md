@@ -45,7 +45,7 @@ Pads 1–10 are on the bottom copper, 11–20 on the top copper.
 
 Source: `hexpansion/hexpansion.kicad_sch` (`emfcamp/badge-2024-hardware`), the
 `hexpansion-edge-connector_1_1` symbol's own pin definitions — re-verified
-2026-08-30 directly against that file after the table previously here had pads
+30/08/26 directly against that file after the table previously here had pads
 4–10 shifted by 3 positions from the real schematic (an error introduced at
 some earlier point in this document, not caught until cross-checked against
 source while preparing to physically wire a protoboard hexpansion). If wiring
@@ -152,7 +152,7 @@ runs the app it finds there. Block size is 512 bytes for EEPROMs ≥ 8 KiB.
 VID/PID have to be requested from the badge team ("UHB-IF") — **do this early**, it is
 the one item with an external dependency and zero cost.
 
-**Assigned (2026-08-30): VID `0x1969`, PID `0x4544`.** In use since — see `firmware/testcard/`
+**Assigned (30/08/26): VID `0x1969`, PID `0x4544`.** In use since — see `firmware/testcard/`
 for the first firmware built around the real identity, confirmed enumerating correctly on
 real hardware.
 
@@ -608,7 +608,7 @@ Every peripheral group below was checked against the RP2350's pin-mux tables —
 and I2C0/I2C1 can only appear on fixed pin groups, and that, not pin count, is what
 constrains this map.
 
-**Correction (2026-08-30):** the SPI0/GPIO20–23 row below originally listed a role
+**Correction (30/08/26):** the SPI0/GPIO20–23 row below originally listed a role
 assignment (SCK/MOSI/MISO/CS in GPIO order) that turned out not to match RP2350 silicon.
 Found while preparing to physically wire a hexpansion devkit for Phase 0 A2, and verified
 against the authoritative source — the `FUNCSEL` enum values in `RP2350.svd` (Raspberry
@@ -625,7 +625,7 @@ is fixed by silicon and doesn't match what was assumed:
 | 22 | MISO | `spi0_sclk` (= SCK) |
 | 23 | CS | `spi0_tx` (= MISO, slave transmits to master on TX) |
 
-**Resolved (2026-08-30):** initially thought this needed discovering a fixed badge-side
+**Resolved (30/08/26):** initially thought this needed discovering a fixed badge-side
 SCK/MOSI/MISO/CS assignment for `HS_F`/`HS_G`/`HS_H`/`HS_I`, but it doesn't — per §1.2, the
 badge's HS lines are **matrix-routed (not IOMUX) on the ESP32-S3**, meaning the badge's own
 firmware can assign any SPI role to any HS pin, in software, per hexpansion. Confirmed by
@@ -644,7 +644,7 @@ project makes its own choice too, matched by badge-side driver code written for 
 | `HS_H` | 22 | SCK (`spi0_sclk`) |
 | `HS_I` | 23 | MISO (`spi0_tx`) |
 
-**IMPORTANT correction (2026-09-19), found the hard way while wiring for a real mirror
+**IMPORTANT correction (19/09/26), found the hard way while wiring for a real mirror
 test:** the table above is this project's own free choice for the RP2350 side, but it does
 **not** automatically agree with hazanjon's actual badge-side driver
 (`flow3r_bsp_display_mirror.c`'s `PORT_PINS`), which real mirroring on this project ended up
@@ -671,12 +671,12 @@ count, and CS showed a clean, correctly-scaled edge count. **Wire `HS_F`→20, `
 documents this project's own original intent, not what actually needs to be wired for
 compatibility with the badge's current mirror driver.
 
-**Update (2026-09-29):** the same crossing has now been tested on **all six ports**, not
+**Update (29/09/26):** the same crossing has now been tested on **all six ports**, not
 just port 4, so the PCB wires `HS_G`→GPIO22 and `HS_H`→GPIO21 unconditionally.
 
 | Pin | Function |
 |------|----------|
-| — | **Update (2026-09-28, schematic v0.1):** GPIO27 = SK6805 data, GPIO28 = badge-rail sense, GPIO29 = HDMI boost enable. `LS_C`/`LS_D`/`LS_E` are left unconnected. `HS_G`/`HS_H` are crossed on the PCB (see above). DDC and microSD are dropped, so **GPIO3, 4, 5 and 8–11 are spare**. The table below is otherwise unchanged. |
+| — | **Update (28/09/26, schematic v0.1):** GPIO27 = SK6805 data, GPIO28 = badge-rail sense, GPIO29 = HDMI boost enable. `LS_C`/`LS_D`/`LS_E` are left unconnected. `HS_G`/`HS_H` are crossed on the PCB (see above). DDC and microSD are dropped, so **GPIO3, 4, 5 and 8–11 are spare**. The table below is otherwise unchanged. |
 | 0 | PSRAM chip select (QMI CS1 — GPIO0/8/19 are the only options on RP2350A, and 19 is taken by HSTX) |
 | 1 | Status LED (LED2) |
 | 2 | HDMI hot-plug detect, via 100k/100k divider from +5 V |
@@ -698,7 +698,7 @@ just port 4, so the PCB wires `HS_G`→GPIO22 and `HS_H`→GPIO21 unconditionall
 Note the mapping trades JTAG on port 1 (GPIO39–42 are the ESP32's JTAG pins) — use
 port 2 or 6 during badge-side debugging.
 
-**On `LS_B`/`LS_C`'s roles (2026-08-30):** unlike `LS_A`, which the badge's own hardware
+**On `LS_B`/`LS_C`'s roles (30/08/26):** unlike `LS_A`, which the badge's own hardware
 fixes as a reset line (confirmed on both this project's connector schematic and
 `DanNixon/ethernet-hexpansion`'s independent design), `LS_B`–`LS_E` are just generic,
 badge-provided slow I/O-expander lines with **no fixed protocol meaning** — checked against
@@ -853,7 +853,7 @@ cannot inject current into an unpowered bus. SCK, MOSI and CS are inputs to us. 
 * **33 Ω series on each HS line.** It caps fault current and doubles as source-series
   termination, which 40 MHz edges want anyway.
 
-**Addendum (2026-09-28): pull resistors are a fifth backfeed path.** The E9 pull-ups in
+**Addendum (28/09/26): pull resistors are a fifth backfeed path.** The E9 pull-ups in
 §4.6 must not go to `3V3_LOCAL` on any badge-facing line. An unpowered badge would be fed
 through them, just as through a driven GPIO. In schematic v0.1, badge-side pull-ups go to
 `3V3_BADGE` only; `BADGE_SDA`/`SCL` get none (the badge has its own); and firmware must
@@ -879,7 +879,7 @@ the path when the badge is off. A diode can't, because reset and leak flow the s
 * **TMDS drive.** The Pico DVI Sock / Adafruit HSTX-DVI approach — GPIOs driven directly
   into the sink's 50 Ω terminations with drive strength set to 12 mA, no buffers — is
   proven and is what we use. Series-resistor footprints stay on the board as 0 Ω, as
-  insurance. *(2026-09-28: dropped. The bench has always driven TMDS directly, and the
+  insurance. *(28/09/26: dropped. The bench has always driven TMDS directly, and the
   eight footprints cost space next to the socket.)*
 * **HDMI +5 V** must be supplied to the sink, 55 mA minimum, or many monitors
   will not present EDID. Boost it, and gate the boost's EN pin from a GPIO so it comes
@@ -946,11 +946,11 @@ no cable.
 
 ## 6. Bill of materials
 
-**Update (2026-09-28):** U1 is now the **RP2354A** (the RP2350A die with 2 MB of
+**Update (28/09/26):** U1 is now the **RP2354A** (the RP2350A die with 2 MB of
 flash in the package), so U2, the external W25Q128, is removed. U3, the PSRAM, is
 now **DNP**: footprint only, for optional hand soldering. See §10.
 
-**Update (2026-09-28, schematic v0.1):** the schematic is drawn, and `bom.csv` is now
+**Update (28/09/26, schematic v0.1):** the schematic is drawn, and `bom.csv` is now
 generated from it with LCSC numbers for every part, so the table below is the original
 plan only. Connector references in the schematic: J1 = hexpansion edge connector,
 J2 = USB-C, J3 = SWD, J4 = Qwiic, J5 = HDMI. Differences: full-size **HDMI Type A** (J5);
@@ -1164,7 +1164,7 @@ correctly pillarboxed, circular-masked, coloured circle (some pixel-level edge s
 expected from 2px horizontal quantisation for word-aligned DMA reads — not a bug), stable.
 Full writeup in `firmware/phase0-dvi2/README.md`.
 
-**Colour channel rotation — root-caused and fixed at the source (2026-08-30).** Not a simple
+**Colour channel rotation — root-caused and fixed at the source (30/08/26).** Not a simple
 lane swap: the `expand_tmds` values both stages copied from Adafruit's PicoDVI driver assumed
 the wrong TMDS lane order (L0=Red — the real DVI/HDMI convention is L0=Blue, L1=Green,
 L2=Red, not alphabetical) *and* didn't decode to a clean bit-field under RP2350's own
@@ -1186,7 +1186,7 @@ so this test doesn't require RP2350A-specific silicon — the **Metro is used fo
 the Feather; the Feather's own GPIO21 (needed for SPI0 CS) isn't broken out on that board at
 all (internal-only, dedicated to its onboard NeoPixel), while the Metro exposes all four
 SPI0 pins (GPIO20/21/22/23) on labelled headers. The Feather was the board originally used
-for A1/A3 (HSTX DVI) — **the Metro can do HSTX DVI too, corrected 2026-08-30**: it has its
+for A1/A3 (HSTX DVI) — **the Metro can do HSTX DVI too, corrected 30/08/26**: it has its
 own dedicated 22-pin HSTX connector breaking out GPIO12–19 (D0P/D0N/D1P/D1N/D2P/D2N/CKP/CKN,
 confirmed from Adafruit's own Metro RP2350 pinout page), the identical silicon-fixed mapping
 the Feather uses (HSTX bit index `n` is always GPIO `12+n`, regardless of RP2350A/B package)
@@ -1194,7 +1194,7 @@ the Feather uses (HSTX bit index `n` is always GPIO `12+n`, regardless of RP2350
 when only the Metro was connected. The Feather remains the board A1/A3's own firmware
 (`phase0-dvi`, `phase0-dvi2`) targets by default, not because the Metro is incapable.
 
-**In progress (2026-08-30).** Wiring the official `emfcamp/badge-2024-hardware/hexpansion`
+**In progress (30/08/26).** Wiring the official `emfcamp/badge-2024-hardware/hexpansion`
 devkit board for this test surfaced and settled risk 19 (§9) — §4.1's SPI0/GPIO20–23 role
 table didn't match RP2350 silicon; corrected, and the `HS_F/G/H/I` role assignment (which
 turned out to be this project's own free choice, not a badge-side constraint) is now
@@ -1208,7 +1208,7 @@ assignment is unchanged for the real product, which has no such constraint. LS_E
 (GPIO29) is left unwired on the Metro — that pin doubles as the board's USB-A host power
 enable, an unwanted side effect for a "spare" signal with no bearing on the actual test.
 Physically wired and **I2C0-target half confirmed working** — see C4 below, same firmware
-and wiring session. **SPI0-slave half also confirmed working (2026-08-30)**, mode 3
+and wiring session. **SPI0-slave half also confirmed working (30/08/26)**, mode 3
 (CPOL=1, CPHA=1), CS held low for the whole burst: badge and RP2350 exchange known test
 patterns cleanly in both directions. The first attempts failed regardless of SPI mode —
 root-caused to a single bad physical connection on the CS wire (bench dupont wiring), found
@@ -1222,7 +1222,7 @@ both, `firmware/phase0-dvi/` and `firmware/phase0-dvi2/`) — §3.3's 84%-of-HST
 estimate holds in practice, once `clk_sys` is correctly set to 126 MHz (see A1 above).
 
 **A4. Current draw under load — cannot happen on this bench rig at all, same reason as C4
-(2026-08-30).** Not just "not yet measured": this rig's boards run off USB with their own
+(30/08/26).** Not just "not yet measured": this rig's boards run off USB with their own
 onboard regulators, not the product's own power architecture (buck/boost/TPS2116 mux,
 §4.5), and — like C4 — there is no badge-supplied `3V3_BADGE` in the loop at all (badge
 `+3V3` deliberately left disconnected, no isolation circuit to safely tie two live rails).
@@ -1256,7 +1256,7 @@ ceiling at the stock `clk_sys` 150 MHz (75 MHz PSRAM clock, the fastest divisor 
 at that `clk_sys`) — short of the ~35-37 MB/s continuous 640×480@60 16bpp scanout actually
 needs, and no config change at that clock closes the gap. Full writeup in §3.3.
 
-**B3. The RP2350B experiment — accepted as inconclusive, closed (2026-08-30).** This Feather
+**B3. The RP2350B experiment — accepted as inconclusive, closed (30/08/26).** This Feather
 doesn't have PSRAM populated (ships DNP), so B1/B2 couldn't run a comparison against the
 Metro's numbers on this specific board; both skip cleanly, confirming toolchain/board
 bring-up on RP2350A silicon but nothing about RP2350A vs. RP2350B PSRAM/ctx performance.
@@ -1279,7 +1279,7 @@ render rate is the bottleneck, not the link. Full numbers and the `mpremote`
 interrupt-vs-`resume` gotcha worked around to get them non-invasively are in §3.1.
 
 **C2. Prototype `display.get_fb()` — patch written and reviewed, not yet compiled/flashed
-(2026-08-30).** The actual patch (`drivers/gc9a01/display.c` in a local
+(30/08/26).** The actual patch (`drivers/gc9a01/display.c` in a local
 `emfcamp/badge-2024-software` clone): a `get_fb()` MicroPython function returning
 `mp_obj_new_memoryview(BYTEARRAY_TYPECODE, sizeof(tildagon_fb), tildagon_fb)` — a zero-copy
 view onto the same `tildagon_fb` §3.1 already describes, registered alongside `get_ctx()` in
@@ -1315,7 +1315,7 @@ verified — flashing and testing `get_fb()` live on the badge needs either a wo
 ESP-IDF/component-manager combination for this repo, or raising the upstream ask (§3.1) and
 letting EMF's own CI build it.
 
-**C3. SPI link speed — done for the bench-wiring case (2026-08-30).** Rig: the official
+**C3. SPI link speed — done for the bench-wiring case (30/08/26).** Rig: the official
 `emfcamp/badge-2024-hardware/hexpansion` devkit board plugged into the real badge port (so
 the actual edge connector **is** in circuit), with dupont jumpers only for the last leg from
 that devkit board's headers to the Metro. Swept 100 kHz–40 MHz: **100 kHz–20 MHz fully
@@ -1335,7 +1335,7 @@ real trace before relying on them.
 from port power-on to the badge's first I2C read against the RP2350's time-to-I2C-ready. If
 there is no clear daylight, §5's fallback becomes the primary plan and the schematic changes.
 
-**First success confirmed (2026-08-30, `firmware/phase0-a2-eeprom/`).** On real hardware:
+**First success confirmed (30/08/26, `firmware/phase0-a2-eeprom/`).** On real hardware:
 badge found the emulated EEPROM, read the header, and continued reading past byte 32 into
 the (currently empty) filesystem region — meaning the header's magic/version/checksum all
 validated, since a failed check would have stopped the badge there. No race observed with
@@ -1371,7 +1371,7 @@ this phase.
 
 #### Beyond Phase 0: the first end-to-end link demonstration
 
-**Done (2026-08-30), `firmware/testcard/`.** With VID/PID assigned, built the first firmware
+**Done (30/08/26), `firmware/testcard/`.** With VID/PID assigned, built the first firmware
 combining every proven Phase 0 piece into one image and one demonstration: badge inserts a
 hexpansion → discovers the emulated EEPROM with the real identity (I2C0, A2/C4's proven
 mechanics) → mounts a real LittleFS filesystem living inside it → auto-launches the packed
@@ -1385,7 +1385,7 @@ This isn't a Phase 0 deliverable — it's the first proof that the individually-
 pieces actually compose into the product's real contract, done early because the last
 blocking dependency (VID/PID) cleared.
 
-**Upgraded (2026-08-31).** The badge now generates the displayed content itself — a
+**Upgraded (31/08/26).** The badge now generates the displayed content itself — a
 240×240 frame built in Python, streamed continuously over SPI0 one row at a time — instead
 of just selecting among a handful of RP2350-fixed patterns, exercising the link the way the
 actual mirroring product will, not just its command plumbing. Also added: a NeoPixel
@@ -1473,11 +1473,11 @@ primary mode.
 | 12 | Badge renders too slowly for mirroring to look good | Low | Inherent: you see what the badge draws, and no link speed changes that. **Measured (Phase 0 C1): ~2.2-14.3 fps across 3 real apps** — inherently modest, not a link/hexpansion problem to solve. Document the expectation rather than engineering against it. |
 | 13 | SPI link slower than 40 MHz in practice | Low | Mirroring needs 115 KB/frame and is bounded by the badge anyway; the display-list path already assumes 2.5 MB/s. |
 | 14 | TMDS signal integrity on a 1.0 mm 4-layer board | Low | Short runs, controlled impedance, proven direct-drive topology. |
-| 15 | VID/PID not assigned in time | Low | **Settled (2026-08-30): assigned, `0x1969`/`0x4544`.** In use in `firmware/testcard/`, confirmed on real hardware. |
+| 15 | VID/PID not assigned in time | Low | **Settled (30/08/26): assigned, `0x1969`/`0x4544`.** In use in `firmware/testcard/`, confirmed on real hardware. |
 | 16 | RP2350-E9 pull-down erratum bites on LS/CS/I2C lines | Low | External pull resistors everywhere it matters. |
 | 17 | ctx drawlist forwarding proves impractical — second firmware hook refused, or 640×480 rasterisation too slow on RP2350 | Medium (raised from Low) | **Settled by Phase 0 B1, on the Metro: rasterisation is too slow for animation** (2.9 fps typical scene, 0.7 fps worst case; ~40% of even the cheapest frame is PSRAM write bandwidth, not ctx itself — see §3.2). Affects the advanced path only; v1 mirroring depends on none of it. Occasional full-redraws of static content may still be viable; continuous/animated drawlist forwarding is not. Fallback is the bespoke command set in §3.2, which is already specified. |
 | 18 | PSRAM CS on GPIO0 (QMI CS1, RP2350A) is unvalidated — the Feather has no PSRAM, the Metro is a B with CS on GPIO47 | Low | Documented pinmux option, not exotic. **Stays open through Phase 0** — Phase 0 B3 (§8) decided against populating the Feather's DNP PSRAM footprint to close this measurement (not worth the cost for a documented, non-exotic pinmux option); closes properly once Phase 1/2 schematic+prototype boards exist with the real RP2350A+PSRAM configuration. |
-| 19 | §4.1's SPI0/GPIO20–23 role table (SCK/MOSI/MISO/CS in GPIO order) didn't match RP2350 silicon — found and corrected 2026-08-30 while preparing to wire A2 | Low (settled) | **Settled.** GPIO↔SPI0-role verified against `RP2350.svd`; which badge `HS_x` carries which role turned out to be this project's own free choice (the badge's HS lines are matrix-routed on the ESP32-S3, confirmed by `DanNixon/ethernet-hexpansion` using a different mapping than originally assumed here) — §4.1 now states the chosen mapping (`HS_F`=MOSI, `HS_G`=CS, `HS_H`=SCK, `HS_I`=MISO), to be matched by badge-side driver code in Phase 3/4. |
+| 19 | §4.1's SPI0/GPIO20–23 role table (SCK/MOSI/MISO/CS in GPIO order) didn't match RP2350 silicon — found and corrected 30/08/26 while preparing to wire A2 | Low (settled) | **Settled.** GPIO↔SPI0-role verified against `RP2350.svd`; which badge `HS_x` carries which role turned out to be this project's own free choice (the badge's HS lines are matrix-routed on the ESP32-S3, confirmed by `DanNixon/ethernet-hexpansion` using a different mapping than originally assumed here) — §4.1 now states the chosen mapping (`HS_F`=MOSI, `HS_G`=CS, `HS_H`=SCK, `HS_I`=MISO), to be matched by badge-side driver code in Phase 3/4. |
 
 ---
 
@@ -1495,14 +1495,14 @@ primary mode.
 | Qwiic | **Two JST-SH 4-pin sockets in parallel** on hardware I2C1 (GPIO6/7), with jumper-removable 4k7 pull-ups. Both on side flat A. |
 | Badge power | **The hexpansion never powers the badge** — not in normal use, not during hot-plug, not under a single-component failure. Enforced by the TPS2116 mux and firmware tri-stating, not by convention. |
 | MCU variant | **RP2350A (QFN-60).** The B halves the pin pressure but doubles package area on a board with no slack, and adds no peripherals. Recorded as the fallback, not pursued further — Phase 0 B3 deliberately skipped populating the Feather's PSRAM footprint to run a direct A-vs-B comparison (§8), a decision made rather than an oversight, since A2/A1/A3/A4 already confirm the A map works on real silicon and the B was only ever the fallback. |
-| Flash / MCU package (2026-09-28) | **RP2354A** in place of RP2350A + W25Q128. It's the same die and QFN-60 pinout, so the §4.1 pin map is unchanged; the in-package 2 MB flash sits on QSPI CS0. That removes a SOIC-8 and its routing from a board with no slack. 2 MB is ample, since the largest firmware build is about 260 KB. The QSPI pins still come out of the package, so the PSRAM on CS1/GPIO0 works as planned, but an external flash on CS0 can't be added alongside the internal one. |
-| PSRAM (2026-09-28) | **APS6404L footprint kept, not assembled (DNP)**: hand-solder if wanted. Phase 0 B1/B2 (§3.2, §8) showed a PSRAM-backed framebuffer isn't needed for the mirror path. The 10k pull-up on CS1 stays fitted regardless, and firmware detects PSRAM at boot. |
+| Flash / MCU package (28/09/26) | **RP2354A** in place of RP2350A + W25Q128. It's the same die and QFN-60 pinout, so the §4.1 pin map is unchanged; the in-package 2 MB flash sits on QSPI CS0. That removes a SOIC-8 and its routing from a board with no slack. 2 MB is ample, since the largest firmware build is about 260 KB. The QSPI pins still come out of the package, so the PSRAM on CS1/GPIO0 works as planned, but an external flash on CS0 can't be added alongside the internal one. |
+| PSRAM (28/09/26) | **APS6404L footprint kept, not assembled (DNP)**: hand-solder if wanted. Phase 0 B1/B2 (§3.2, §8) showed a PSRAM-backed framebuffer isn't needed for the mirror path. The 10k pull-up on CS1 stays fitted regardless, and firmware detects PSRAM at boot. |
 | Board size | **44 mm across flats** (was the 32 mm template). Smallest size where mini-HDMI and USB-C fit on the outer flat. Costs ~$2/board. |
-| microSD | **Back in**, on SPI1 GPIO8–11, on the second side flat. First thing to cut if the placement study fails. *(2026-09-28: **dropped** from schematic v0.1. It frees the second side flat and GPIO5 and 8–11, and eases the space taken by the full-size HDMI socket.)* |
+| microSD | **Back in**, on SPI1 GPIO8–11, on the second side flat. First thing to cut if the placement study fails. *(28/09/26: **dropped** from schematic v0.1. It frees the second side flat and GPIO5 and 8–11, and eases the space taken by the full-size HDMI socket.)* |
 
 ### Still open
 
 * **Run size.** The fixed-cost curve in §7 says 50 if there is any chance of 50.
 * **Whether the outer flat closes at 44 mm**, or the board wants the wedge outline. Decided by the placement study, not now.
 * **Whether ctx drawlist forwarding is viable** — **measured (Phase 0 B1, §3.2): not for animation** (2.9 fps typical / 0.7 fps worst case). Occasional static-content redraws still plausible; not settled. LGPL-3.0+ review still outstanding. Not on the v1 path.
-* **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant. *(2026-09-28: flash is now 2 MB with the RP2354A, which strengthens the case for keeping microSD if assets are ever needed.)* **Resolved 2026-09-28: dropped.** Mirroring needs no storage.
+* **Whether microSD earns its place.** 16 MB of flash plus USB-C asset loading may make it redundant. *(28/09/26: flash is now 2 MB with the RP2354A, which strengthens the case for keeping microSD if assets are ever needed.)* **Resolved 28/09/26: dropped.** Mirroring needs no storage.
