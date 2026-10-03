@@ -9,12 +9,12 @@ For the full design rationale, bench measurements, BOM, costing, and the
 phase-by-phase delivery plan that got here, see [`HISTORY.md`](HISTORY.md).
 This file covers what's true *now*.
 
-## Status (2026-10-03)
+## Status (03/10/26)
 
 **Real mirroring and stable HSTX video work together, confirmed on real
 hardware** — not just clean logs, actual moving content on a monitor. Current
 firmware is `firmware/pio-testcard/`, running on an **Adafruit Metro RP2350**
-dev board wired to a real badge hexpansion port, and since 2026-10-03 also on
+dev board wired to a real badge hexpansion port, and since 03/10/26 also on
 a **Raspberry Pi Pico 2 + Adafruit DVI Sock** (`-DHEXI_BOARD=pico2`, see
 [its section](#alternative-bench-board-raspberry-pi-pico-2--adafruit-dvi-sock-tested)),
 powered straight from the badge's 3V3. The custom hexpansion PCB's
@@ -28,7 +28,7 @@ schematic is drafted in `hardware/`; layout hasn't started (see
   SPI-host/GPIO-pin ordering bug). Fixes were merged into hazanjon's
   `feature/hdmi-mirror` branch as
   [hazanjon/badge-2024-software#1](https://github.com/hazanjon/badge-2024-software/pull/1);
-  that branch was rebuilt and flashed to the badge on 2026-10-03 and the
+  that branch was rebuilt and flashed to the badge on 03/10/26 and the
   mirror was confirmed working with the Pico 2.
 - RP2350 side: a from-scratch PIO-based SPI0 slave receiver (the hardware
   SPI0/PL022 peripheral loses byte alignment mid-burst on this chip and never
@@ -105,11 +105,11 @@ from CircuitPython's pin map, so check the board silkscreen for that pad.
 SWD is on the Feather's 3-pin JST-SH connector, so the Debug Probe cable
 plugs straight in. UF2 flashing (hold BOOT, tap RESET) also works. Flash
 is 8 MB, not 16 MB, which is plenty for this firmware. Use the RESET
-button for step 4 of the reinsertion procedure below.
+button for step 3 of the reinsertion procedure below.
 
 ### Alternative bench board: Raspberry Pi Pico 2 + Adafruit DVI Sock (tested)
 
-Build with `-DHEXI_BOARD=pico2`. **Confirmed working end to end on 2026-10-03**:
+Build with `-DHEXI_BOARD=pico2`. **Confirmed working end to end on 03/10/26**:
 stable mirror picture on the official Raspberry Pi monitor, status LED at
 5 Hz while frames arrive. The Pico 2 is an RP2350A, so HSTX reaches the same
 GPIO12–19 block the [Adafruit DVI Sock for Pico](https://www.adafruit.com/product/5957)
@@ -190,7 +190,7 @@ SCK/CS crossover above is already applied. Other differences from the Metro:
   harmless, and you can wire a WS2812 there to get the status colours back.
 - **SD card-detect isn't on a GPIO** (the slot's CD pin goes to GND), so
   GPIO22 is free for SCK.
-- **Buttons:** Key1 is BOOTSEL and Key2 is reset (RUN). Use Key2 for step 4
+- **Buttons:** Key1 is BOOTSEL and Key2 is reset (RUN). Use Key2 for step 3
   of the reinsertion procedure below.
 - **SWD** is on the 3-pin header H1 (SWCLK / GND / SWDIO), so Debug Probe
   flashing works as documented. Holding Key1 while plugging in USB and
@@ -211,25 +211,22 @@ series resistors (R1–R4, R6, R7, R10, R12) and feed GPIO12–19 into their
 connector-side pads. Neither has been tried. The first diverges from the
 HSTX design the hexpansion PCB will use.
 
-## Reinsertion procedure (2026-09-20, still manual)
+## Reinsertion procedure (corrected 03/10/26, still manual)
 
 Plugging the hexpansion into an already-running badge doesn't reliably start
 mirroring on its own yet, even with the auto-attach relay packed into the
 fake EEPROM (`firmware/testcard/badge_app/app.py`) and its LS_A-pulse
 hardware reset (`firmware/pio-testcard/src/main.c`'s own comments have the
 full root-cause trail on why a reset is needed at all). The sequence
-confirmed working on the bench tonight, in order:
+confirmed working on the bench, in order:
 
 1. Insert the `HDMI-HEX` hexpansion.
 2. In `tildagon-hdmi-manager` (or `display_manager`), **detach** the mirror.
-3. **Attach** the mirror again, from the same app.
-4. Press the physical **reset button (SW2)** on the Metro RP2350 board.
+3. Press the physical **reset button** on the RP2350 board (SW2 on the Metro).
+4. **Attach** the mirror again, from the same app.
 
-All four steps were needed together to get a reliably working mirror in
-tonight's testing — auto-attach alone was not enough. Not yet root-caused
-which of steps 2–4 is actually load-bearing versus just "worked this time";
-treat this as the known-good procedure until that's narrowed down further,
-not as a minimal one.
+The order matters: the reset goes between detach and attach, not after.
+Auto-attach alone wasn't enough.
 
 ## Building and flashing
 
@@ -297,7 +294,7 @@ architecture, BOM, and costing this bench work was de-risking, is in
 [`HISTORY.md`](HISTORY.md).
 
 **Schematic v0.1 is done** (`hardware/rp2350-hdmi-hexpansion.kicad_sch`,
-2026-09-28). The PCB layout hasn't started: open the project and run
+28/09/26). The PCB layout hasn't started: open the project and run
 *Tools → Update PCB from Schematic*. Every part has a JLCPCB/LCSC number,
 and its symbol, footprint and 3D model are in the project library
 `hardware/lib/jlc.*`, pulled with
