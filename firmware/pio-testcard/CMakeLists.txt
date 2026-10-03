@@ -24,16 +24,20 @@ cmake_minimum_required(VERSION 3.13)
 # Board-specific pins are selected in src/main.c from the board header's
 # own detection macro. Use a separate build dir per board:
 #   cmake -B build-feather -DHEXI_BOARD=feather
-set(HEXI_BOARD metro CACHE STRING "Bench board: metro or feather")
-set_property(CACHE HEXI_BOARD PROPERTY STRINGS metro feather)
+set(HEXI_BOARD metro CACHE STRING "Bench board: metro, feather or pico2")
+set_property(CACHE HEXI_BOARD PROPERTY STRINGS metro feather pico2)
 if (HEXI_BOARD STREQUAL "metro")
     set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/../testcard/boards)
     set(PICO_BOARD adafruit_metro_rp2350)
 elseif (HEXI_BOARD STREQUAL "feather")
     # Official pico-sdk board header -- no custom one needed.
     set(PICO_BOARD adafruit_feather_rp2350)
+elseif (HEXI_BOARD STREQUAL "pico2")
+    # Raspberry Pi Pico 2 + Adafruit DVI Sock (GP12-19, passive). SPI
+    # receiver on GP0-3, I2C0 on GP4/5, plain LED on GP25, NeoPixel on GP22.
+    set(PICO_BOARD pico2)
 else()
-    message(FATAL_ERROR "HEXI_BOARD must be 'metro' or 'feather', got '${HEXI_BOARD}'")
+    message(FATAL_ERROR "HEXI_BOARD must be 'metro', 'feather' or 'pico2', got '${HEXI_BOARD}'")
 endif()
 
 include(pico_sdk_import.cmake)
@@ -91,6 +95,13 @@ target_link_libraries(pio_testcard_debug
     hardware_i2c
 )
 target_compile_definitions(pio_testcard_debug PRIVATE DEBUG_SERIAL=1)
+if (HEXI_BOARD STREQUAL "pico2")
+    target_compile_definitions(pio_testcard PRIVATE HEXI_BOARD_PICO2=1)
+    # GP0/1 are the SPI MOSI/CS inputs on this board, so the debug UART
+    # moves off the SDK's default UART0 pins to UART1 on GP8/9.
+    target_compile_definitions(pio_testcard_debug PRIVATE HEXI_BOARD_PICO2=1
+        PICO_DEFAULT_UART=1 PICO_DEFAULT_UART_TX_PIN=8 PICO_DEFAULT_UART_RX_PIN=9)
+endif()
 pico_generate_pio_header(pio_testcard_debug ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio)
 pico_generate_pio_header(pio_testcard_debug ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave_rx.pio)
 pico_enable_stdio_usb(pio_testcard_debug 0)

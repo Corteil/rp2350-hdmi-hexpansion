@@ -445,7 +445,13 @@ static void hstx_dvi_init(void) {
     hstx_ctrl_hw->bit[2] = HSTX_CTRL_BIT0_CLK_BITS;
     hstx_ctrl_hw->bit[3] = HSTX_CTRL_BIT0_CLK_BITS | HSTX_CTRL_BIT0_INV_BITS;
 
+#if defined(HEXI_BOARD_PICO2)
+    // Adafruit DVI Sock: D0=GP12/13, D1=GP18/19, D2=GP16/17 (CK=GP14/15,
+    // same as the other boards). HSTX bit = GPIO-12.
+    static const int lane_to_output_bit[3] = {0, 6, 4};
+#else
     static const int lane_to_output_bit[3] = {6, 4, 0};
+#endif
     for (uint lane = 0; lane < 3; ++lane) {
         int bit = lane_to_output_bit[lane];
         uint32_t lane_data_sel_bits =
@@ -507,7 +513,14 @@ static void core1_video_entry(void) {
 // spi_slave_rx.pio reads CS and SCK as "pin 1" and "pin 2" relative to
 // its IN base (MOSI), so MOSI/CS/SCK MUST be three consecutive GPIOs.
 // MISO is never driven (RX-only) -- it only has its pulls disabled.
-#if defined(ADAFRUIT_FEATHER_RP2350)
+#if defined(HEXI_BOARD_PICO2)
+// Pico 2 + Adafruit DVI Sock: GP0-3 are free (HSTX owns GP12-19, I2C0
+// GP4/5). MISO (GP3) is just kept pull-free like the other boards.
+#define PIN_MOSI 0
+#define PIN_CS   1
+#define PIN_SCK  2
+#define PIN_MISO 3
+#elif defined(ADAFRUIT_FEATHER_RP2350)
 // Feather RP2350: GPIO21 is its onboard NeoPixel and isn't broken out, so
 // the Metro's GPIO20-23 block can't be used. The PIO receiver doesn't
 // need hardware-SPI0 pins, so any consecutive trio works; D9/D10/D11 is
@@ -791,7 +804,12 @@ static void spi0_process_ring(void) {
 
 // ----------------------------------------------------------------------------
 
-#if defined(ADAFRUIT_FEATHER_RP2350)
+#if defined(HEXI_BOARD_PICO2)
+// Pico 2 has no onboard NeoPixel (GP25 is a plain LED, see status_led_*);
+// an external WS2812 data line goes on GP22 (header pin 29), clear of
+// SPI (GP0-3), I2C0 (GP4/5), HSTX (GP12-19) and the debug UART (GP8/9).
+#define PIN_NEOPIXEL   22
+#elif defined(ADAFRUIT_FEATHER_RP2350)
 #define PIN_NEOPIXEL   21
 #else
 #define PIN_NEOPIXEL   25
@@ -809,6 +827,25 @@ static void neopixel_init(void) {
     ws2812_program_init(NEOPIXEL_PIO, NEOPIXEL_SM, offset, PIN_NEOPIXEL, 800000.0f, false);
     neopixel_put(0, 0, 0);
 }
+
+#if defined(HEXI_BOARD_PICO2)
+// Plain onboard LED on GP25: 1Hz = running, no frames arriving;
+// 5Hz = frames arriving (one landed within the last FRAME_ACTIVE_MS).
+#define PIN_STATUS_LED    25
+#define FRAME_ACTIVE_MS   500
+static void status_led_init(void) {
+    gpio_init(PIN_STATUS_LED);
+    gpio_set_dir(PIN_STATUS_LED, GPIO_OUT);
+    gpio_put(PIN_STATUS_LED, 0);
+}
+static void status_led_update(bool receiving, absolute_time_t *next_toggle, bool *on) {
+    if (!time_reached(*next_toggle)) return;
+    *on = !*on;
+    gpio_put(PIN_STATUS_LED, *on);
+    // Half-period: 500ms for 1Hz, 100ms for 5Hz.
+    *next_toggle = delayed_by_ms(*next_toggle, receiving ? 100 : 500);
+}
+#endif
 
 int main(void) {
     dma_channel_claim(DMACH_PING);
@@ -852,12 +889,20 @@ int main(void) {
 
     pio_spi_slave_init();
     neopixel_init();
+#if defined(HEXI_BOARD_PICO2)
+    status_led_init();
+#endif
     eeprom_i2c_start();
     gpio_set_irq_enabled_with_callback(PIN_CS, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &cs_edge_irq_handler);
 
     bool heartbeat_red_on = false;
     absolute_time_t next_red_toggle = make_timeout_time_ms(500);
     absolute_time_t green_flash_until = nil_time;
+#if defined(HEXI_BOARD_PICO2)
+    absolute_time_t last_frame_time = nil_time;
+    absolute_time_t next_led_toggle = make_timeout_time_ms(500);
+    bool status_led_on = false;
+#endif
 
     #define IDLE_AFTER_MS 500
     absolute_time_t last_byte_time = get_absolute_time();
@@ -923,6 +968,9 @@ int main(void) {
             ever_received_frame = true;
             back_buffer_ready = true;
             green_flash_until = make_timeout_time_ms(80);
+#if defined(HEXI_BOARD_PICO2)
+            last_frame_time = get_absolute_time();
+#endif
             last_frame_extra_cs_falls = cs_fall_count - cs_falls_at_header_match;
 #ifdef DEBUG_SERIAL
             printf("frame landed #%lu, recv_buf=%d, front_index=%d, swap_count=%lu, header_match_count=%lu, total_bytes_seen=%lu, extra_cs_falls=%lu, abandoned_frames=%lu\n",
@@ -973,6 +1021,12 @@ int main(void) {
         } else {
             neopixel_put(heartbeat_red_on ? 20 : 0, 0, 0);
         }
+
+#if defined(HEXI_BOARD_PICO2)
+        bool receiving = !is_nil_time(last_frame_time) &&
+            absolute_time_diff_us(last_frame_time, get_absolute_time()) < FRAME_ACTIVE_MS * 1000;
+        status_led_update(receiving, &next_led_toggle, &status_led_on);
+#endif
 
         sleep_us(200);
     }
