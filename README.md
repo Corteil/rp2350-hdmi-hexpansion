@@ -130,7 +130,13 @@ CK = GP14/15, "+" on the even GPIO).
 | Debug UART1 TX / RX (`_debug` build) | 8 / 9 | moved off GP0/1, which are now SPI inputs |
 | Status LED (plain GPIO) | 25 | 1 Hz = running, no frames; 5 Hz = frames arriving |
 | Status NeoPixel (external WS2812) | 22 | same colours as the other boards |
-| GND | — | shared with the badge |
+| `LS_A` → `RUN` | — | lets the badge reset the Pico 2; a reset switch from `RUN` to GND is also fitted |
+| Badge 3V3 → VSYS (pin 39) | — | powers the board, with no USB attached |
+| GND | — | shared with the badge: any GND pin on the port breakout hexpansion |
+
+A step-by-step hardware build and flashing guide for this variant is in
+[`docs/index.md`](docs/index.md) (published at
+<https://corteil.github.io/rp2350-hdmi-hexpansion/> once GitHub Pages is on).
 
 Notes from bring-up:
 
@@ -138,8 +144,10 @@ Notes from bring-up:
   and an external 3V3 into VSYS together: VBUS feeds VSYS through a diode, so
   the external source gets back-fed. Use a series Schottky if both are needed.
 - **5 V on the Sock's 5 V pad** is monitor-dependent. Some monitors only show
-  a signal when it is present (feed it from the Pico's VBUS); the official
-  Raspberry Pi monitor and a video capture dongle don't need it.
+  a signal when it is present; the official Raspberry Pi monitor and a video
+  capture dongle don't need it. With no USB attached there is no VBUS, so for
+  a monitor that needs it, use a boost converter: input from VSYS and GND,
+  5 V output to the Sock's 5 V pad, GND common with the port breakout's GND.
 - **Each port insertion resets the Pico 2 twice, about 2 s apart** (probably
   the badge power-cycling the port; not scoped). It is harmless: the mirror
   re-attaches and the picture returns by itself.
