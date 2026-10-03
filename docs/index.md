@@ -2,8 +2,8 @@
 
 This guide builds a working HDMI output for the EMF Tildagon badge from two
 cheap boards: a **Raspberry Pi Pico 2** and an **Adafruit DVI Sock**. The badge
-mirrors its round screen to any HDMI monitor. You don't need to compile
-anything; you flash a ready-made firmware file.
+mirrors its round screen to any HDMI monitor. If you don't want to compile
+the firmware, there is a binary already compiled.
 
 *Tested on 03/10/26 with the official Raspberry Pi monitor on badge port 4.*
 
