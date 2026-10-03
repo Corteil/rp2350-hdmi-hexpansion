@@ -39,6 +39,7 @@ schematic is drafted in `hardware/`; layout hasn't started (see
 |---|---|
 | `firmware/pio-testcard/` | **Current firmware.** Real HSTX/DVI video and real SPI mirror reception together — what's actually flashed to the bench Metro RP2350 today. |
 | `firmware/testcard/` | Earlier milestone: full hexpansion-identity EEPROM emulation + the first end-to-end SPI link demo. Superseded by `pio-testcard` for the mirror path itself, but still the reference for EEPROM emulation. |
+| `firmware/pin-probe/` | Pico 2 bench tool that counts transitions on every header GPIO (read over SWD), used with the badge's Pin Tester app to prove which Pico pin each `HS_F`..`HS_I` wire lands on. |
 | `firmware/mirror_debug/` | Bench diagnostic tool used to bring up the PIO-based SPI slave receiver protocol. |
 | `firmware/phase0-*/` | Individual bring-up experiments from early de-risking (HSTX/DVI basics, colour-channel fix, SPI speed sweep, EEPROM emulation, ctx rasterisation benchmark, microSD). Each has its own README. |
 | `hdmi-mirror-plan.md` | Implementation notes for switching to hazanjon's real `attach_mirror()` protocol (SPI mode, byte order, per-port pin overrides). Completed; kept for reference. |
@@ -96,6 +97,47 @@ SWD is on the Feather's 3-pin JST-SH connector, so the Debug Probe cable
 plugs straight in. UF2 flashing (hold BOOT, tap RESET) also works. Flash
 is 8 MB, not 16 MB, which is plenty for this firmware. Use the RESET
 button for step 4 of the reinsertion procedure below.
+
+### Alternative bench board: Raspberry Pi Pico 2 + Adafruit DVI Sock (tested)
+
+Build with `-DHEXI_BOARD=pico2`. **Confirmed working end to end on 2026-10-03**:
+stable mirror picture on the official Raspberry Pi monitor, status LED at
+5 Hz while frames arrive. The Pico 2 is an RP2350A, so HSTX reaches the same
+GPIO12–19 block the [Adafruit DVI Sock for Pico](https://www.adafruit.com/product/5957)
+is wired to. The Sock is a passive connector plus 220 Ω series resistors, and
+its product page describes it for the RP2040. It works fine with HSTX, but its
+**lane order differs from the Metro/Feather wiring**, so this variant uses
+`lane_to_output_bit = {0, 6, 4}` (D0 = GP12/13, D1 = GP18/19, D2 = GP16/17,
+CK = GP14/15, "+" on the even GPIO).
+
+| Function | RP2350 GPIO | Notes |
+|---|---|---|
+| HSTX video | 12–19 | DVI Sock, see lane order above |
+| SPI MOSI (`HS_F`) | 0 | |
+| SPI CS (`HS_H` on port 4) | 1 | |
+| SPI SCK (`HS_G` on port 4) | 2 | port-4 SCK/CS crossover already applied |
+| SPI MISO (`HS_I`, never driven) | 3 | |
+| EEPROM-emulation I2C0 SDA / SCL | 4 / 5 | unchanged |
+| Debug UART1 TX / RX (`_debug` build) | 8 / 9 | moved off GP0/1, which are now SPI inputs |
+| Status LED (plain GPIO) | 25 | 1 Hz = running, no frames; 5 Hz = frames arriving |
+| Status NeoPixel (external WS2812) | 22 | same colours as the other boards |
+| GND | — | shared with the badge |
+
+Notes from bring-up:
+
+- **Power:** it runs fine from the badge's 3V3 with no USB. Never connect USB
+  and an external 3V3 into VSYS together: VBUS feeds VSYS through a diode, so
+  the external source gets back-fed. Use a series Schottky if both are needed.
+- **5 V on the Sock's 5 V pad** is monitor-dependent. Some monitors only show
+  a signal when it is present (feed it from the Pico's VBUS); the official
+  Raspberry Pi monitor and a video capture dongle don't need it.
+- **Each port insertion resets the Pico 2 twice, about 2 s apart** (probably
+  the badge power-cycling the port; not scoped). It is harmless: the mirror
+  re-attaches and the picture returns by itself.
+- **Wire-continuity check:** `firmware/pin-probe` plus Pin Tester's `blink`
+  (via `mpremote exec`, store-installed path `/apps/Corteil_Pin_Tester`) maps
+  each badge pin to a Pico GPIO. A bad `HS_F` wire here looked like CS/SCK
+  arriving but a stuck-high or stuck-low data line and no `TDHD` match.
 
 ### Alternative bench board: Waveshare RP2350-PiZero (not yet tested)
 
@@ -202,6 +244,9 @@ RP2350 + HSTX, configure a separate build directory from
 cmake -B build-feather -DHEXI_BOARD=feather
 cmake --build build-feather
 ```
+
+For the Raspberry Pi Pico 2 + Adafruit DVI Sock, use `-DHEXI_BOARD=pico2`
+the same way (`cmake -B build-pico2 -DHEXI_BOARD=pico2`).
 
 Flash over SWD with a Raspberry Pi Debug Probe:
 
