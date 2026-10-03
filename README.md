@@ -359,3 +359,16 @@ is off, U11 is unpowered. Its partial-power-down (I_off) spec, ≤10 µA and
 typically far less, stops the RUN pull-up leaking into the badge, and the
 RP2354A keeps running from USB. A plain diode can't do this: the reset
 current and the leak flow the same way.
+
+## Acknowledgements
+
+This project depends on the work of [hazanjon](https://github.com/hazanjon).
+The badge-side display mirroring that the hexpansion receives, including
+`display.attach_mirror()`, the SPI frame protocol with its `TDHD` header, and
+the per-port pin handling in `flow3r_bsp_display_mirror.c`, comes from
+his [badge-2024-software](https://github.com/hazanjon/badge-2024-software)
+work (PR #454 against `emfcamp/badge-2024-software`). His
+[display_manager](https://github.com/hazanjon/display_manager) app provides
+the badge-side driver definitions and attach controls used to drive it.
+Without that groundwork there would be nothing for this hexpansion to mirror,
+and the fixes in this repo's badge-side PR were built on top of it. Thank you.
