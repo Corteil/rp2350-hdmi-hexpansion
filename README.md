@@ -135,8 +135,9 @@ CK = GP14/15, "+" on the even GPIO).
 | GND | — | shared with the badge: any GND pin on the port breakout hexpansion |
 
 A step-by-step hardware build and flashing guide for this variant is in
-[`docs/index.md`](docs/index.md) (published at
-<https://corteil.github.io/rp2350-hdmi-hexpansion/> once GitHub Pages is on).
+[`docs/index.md`](docs/index.md), also published at
+<https://corteil.github.io/rp2350-hdmi-hexpansion/>. A prebuilt UF2 is on the
+[`pico2-v1` release](https://github.com/Corteil/rp2350-hdmi-hexpansion/releases/tag/pico2-v1).
 
 Notes from bring-up:
 
