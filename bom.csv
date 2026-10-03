@@ -25,11 +25,11 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 24,U8,USB ESD,USBLC6-2SC6,USBLC6-2SC6,C2687116,SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL,1,Extended,0.0476,0.0476,,
 25,R14,Resistor,33k,0402WGF3302TCE,C25779,R0402,1,Basic,0.0008,0.0008,,
 26,U2,"Power mux, USB priority, reverse blocking",TPS2116DRLR,TPS2116DRLR,C3235557,SOT-583-8_L2.1-W1.6-P0.50-LS1.6-BL,1,Extended,0.5491,0.5491,,
-27,F1,HDMI +5V resettable fuse,200mA PTC,JK-SMD0805-020-30V,C516070,F0805,1,Extended,0.031,0.031,,"OPTIONAL group (5V-to-HDMI pin18) w/ L3,R19,R20,U4,TP2: Adafruit DVI Sock for Pico leaves pin 18 unconnected and works fine on tested monitors, since it's only used for the sink's DDC/EEPROM. DNP this whole group to simplify + free power budget. Risk: a minority of displays may not assert HPD / light up without it."
-28,L3,Boost inductor,1uH,FTC252010S1R0MBCA,C5832356,IND-SMD_L2.5-W2.0_FTC252010S,1,Extended,0.0396,0.0396,,OPTIONAL - part of HDMI 5V boost group, see F1 note
-29,R19,Resistor,200k,0402WGF2003TCE,C25764,R0402,1,Basic,0.0009,0.0009,,OPTIONAL - part of HDMI 5V boost group, see F1 note
-30,R20,Resistor,27k,0402WGF2702TCE,C25771,R0402,1,Preferred,0.0011,0.0011,,OPTIONAL - part of HDMI 5V boost group, see F1 note
-31,U4,Boost 3V3 -> 5V for HDMI pin 18,TPS61023DRLR,TPS61023DRLR,C919459,SOT-563_L1.6-W1.2-P0.50-LS1.6-BR,1,Extended,0.268,0.268,,OPTIONAL - part of HDMI 5V boost group, see F1 note
+27,F1,HDMI +5V resettable fuse,200mA PTC,JK-SMD0805-020-30V,C516070,F0805,1,Extended,0.031,0.031,,"KEEP POPULATED (group w/ L3,R19,R20,U4,TP2): some monitors need pin 18 5V present to assert HPD / light up - confirmed by testing on the Pico 2 + Adafruit DVI Sock rig. U4's EN pin is wired to BOOST_EN on a spare RP2350 GPIO, so firmware can switch it on/off per monitor rather than fitting/DNP'ing in hardware."
+28,L3,Boost inductor,1uH,FTC252010S1R0MBCA,C5832356,IND-SMD_L2.5-W2.0_FTC252010S,1,Extended,0.0396,0.0396,,Part of HDMI 5V boost group, see F1 note
+29,R19,Resistor,200k,0402WGF2003TCE,C25764,R0402,1,Basic,0.0009,0.0009,,Part of HDMI 5V boost group, see F1 note
+30,R20,Resistor,27k,0402WGF2702TCE,C25771,R0402,1,Preferred,0.0011,0.0011,,Part of HDMI 5V boost group, see F1 note
+31,U4,Boost 3V3 -> 5V for HDMI pin 18,TPS61023DRLR,TPS61023DRLR,C919459,SOT-563_L1.6-W1.2-P0.50-LS1.6-BR,1,Extended,0.268,0.268,,"EN pin wired to BOOST_EN (spare RP2350 GPIO) - firmware-controlled, see F1 note"
 32,J5,HDMI Type A receptacle,HDMI-A,HDMI-001 19PCBTP,C138388,HDMI-SMD_19P-P0.50-H-F,1,Extended,0.2332,0.2332,,Full-size HDMI Type A. Check fit on the board edge
 33,"U6,U7",HDMI TMDS ESD (0.5 pF),TPD4E05U06,TPD4E05U06DQAR,C138714,USON-10_L2.5-W1.0-P0.50-BL,2,Extended,0.0819,0.1638,,"OPTIONAL: Adafruit DVI Sock for Pico uses only bare 220R series resistors on the TMDS lines, no ESD IC. Recommend keeping these given the connector is exposed and used in the field (EMF Camp), but flagging as a simplification candidate if desired."
 34,C29,EEPROM decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,1,Basic,0.006,,DNP,DNP with U10
@@ -40,7 +40,7 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 39,LED3,RGB status LED,SK6805,SK6805MICRO-J,C2909056,LED-SMD_4P-L2.7-W2.4_SK6805MICRO-J,1,Extended,0.0899,0.0899,,
 40,R52,Resistor,330R,0402WGF3300TCE,C25104,R0402,1,Basic,0.0012,0.0012,,
 41,TP1,Test pad,+3V3,,,TestPoint_Pad_D1.0mm,1,,,,,Bare pads
-42,TP2,Test pad,V5_HDMI,,,TestPoint_Pad_D1.0mm,1,,,,,OPTIONAL - part of HDMI 5V boost group, see F1 note; no connection if that group is DNP'd
+42,TP2,Test pad,V5_HDMI,,,TestPoint_Pad_D1.0mm,1,,,,,Part of HDMI 5V boost group, see F1 note
 43,TP3,Test pad,GND,,,TestPoint_Pad_D1.0mm,1,,,,,
 44,J4,Qwiic,Qwiic,SM04B-SRSS-TB(LF)(SN),C160404,CONN-SMD_4P-P1.00_SM04B-SRSS-TB-LF-SN,1,Extended,0.2262,0.2262,,
 45,JP1,Qwiic pull-up solder jumper,Qwiic pull-ups,,,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,1,,,,,"Bare copper jumper, cut to remove Qwiic pull-ups"
