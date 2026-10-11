@@ -508,9 +508,21 @@ class MirrorApp(app.App):
             print("DEBUG: before HexpansionAppLauncherAddEvent emit")
             eventbus.emit(HexpansionAppLauncherAddEvent(port, "HDMI Mirror"))
             print("DEBUG: after HexpansionAppLauncherAddEvent emit")
-            print("DEBUG: deferring RP2350 reset by %dms" % _RESET_DELAY_MS)
-            self._pending_reset_port = port
-            self._reset_delay_remaining_ms = _RESET_DELAY_MS
+            # Honour the tildagon-hdmi-manager app's "Auto-attach" toggle
+            # (settings key hdmi_auto_attach, default on): when it's off,
+            # skip the reset+attach and leave the mirror to the user.
+            try:
+                import settings
+                auto = settings.get("hdmi_auto_attach")
+                auto = True if auto is None else auto
+            except Exception:
+                auto = True
+            if auto:
+                print("DEBUG: deferring RP2350 reset by %dms" % _RESET_DELAY_MS)
+                self._pending_reset_port = port
+                self._reset_delay_remaining_ms = _RESET_DELAY_MS
+            else:
+                print("DEBUG: hdmi_auto_attach off, skipping reset+attach")
 
     def background_update(self, delta):
         if self._pending_reset_port is not None:
