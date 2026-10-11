@@ -639,7 +639,7 @@ class MirrorApp(app.App):
         clear_background(ctx)
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
-        ctx.rgb(1, 1, 1).move_to(0, -30).text("HDMI Mirror")
+        ctx.rgb(1, 1, 1).move_to(0, -30).text("HDMI-HEX")
         ctx.font_size = small_font_size
         ctx.rgb(1, 1, 0).move_to(0, 10).text(self._live_status())
         ctx.rgb(0.8, 0.9, 1.0).move_to(0, 32).text(
