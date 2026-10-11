@@ -31,11 +31,11 @@
 #define I2C_HW i2c0
 
 #define HEX_I2C_ADDR    0x50
-// Shrunk from 64 KiB (2026-09-07): this RAM-backed eeprom[] buffer no
-// longer hosts badge_app/ (side-loaded onto the badge directly for
-// testing instead -- see the main README/this project's own notes),
-// freeing ~57 KiB of RP2350 SRAM for real double-buffered framebuf[2]
-// (see main.c). Kept >= 8 KiB deliberately: badge-2024-software's
+// Shrunk from 64 KiB (2026-09-07): freeing ~57 KiB of RP2350 SRAM for
+// real double-buffered framebuf[2] (see main.c). The raw badge_app/
+// source no longer fits, so fs_image.h packs it as compiled bytecode
+// (app.mpy) instead -- see load_filesystem_image() below.
+// Kept >= 8 KiB deliberately: badge-2024-software's
 // modules/system/hexpansion/util.py switches to a fragile 64-byte block
 // size below that threshold (512-byte blocks only apply to EEPROMs >=
 // 8 KiB) -- 8192 is the smallest size that stays on the proven path.
@@ -114,8 +114,9 @@ static void build_header(void) {
 // generation comment) must therefore FIT WITHIN that region -- the
 // remaining bytes stay 0xFF (already set by the memset in
 // eeprom_i2c_start()), unreachable through the mounted filesystem,
-// harmless. This image is now deliberately EMPTY (no badge_app/ packed
-// in) -- see HEX_EEPROM_SIZE's own comment for why.
+// harmless. The image holds the compiled relay app (badge_app/app.mpy),
+// which the badge launches on every insertion; regenerate fs_image.h with
+// firmware/testcard/tools/build_fs_image.py after changing badge_app/.
 static void load_filesystem_image(void) {
     _Static_assert(FS_IMAGE_SIZE <= HEX_EEPROM_SIZE - HEX_FS_OFFSET,
                    "fs_image.h is bigger than the EEPROM's filesystem "

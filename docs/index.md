@@ -100,9 +100,17 @@ app (both by [hazanjon](https://github.com/hazanjon), see the
 On the badge:
 
 1. Insert the board in the port (the Pico identifies itself as `HDMI-HEX`).
-2. In `tildagon-hdmi-manager` (or `display_manager`), **detach** the mirror.
-3. Press the **reset button** on the Pico 2.
-4. **Attach** the mirror again, using the **HDMI** driver for that port.
+2. That's it: the relay app on the hexpansion waits 500 ms, resets the Pico
+   through `LS_A`, waits 1.5 s and attaches the mirror. It honours the
+   badge's `hdmi_auto_attach` setting, which you can toggle in
+   `tildagon-hdmi-manager` (Info tile) or on the relay app's own screen.
+
+If `LS_A` isn't wired to `RUN`, or the automatic reset misses, use the
+**manual method**:
+
+1. In `tildagon-hdmi-manager` (or `display_manager`), **detach** the mirror.
+2. Press the **reset button** on the Pico 2.
+3. **Attach** the mirror again, using the **HDMI** driver for that port.
 
 The order matters: the reset goes between detach and attach.
 

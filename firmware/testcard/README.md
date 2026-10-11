@@ -56,6 +56,10 @@ Adafruit adapter + monitor, all connected at once.
   `firmware/phase0-a2-eeprom/` (I2C0-target mechanics already confirmed working on real
   hardware there). Real differences: the real VID/PID instead of placeholders, and a real,
   mountable LittleFS2 image copied into the filesystem region instead of leaving it empty.
+  (Current state, 11/10/26: the image is packed again with the compiled relay app, built
+  with `tools/build_fs_image.py` and copied to `firmware/pio-testcard/src/fs_image.h` too.
+  The "now built empty" and `EMPTY_FS` sideload notes further down are history from the
+  2026-09 debugging; the stale "deliberately EMPTY" comment in `eeprom_i2c.c` predates it.)
 * **`src/fs_image.h`** — **generated**, not hand-edited. A LittleFS2 filesystem image built
   from `badge_app/` by `tools/build_fs_image.py`, emitted as a C byte array. Re-run that
   script (and rebuild) after changing `badge_app/`.

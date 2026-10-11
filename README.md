@@ -40,7 +40,9 @@ schematic is drafted in `hardware/`; layout hasn't started (see
   to fix.
 - Known, benign: on the Pico 2 each port insertion resets the board twice
   about 2 s apart (likely the badge power-cycling the port); the mirror
-  re-attaches by itself.
+  re-attaches by itself. The relay app's 500 ms wait before its own reset
+  pulse (raised from 100 ms) made the automatic reset noticeably more
+  reliable.
 
 ## Repo layout
 
@@ -105,7 +107,7 @@ from CircuitPython's pin map, so check the board silkscreen for that pad.
 SWD is on the Feather's 3-pin JST-SH connector, so the Debug Probe cable
 plugs straight in. UF2 flashing (hold BOOT, tap RESET) also works. Flash
 is 8 MB, not 16 MB, which is plenty for this firmware. Use the RESET
-button for step 3 of the reinsertion procedure below.
+button for step 3 of the manual reinsertion method below.
 
 ### Alternative bench board: Raspberry Pi Pico 2 + Adafruit DVI Sock (tested)
 
@@ -200,7 +202,7 @@ SCK/CS crossover above is already applied. Other differences from the Metro:
 - **SD card-detect isn't on a GPIO** (the slot's CD pin goes to GND), so
   GPIO22 is free for SCK.
 - **Buttons:** Key1 is BOOTSEL and Key2 is reset (RUN). Use Key2 for step 3
-  of the reinsertion procedure below.
+  of the manual reinsertion method below.
 - **SWD** is on the 3-pin header H1 (SWCLK / GND / SWDIO), so Debug Probe
   flashing works as documented. Holding Key1 while plugging in USB and
   copying `pio_testcard.uf2` also works.
@@ -220,22 +222,44 @@ series resistors (R1–R4, R6, R7, R10, R12) and feed GPIO12–19 into their
 connector-side pads. Neither has been tried. The first diverges from the
 HSTX design the hexpansion PCB will use.
 
-## Reinsertion procedure (corrected 03/10/26, still manual)
+## Reinsertion procedure (automatic since 11/10/26; manual fallback below)
 
-Plugging the hexpansion into an already-running badge doesn't reliably start
-mirroring on its own yet, even with the auto-attach relay packed into the
-fake EEPROM (`firmware/testcard/badge_app/app.py`) and its LS_A-pulse
-hardware reset (`firmware/pio-testcard/src/main.c`'s own comments have the
-full root-cause trail on why a reset is needed at all). The sequence
-confirmed working on the bench, in order:
+Plugging the hexpansion into a running badge now brings the mirror up by
+itself. The relay app packed into the fake EEPROM
+(`firmware/testcard/badge_app/app.py`) runs on every insertion: it waits
+500 ms for the connector to settle, pulses `LS_A` low for 10 ms to
+hardware-reset the RP2350 (`LS_A` is wired to `RUN`), waits 1.5 s for it to
+reboot, then calls `display.attach_mirror()`. See
+`firmware/pio-testcard/src/main.c`'s own comments for the root-cause trail
+on why a reset is needed at all.
+
+- **Auto-attach setting.** The relay app reads the badge's
+  `hdmi_auto_attach` setting (default on when unset) and skips both the
+  reset and the attach when it's off. The setting is shared with
+  [tildagon-hdmi-manager](https://github.com/Corteil/tildagon-hdmi-manager)
+  (Info tile) and can also be toggled on the relay app's own screen (OK).
+  Turning it on from the relay screen runs the same reset-then-attach.
+- **Relay screen.** It shows `HDMI-HEX`, a live status from
+  `display.is_mirror_active()` (Mirroring / starting... / Not mirroring) and
+  the Auto-attach toggle. Both the status and the reset need badge firmware
+  with the display-mirroring patch; stock firmware has no
+  `attach_mirror()`, so there the hexpansion is recognised but never
+  mirrors.
+- **In tildagon-hdmi-manager**, OK on the Status tile does the same
+  detach, reset, wait, attach sequence on demand.
+
+### Manual method (fallback)
+
+If `LS_A` isn't wired to `RUN`, or the automatic reset misses, the original
+manual sequence still works:
 
 1. Insert the `HDMI-HEX` hexpansion.
 2. In `tildagon-hdmi-manager` (or `display_manager`), **detach** the mirror.
-3. Press the physical **reset button** on the RP2350 board (SW2 on the Metro).
-4. **Attach** the mirror again, from the same app.
+3. Press the physical **reset button** on the RP2350 board (SW2 on the
+   Metro; the reset button on your board otherwise).
+4. **Attach** the mirror again from the same app.
 
 The order matters: the reset goes between detach and attach, not after.
-Auto-attach alone wasn't enough.
 
 ## Building and flashing
 
