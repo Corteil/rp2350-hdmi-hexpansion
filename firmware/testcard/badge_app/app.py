@@ -449,7 +449,7 @@ class TestcardApp(app.App):
 # RUN low, rather than pulsing during a still-unstable electrical
 # connection. Deferred the same way _ATTACH_DELAY_MS below is (via
 # background_update(), not a blocking time.sleep()).
-_RESET_DELAY_MS = 100
+_RESET_DELAY_MS = 500
 
 # TEST (2026-09-11): delay before the first attach_mirror() call, to check
 # whether the permanent hang (isolated to attach_mirror() itself -- app
