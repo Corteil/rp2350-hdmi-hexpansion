@@ -465,6 +465,26 @@ _RESET_DELAY_MS = 100
 _ATTACH_DELAY_MS = 1500
 
 
+def _auto_attach_get():
+    # Shared with tildagon-hdmi-manager: settings key hdmi_auto_attach,
+    # default on when unset.
+    try:
+        import settings
+        v = settings.get("hdmi_auto_attach")
+        return True if v is None else v
+    except Exception:
+        return True
+
+
+def _auto_attach_set(value):
+    try:
+        import settings
+        settings.set("hdmi_auto_attach", value)
+        settings.save()
+    except Exception as e:
+        print("DEBUG: saving hdmi_auto_attach failed:", e)
+
+
 class MirrorApp(app.App):
     def _reset_rp2350(self):
         # Pulse LS_A low to hardware-reset the RP2350 -- HISTORY.md section
@@ -511,13 +531,7 @@ class MirrorApp(app.App):
             # Honour the tildagon-hdmi-manager app's "Auto-attach" toggle
             # (settings key hdmi_auto_attach, default on): when it's off,
             # skip the reset+attach and leave the mirror to the user.
-            try:
-                import settings
-                auto = settings.get("hdmi_auto_attach")
-                auto = True if auto is None else auto
-            except Exception:
-                auto = True
-            if auto:
+            if _auto_attach_get():
                 print("DEBUG: deferring RP2350 reset by %dms" % _RESET_DELAY_MS)
                 self._pending_reset_port = port
                 self._reset_delay_remaining_ms = _RESET_DELAY_MS
@@ -567,7 +581,7 @@ class MirrorApp(app.App):
         try:
             display.attach_mirror(port=port, driver=driver, baudrate=driver["baudrate"])
             print("DEBUG: attach_mirror returned OK")
-            self.status = "mirroring (attach_mirror)"
+            self.status = "attached"
         except Exception as e:
             self.status = "attach_mirror failed: {!r}".format(e)
             print(self.status)
@@ -587,6 +601,26 @@ class MirrorApp(app.App):
             self.buttons.clear()
             self.minimise()
             return True
+        if self.buttons.pressed(BUTTON_TYPES["CONFIRM"]):
+            _auto_attach_set(not _auto_attach_get())
+
+    def _live_status(self):
+        # Ask the firmware whether the mirror is really attached (works
+        # without the manager app: display.is_mirror_active is badge
+        # firmware). self.status only records that attach_mirror() ran.
+        port = getattr(self.config, "port", None) if self.config else None
+        if port is None:
+            return self.status
+        try:
+            if display.is_mirror_active(port):
+                return "Mirroring"
+        except Exception:
+            return "state unknown"
+        if self._pending_reset_port is not None or self._pending_attach_port is not None:
+            return "starting..."
+        if self.status.startswith("attach_mirror failed"):
+            return self.status
+        return "Not mirroring"
 
     def draw(self, ctx):
         ctx.save()
@@ -595,8 +629,12 @@ class MirrorApp(app.App):
         ctx.text_baseline = ctx.MIDDLE
         ctx.rgb(1, 1, 1).move_to(0, -30).text("HDMI Mirror")
         ctx.font_size = small_font_size
-        ctx.rgb(1, 1, 0).move_to(0, 10).text(self.status)
-        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 45).text("CANCEL: back")
+        ctx.rgb(1, 1, 0).move_to(0, 10).text(self._live_status())
+        ctx.rgb(0.8, 0.9, 1.0).move_to(0, 32).text(
+            "Auto-attach: " + ("on" if _auto_attach_get() else "off")
+        )
+        ctx.rgb(0.6, 0.6, 0.6).move_to(0, 54).text("OK: toggle")
+        ctx.move_to(0, 72).text("CANCEL: back")
         ctx.restore()
 
 
