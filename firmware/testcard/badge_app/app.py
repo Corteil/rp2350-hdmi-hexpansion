@@ -602,7 +602,19 @@ class MirrorApp(app.App):
             self.minimise()
             return True
         if self.buttons.pressed(BUTTON_TYPES["CONFIRM"]):
-            _auto_attach_set(not _auto_attach_get())
+            on = not _auto_attach_get()
+            _auto_attach_set(on)
+            # Turning it on does what insertion does: reset the RP2350,
+            # wait, then attach -- unless the mirror is already up.
+            port = getattr(self.config, "port", None) if self.config else None
+            if on and port is not None:
+                try:
+                    active = display.is_mirror_active(port)
+                except Exception:
+                    active = False
+                if not active:
+                    self._pending_reset_port = port
+                    self._reset_delay_remaining_ms = _RESET_DELAY_MS
 
     def _live_status(self):
         # Ask the firmware whether the mirror is really attached (works
