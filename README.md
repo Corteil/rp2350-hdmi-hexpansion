@@ -129,6 +129,7 @@ CK = GP14/15, "+" on the even GPIO).
 | SPI SCK (`HS_G` on port 4) | 2 | port-4 SCK/CS crossover already applied |
 | SPI MISO (`HS_I`, never driven) | 3 | |
 | EEPROM-emulation I2C0 SDA / SCL | 4 / 5 | unchanged |
+| 5V boost enable (active-high) | 6 | off at boot; the badge switches it, see [5V boost switch](#5v-boost-switch-added-151026) |
 | Debug UART1 TX / RX (`_debug` build) | 8 / 9 | moved off GP0/1, which are now SPI inputs |
 | Status LED (plain GPIO) | 25 | 1 Hz = running, no frames; 5 Hz = frames arriving |
 | Status NeoPixel (external WS2812) | 22 | same colours as the other boards |
@@ -139,7 +140,7 @@ CK = GP14/15, "+" on the even GPIO).
 A step-by-step hardware build and flashing guide for this variant is in
 [`docs/index.md`](docs/index.md), also published at
 <https://corteil.github.io/rp2350-hdmi-hexpansion/>. A prebuilt UF2 is on the
-[`pico2-v1` release](https://github.com/Corteil/rp2350-hdmi-hexpansion/releases/tag/pico2-v1).
+[`pico2-v2` release](https://github.com/Corteil/rp2350-hdmi-hexpansion/releases/tag/pico2-v2).
 
 Notes from bring-up:
 

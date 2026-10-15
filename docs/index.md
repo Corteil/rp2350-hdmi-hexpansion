@@ -5,7 +5,8 @@ cheap boards: a **Raspberry Pi Pico 2** and an **Adafruit DVI Sock**. The badge
 mirrors its round screen to any HDMI monitor. If you don't want to compile
 the firmware, there is a binary already compiled.
 
-*Tested on 03/10/26 with the official Raspberry Pi monitor on badge port 4.*
+*Tested on 03/10/26 with the official Raspberry Pi monitor on badge port 4. The
+switchable 5 V boost (GP6) was added on 15/10/26.*
 
 ## What you need
 
@@ -15,9 +16,9 @@ the firmware, there is a binary already compiled.
 | [Adafruit DVI Sock for Pico](https://www.adafruit.com/product/5957) | Passive HDMI connector board, no active parts. |
 | Port breakout hexpansion | The [port breakout hexpansion](https://github.com/emfcamp/badge-2024-hardware/tree/main/hexpansion) from the EMF badge hardware repo. It brings the port's pads out to pins you can wire to. |
 | Reset push button | The Pico 2 has no reset button of its own, so add one between its `RUN` pin and GND. |
-| HDMI cable and monitor | Some monitors need 5 V on the Sock's 5 V pad to show a picture, which needs a boost converter (see Troubleshooting). |
-| 5 V boost converter (only if your monitor needs it) | Small 3.3 V to 5 V module. |
-| Jumper wires | 8 wires, or 9 with the spare SPI pin: 3 SPI, 2 I2C, `LS_A` to `RUN`, VSYS power and GND (see below). |
+| HDMI cable and monitor | Some monitors need 5 V on the Sock's 5 V pad to show a picture, which needs a boost converter (see [Power](#power)). |
+| 5 V boost converter with an enable pin (only if your monitor needs it) | Small 3.3 V to 5 V module with an `EN` pin. The firmware switches it from GP6. Add a pull-down (around 100 kΩ) on `EN` so it stays off while the Pico boots. |
+| Jumper wires | 8 wires, or 9 with the spare SPI pin: 3 SPI, 2 I2C, `LS_A` to `RUN`, VSYS power and GND (see below). The boost, if fitted, takes one more for `EN` (GP6). |
 | USB cable | Only for flashing. |
 | Tildagon badge | Running badge firmware with display mirroring, see [Badge side](#badge-side). |
 
@@ -51,6 +52,7 @@ Pico 2 as below (the guide was tested on port 4):
 | I2C SDA | GP4 | both | lets the badge identify the board |
 | I2C SCL | GP5 | both | |
 | `LS_A` | `RUN` | badge → Pico | lets the badge reset the Pico 2 |
+| (Pico only) | GP6 → boost `EN` | Pico → boost | switches the 5 V boost, only if you fitted one. Off after every reset; the badge turns it on |
 | GND | GND | | **must be shared**: connect to any GND pin on the port breakout |
 | 3V3 | VSYS (pin 39) | badge → Pico | power (see below) |
 
@@ -70,6 +72,18 @@ with no USB cable attached.
 rail through a diode, so the badge's 3V3 would be pushed back into. Unplug USB
 after flashing, before connecting the badge power.
 
+### 5 V boost (optional)
+
+If your monitor needs 5 V on the Sock's 5 V pad, fit a 3.3 V to 5 V boost
+converter: input from the Pico 2's VSYS pin and GND, output to the 5 V pad on
+the Sock, and its `EN` pin to **GP6**. Its GND must also be common with the port
+breakout's GND.
+
+The boost is **off by default** to save power. The firmware keeps it off after
+every power-up and reset, and the badge switches it on and off over the same I2C
+link that identifies the board (see [Badge side](#badge-side)). With no badge app
+involved, the 5 V pad stays unpowered.
+
 ## 3. Flash the firmware
 
 1. Download [`pio_testcard_pico2.uf2`](https://github.com/Corteil/rp2350-hdmi-hexpansion/releases/latest/download/pio_testcard_pico2.uf2)
@@ -81,14 +95,16 @@ after flashing, before connecting the badge power.
    the copy finishes.
 4. Unplug the USB cable.
 
-The current release was built from commit `0a6ea73` and has the checksum
-`381a32b4677d10293090b2ff0aa552e232379617f3af6e2996a23775f8e03e4d`.
+The current release (`pico2-v2`) was built from commit `4ece83d` and has the
+checksum `1ca7f17215d8512d8b6ab0cf9a33185d9e884f382b11644cfbd566a547766ef7`.
 
 ## 4. First run
 
 1. Connect the HDMI cable and power the Pico 2 from the badge's 3V3.
 2. The monitor should show a test card, and the onboard LED should blink
    **once a second**. That means the board is running with no frames arriving.
+   If your monitor needs the 5 V boost, the picture appears only after the badge
+   has switched it on (a couple of seconds after the board is inserted).
 3. When the badge starts sending its screen, the LED blinks **five times a
    second** and the monitor shows the badge screen.
 
@@ -105,6 +121,21 @@ On the badge:
    badge's `hdmi_auto_attach` setting, which you can toggle in
    `tildagon-hdmi-manager` (Info tile) or on the relay app's own screen.
 
+The relay app's own screen shows the live status (green when mirroring, amber
+when idle, red on a failure), the Auto-attach and 5 V boost settings, and its
+keys. The keys are the badge's lettered buttons; OK is `C` and Cancel is `F`:
+
+| Key | Does |
+|---|---|
+| `B` | Toggle the 5 V boost |
+| `C` | Toggle auto-attach |
+| `D` | Attach or detach the mirror (attaching resets the Pico first) |
+| `F` | Back |
+
+The boost setting (`hdmi_boost`, on by default) is saved on the badge and shared
+with `tildagon-hdmi-manager` (Info tile, "5V boost"). Both apps send it to the
+Pico just before attaching, so a setting of off stays off across resets.
+
 If `LS_A` isn't wired to `RUN`, or the automatic reset misses, use the
 **manual method**:
 
@@ -118,7 +149,7 @@ The order matters: the reset goes between detach and attach.
 
 | Symptom | Likely cause |
 |---|---|
-| Monitor shows nothing at all | Some monitors only show a picture if the Sock's 5 V pad gets 5 V. The official Raspberry Pi monitor and a video capture dongle didn't need it. Because the Pico 2 runs from the badge's 3V3, there is no USB 5 V to use, so add a boost converter: input from the Pico 2's VSYS pin and GND, output 5 V to the 5 V pad on the Sock. Its GND must also be common with the port breakout's GND. |
+| Monitor shows nothing at all | Some monitors only show a picture if the Sock's 5 V pad gets 5 V. The official Raspberry Pi monitor and a video capture dongle didn't need it. Because the Pico 2 runs from the badge's 3V3, there is no USB 5 V to use, so add a boost converter as described in [5 V boost](#5-v-boost-optional). If it is fitted but the monitor stays blank, check that the boost is switched on: press `B` on the relay screen, or use the Info tile in `tildagon-hdmi-manager`. It is off after every reset until the badge turns it on. |
 | Test card shows, LED stays at 1 Hz after attaching | The badge frames aren't arriving. Check the SPI wires, above all `HS_F` to GP0, and that the mirror was attached with the **HDMI** driver. A broken data wire looks exactly like this: clock and chip select work but no frames decode. |
 | Picture drops out, then returns, when you plug the badge in | Normal. The Pico 2 resets itself twice, about 2 s apart, when the port is inserted, then recovers. |
 | Some frames missing | Normal. Around 18% of frames are dropped because the badge starts a new frame before the last finishes. It is not visible in practice. |
