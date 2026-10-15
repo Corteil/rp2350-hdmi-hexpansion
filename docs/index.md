@@ -95,8 +95,8 @@ involved, the 5 V pad stays unpowered.
    the copy finishes.
 4. Unplug the USB cable.
 
-The current release (`pico2-v2`) was built from commit `4ece83d` and has the
-checksum `1ca7f17215d8512d8b6ab0cf9a33185d9e884f382b11644cfbd566a547766ef7`.
+The current release (`pico2-v3`) was built from commit `08d40d2` and has the
+checksum `840a26fef5c9f36b8e817ec0efa7477bcc8e9162b206f2b54d02079ce70b6228`.
 
 ## 4. First run
 

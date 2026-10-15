@@ -140,7 +140,7 @@ CK = GP14/15, "+" on the even GPIO).
 A step-by-step hardware build and flashing guide for this variant is in
 [`docs/index.md`](docs/index.md), also published at
 <https://corteil.github.io/rp2350-hdmi-hexpansion/>. A prebuilt UF2 is on the
-[`pico2-v2` release](https://github.com/Corteil/rp2350-hdmi-hexpansion/releases/tag/pico2-v2).
+[`pico2-v3` release](https://github.com/Corteil/rp2350-hdmi-hexpansion/releases/tag/pico2-v3).
 
 Notes from bring-up:
 
