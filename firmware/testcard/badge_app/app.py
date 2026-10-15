@@ -73,7 +73,6 @@ import app
 import display
 import time
 from events.input import Buttons, BUTTON_TYPES
-from app_components.tokens import small_font_size
 from system.eventbus import eventbus
 try:
     # The A-F buttons live here, not in events.input's BUTTON_TYPES.
@@ -337,8 +336,11 @@ class MirrorApp(app.App):
         ctx.rgb(0.05, 0.06, 0.10).rectangle(-120, -120, 240, 240).fill()
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
+        # Explicit sizes (px), as in tildagon-hdmi-manager: small_font_size is
+        # ~18px, which overran the round screen's edges.
+        ctx.font_size = 18
         ctx.rgb(0.8, 0.85, 1.0).move_to(0, -84).text("HDMI-HEX")
-        ctx.font_size = small_font_size
+        ctx.font_size = 16
         st = self._live_status()
         if st == "Mirroring":
             col = (0.0, 0.85, 0.3)
@@ -346,17 +348,18 @@ class MirrorApp(app.App):
             col = (1.0, 0.75, 0.0)
         else:
             col = (0.93, 0.14, 0.0)
-        ctx.rgb(*col).move_to(0, -60).text(st)
-        ctx.rgb(0.65, 0.8, 1.0).move_to(0, -38).text(
+        ctx.rgb(*col).move_to(0, -62).text(st[:22])  # clip long error text
+        ctx.font_size = 14
+        ctx.rgb(0.65, 0.8, 1.0).move_to(0, -40).text(
             "Auto-attach: " + ("on" if _auto_attach_get() else "off")
         )
-        ctx.move_to(0, -20).text("5V boost: " + ("on" if _boost_get() else "off"))
+        ctx.move_to(0, -22).text("5V boost: " + ("on" if _boost_get() else "off"))
         ctx.text_align = ctx.LEFT
-        y = 8
+        y = 6
         for k, v in (("B:", "toggle 5V boost"), ("C:", "toggle auto-attach"),
                      ("D:", "attach / detach"), ("F:", "back")):
-            ctx.rgb(1.0, 0.95, 0.4).move_to(-84, y).text(k)
-            ctx.rgb(0.9, 0.9, 0.9).move_to(-62, y).text(v)
+            ctx.rgb(1.0, 0.95, 0.4).move_to(-80, y).text(k)
+            ctx.rgb(0.9, 0.9, 0.9).move_to(-58, y).text(v)
             y += 18
         ctx.restore()
 
