@@ -847,7 +847,17 @@ static void status_led_update(bool receiving, absolute_time_t *next_toggle, bool
 }
 #endif
 
+// 3V3->5V boost converter enable (powers the HDMI connector's +5V pin).
+// Active-high. Starts off to save power; the badge enables it through
+// eeprom_i2c's control register (bit 0, written by the relay app and the
+// HDMI Manager app from their saved setting) once the main loop is running.
+#define PIN_BOOST_EN 6
+
 int main(void) {
+    gpio_init(PIN_BOOST_EN);
+    gpio_set_dir(PIN_BOOST_EN, GPIO_OUT);
+    gpio_put(PIN_BOOST_EN, 0);
+
     dma_channel_claim(DMACH_PING);
     dma_channel_claim(DMACH_PONG);
 
@@ -930,6 +940,8 @@ int main(void) {
 
     for (;;) {
         spi0_process_ring();
+
+        gpio_put(PIN_BOOST_EN, (eeprom_i2c_ctrl() & EEPROM_CTRL_BOOST_EN) != 0);
 
         if (total_bytes_seen != last_total_bytes_seen) {
             last_total_bytes_seen = total_bytes_seen;

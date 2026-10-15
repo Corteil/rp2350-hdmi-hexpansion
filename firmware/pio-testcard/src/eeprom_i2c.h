@@ -40,6 +40,16 @@
 // assume "call first" holds outside testcard's single-core build.
 void eeprom_i2c_start(void);
 
+// Control register: one byte of the emulated EEPROM at HEX_CTRL_ADDR (0x20,
+// in the gap between the 32-byte header and the filesystem at 0x40; the
+// header checksum only covers bytes 1..30). The badge reads/writes it
+// with ordinary EEPROM accesses at I2C address 0x50, e.g.
+// i2c.writeto_mem(0x50, 0x20, b"\x01", addrsize=16). Bits:
+//   bit 0: 3V3->5V boost converter enable (GPIO6). Defaults to 0 at boot (saves power;
+//           the badge apps write their saved setting before attaching).
+#define EEPROM_CTRL_BOOST_EN (1u << 0)
+uint8_t eeprom_i2c_ctrl(void);
+
 // Diagnostics: how many read/write byte events the ISR has serviced,
 // and whether the header (byte 0) has ever been read.
 uint32_t eeprom_i2c_read_count(void);

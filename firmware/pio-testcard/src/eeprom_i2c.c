@@ -42,6 +42,7 @@
 #define HEX_EEPROM_SIZE (8 * 1024)
 #define HEX_FS_OFFSET   64
 #define HEX_PAGE_SIZE   64
+#define HEX_CTRL_ADDR   0x20   // control register -- see eeprom_i2c.h
 
 // This project's real assigned identity (not a placeholder).
 #define HEX_VID 0x1969
@@ -199,9 +200,11 @@ void eeprom_i2c_start(void) {
     memset(eeprom, 0xFF, HEX_EEPROM_SIZE);
     build_header();
     load_filesystem_image();
+    eeprom[HEX_CTRL_ADDR] = 0;  // boost off until the badge enables it
     start_i2c_slave();
 }
 
+uint8_t eeprom_i2c_ctrl(void) { return *(volatile uint8_t *)&eeprom[HEX_CTRL_ADDR]; }
 uint32_t eeprom_i2c_read_count(void) { return read_count; }
 uint32_t eeprom_i2c_write_count(void) { return write_count; }
 bool eeprom_i2c_header_was_read(void) { return header_read; }

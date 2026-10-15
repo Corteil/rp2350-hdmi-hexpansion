@@ -63,7 +63,12 @@ Adafruit adapter + monitor, all connected at once.
 * **`src/fs_image.h`** — **generated**, not hand-edited. A LittleFS2 filesystem image built
   from `badge_app/` by `tools/build_fs_image.py`, emitted as a C byte array. Re-run that
   script (and rebuild) after changing `badge_app/`.
-* **`badge_app/app.py`** — the actual badge-side source. Not run from a loose checkout: it's
+* **`badge_app/app.py`** — the actual badge-side source (the relay app, `MirrorApp`, only).
+  The old synthetic test-card demo (`TestcardApp`, its screens and constants, described in
+  the "Multiple test screens" section below) was moved out on 15/10/26 to
+  `badge_app/testcard_old.py`: it is not packed and not run, kept for reference. The move
+  took the packed app from 6.5 KB to 3.3 KB; the image has 15 blocks (7680 bytes, about
+  6600 bytes of file data), so keep an eye on the size when adding to `app.py`. Not run from a loose checkout: it's
   packed *into* the LittleFS image above, so it ships and updates with the hexpansion
   firmware itself, matching the product's own design (main README §2, item 2: "the RP2350
   owns that image, so the driver updates itself with the hexpansion firmware — no separate
@@ -189,7 +194,8 @@ higher rate is safe.
 
 ## Multiple test screens
 
-Beyond the rotating colour bars, `badge_app/app.py` now has 6 more selectable screens,
+(Historical: this demo now lives in `badge_app/testcard_old.py`, see above.)
+Beyond the rotating colour bars, the test-card app now had 6 more selectable screens,
 cycled with UP/DOWN (L/R still controls the bars' rotation direction): `checker`, `bunny`,
 `spider7`, `spider8`, `bat`, `duck`.
 
@@ -270,8 +276,13 @@ Regenerating `src/fs_image.h` after changing `badge_app/` (needs `pip install
 littlefs-python` once):
 
 ```bash
-python tools/build_fs_image.py
+MPY_CROSS=/path/to/badge-2024-software/micropython/mpy-cross/build/mpy-cross \
+    python tools/build_fs_image.py
 ```
+
+The script compiles with `-s app.py`, so tracebacks from the packed app just say `app.py`
+(and the full build path isn't stored in the tight image). It writes `src/fs_image.h` here;
+copy it to `../pio-testcard/src/fs_image.h` before building that firmware.
 
 ## Flash
 

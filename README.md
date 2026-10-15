@@ -240,13 +240,45 @@ on why a reset is needed at all.
   (Info tile) and can also be toggled on the relay app's own screen (OK).
   Turning it on from the relay screen runs the same reset-then-attach.
 - **Relay screen.** It shows `HDMI-HEX`, a live status from
-  `display.is_mirror_active()` (Mirroring / starting... / Not mirroring) and
-  the Auto-attach toggle. Both the status and the reset need badge firmware
-  with the display-mirroring patch; stock firmware has no
-  `attach_mirror()`, so there the hexpansion is recognised but never
-  mirrors.
+  `display.is_mirror_active()` (green Mirroring, amber starting... / Not
+  mirroring, red on failure, in the same colours as tildagon-hdmi-manager),
+  the Auto-attach and 5V boost settings, and a key list (hexagonal buttons;
+  OK is `C` and Cancel is `F` on this badge):
+
+  | Key | Does |
+  |---|---|
+  | `B` | Toggle the 5V boost |
+  | `C` | Toggle auto-attach (turning it on runs reset-then-attach) |
+  | `D` | Attach / detach the mirror. Attaching does the reset first; detaching doesn't |
+  | `F` | Back |
+
+  Both the status and the reset need badge firmware with the display-mirroring
+  patch; stock firmware has no `attach_mirror()`, so there the hexpansion is
+  recognised but never mirrors.
 - **In tildagon-hdmi-manager**, OK on the Status tile does the same
   detach, reset, wait, attach sequence on demand.
+
+### 5V boost switch (added 15/10/26)
+
+A 3V3→5V boost converter supplies the HDMI connector's +5V pin. Switching it
+off saves power, so it is controlled from the badge:
+
+- **Firmware.** `firmware/pio-testcard` drives the boost enable on GPIO6
+  (`PIN_BOOST_EN` in `main.c`, active-high) from one control byte in the
+  emulated EEPROM at address `0x20` (`EEPROM_CTRL_BOOST_EN`, bit 0; see
+  `eeprom_i2c.h`). That is the gap between the 32-byte header and the
+  filesystem at `0x40`, outside the header checksum. The badge reads and
+  writes it as an ordinary EEPROM access at I2C address `0x50` with a 16-bit
+  address. **The boost is off at boot and after every reset.**
+- **Setting.** The badge-side setting is `hdmi_boost` (default on when unset),
+  shared by the relay app (`B`) and tildagon-hdmi-manager (Info tile, "5V
+  boost"). Both write the saved value to the firmware just before attaching and
+  after each reset, so the boost comes on a moment after a reset and a
+  setting of off stays off. With no badge app involved the +5V pin stays off,
+  which some monitors may not tolerate.
+- **Pin.** GPIO6 is the bench wiring. The planned PCB (pin map below, and
+  `HISTORY.md`) puts the boost enable on GPIO29 and the Qwiic I2C1 on GPIO6/7,
+  so `PIN_BOOST_EN` will need to follow whichever the board uses.
 
 ### Manual method (fallback)
 

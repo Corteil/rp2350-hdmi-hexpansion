@@ -103,7 +103,9 @@ def compile_app_mpy(mpy_cross: str) -> bytes:
     with tempfile.TemporaryDirectory() as tmp:
         out_path = pathlib.Path(tmp) / "app.mpy"
         subprocess.run(
-            [mpy_cross, f"-march={MPY_CROSS_ARCH}", str(APP_SOURCE), "-o", str(out_path)],
+            # -s: record just "app.py" as the source name, not the full build
+            # path -- saves ~60 bytes of the tight 15-block budget.
+            [mpy_cross, f"-march={MPY_CROSS_ARCH}", "-s", "app.py", str(APP_SOURCE), "-o", str(out_path)],
             check=True,
         )
         return out_path.read_bytes()
