@@ -1,0 +1,2 @@
+# PDFs are fetched by fetch_datasheets.py, not committed
+*.pdf

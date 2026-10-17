@@ -1,0 +1,585 @@
+[
+  {
+    "lcsc": "C1525",
+    "mpn": "CL05B104KO5NNNC",
+    "value": "100nF",
+    "refs": [
+      "C1",
+      "C2",
+      "C3",
+      "C4",
+      "C5",
+      "C6",
+      "C7",
+      "C10",
+      "C11",
+      "C12",
+      "C20",
+      "C29",
+      "C32",
+      "C33"
+    ],
+    "dnp": false,
+    "file": "CL05B104KO5NNNC_C1525.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C1525.pdf"
+    ]
+  },
+  {
+    "lcsc": "C23733",
+    "mpn": "CL05A475MP5NRNC",
+    "value": "4.7uF",
+    "refs": [
+      "C13",
+      "C14",
+      "C15"
+    ],
+    "dnp": false,
+    "file": "CL05A475MP5NRNC_C23733.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C23733.pdf"
+    ]
+  },
+  {
+    "lcsc": "C19702",
+    "mpn": "CL10A106KP8NNNC",
+    "value": "10uF",
+    "refs": [
+      "C16",
+      "C21",
+      "C23",
+      "C25"
+    ],
+    "dnp": false,
+    "file": "CL10A106KP8NNNC_C19702.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C19702.pdf"
+    ]
+  },
+  {
+    "lcsc": "C1548",
+    "mpn": "0402CG150J500NT",
+    "value": "15pF",
+    "refs": [
+      "C17",
+      "C18"
+    ],
+    "dnp": false,
+    "file": "0402CG150J500NT_C1548.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C1548.pdf"
+    ]
+  },
+  {
+    "lcsc": "C45783",
+    "mpn": "CL21A226MAQNNNE",
+    "value": "22uF",
+    "refs": [
+      "C22",
+      "C24",
+      "C26"
+    ],
+    "dnp": false,
+    "file": "CL21A226MAQNNNE_C45783.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C45783.pdf"
+    ]
+  },
+  {
+    "lcsc": "C19077497",
+    "mpn": "SMF5.0A",
+    "value": "SMF5.0A",
+    "refs": [
+      "D1"
+    ],
+    "dnp": false,
+    "file": "SMF5.0A_C19077497.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C19077497.pdf"
+    ]
+  },
+  {
+    "lcsc": "C516070",
+    "mpn": "JK-SMD0805-020-30V",
+    "value": "200mA PTC",
+    "refs": [
+      "F1"
+    ],
+    "dnp": false,
+    "file": "JK-SMD0805-020-30V_C516070.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C516070.pdf"
+    ]
+  },
+  {
+    "lcsc": "C2765186",
+    "mpn": "TYPE-C 16PIN 2MD(073)",
+    "value": "USB-C",
+    "refs": [
+      "J2"
+    ],
+    "dnp": false,
+    "file": "TYPE-C_16PIN_2MD_073__C2765186.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C2765186.pdf"
+    ]
+  },
+  {
+    "lcsc": "C160389",
+    "mpn": "BM03B-SRSS-TB(LF)(SN)",
+    "value": "SWD",
+    "refs": [
+      "J3"
+    ],
+    "dnp": false,
+    "file": "BM03B-SRSS-TB_LF_SN__C160389.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C160389.pdf"
+    ]
+  },
+  {
+    "lcsc": "C160404",
+    "mpn": "SM04B-SRSS-TB(LF)(SN)",
+    "value": "Qwiic",
+    "refs": [
+      "J4"
+    ],
+    "dnp": false,
+    "file": "SM04B-SRSS-TB_LF_SN__C160404.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C160404.pdf"
+    ]
+  },
+  {
+    "lcsc": "C138388",
+    "mpn": "HDMI-001 19PCBTP",
+    "value": "HDMI-A",
+    "refs": [
+      "J5"
+    ],
+    "dnp": false,
+    "file": "HDMI-001_19PCBTP_C138388.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C138388.pdf"
+    ]
+  },
+  {
+    "lcsc": "C42411119",
+    "mpn": "AOTA-B201610S3R3-101-T",
+    "value": "3.3uH",
+    "refs": [
+      "L1"
+    ],
+    "dnp": false,
+    "file": "AOTA-B201610S3R3-101-T_C42411119.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C42411119.pdf"
+    ]
+  },
+  {
+    "lcsc": "C5832372",
+    "mpn": "FTC252012S2R2MBCA",
+    "value": "2.2uH",
+    "refs": [
+      "L2"
+    ],
+    "dnp": false,
+    "file": "FTC252012S2R2MBCA_C5832372.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C5832372.pdf"
+    ]
+  },
+  {
+    "lcsc": "C5832356",
+    "mpn": "FTC252010S1R0MBCA",
+    "value": "1uH",
+    "refs": [
+      "L3"
+    ],
+    "dnp": false,
+    "file": "FTC252010S1R0MBCA_C5832356.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C5832356.pdf"
+    ]
+  },
+  {
+    "lcsc": "C2286",
+    "mpn": "KT-0603R",
+    "value": "STATUS",
+    "refs": [
+      "LED1",
+      "LED2"
+    ],
+    "dnp": false,
+    "file": "KT-0603R_C2286.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C2286.pdf"
+    ]
+  },
+  {
+    "lcsc": "C2909056",
+    "mpn": "SK6805MICRO-J",
+    "value": "SK6805",
+    "refs": [
+      "LED3"
+    ],
+    "dnp": false,
+    "file": "SK6805MICRO-J_C2909056.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C2909056.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25105",
+    "mpn": "0402WGF330JTCE",
+    "value": "33R",
+    "refs": [
+      "R1",
+      "R36",
+      "R37",
+      "R38",
+      "R39"
+    ],
+    "dnp": false,
+    "file": "0402WGF330JTCE_C25105.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25105.pdf"
+    ]
+  },
+  {
+    "lcsc": "C11702",
+    "mpn": "0402WGF1001TCE",
+    "value": "1k",
+    "refs": [
+      "R2",
+      "R6",
+      "R40",
+      "R51"
+    ],
+    "dnp": false,
+    "file": "0402WGF1001TCE_C11702.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C11702.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25744",
+    "mpn": "0402WGF1002TCE",
+    "value": "10k",
+    "refs": [
+      "R3",
+      "R4",
+      "R7",
+      "R41"
+    ],
+    "dnp": false,
+    "file": "0402WGF1002TCE_C25744.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25744.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25905",
+    "mpn": "0402WGF5101TCE",
+    "value": "5.1k",
+    "refs": [
+      "R8",
+      "R9"
+    ],
+    "dnp": false,
+    "file": "0402WGF5101TCE_C25905.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25905.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25100",
+    "mpn": "0402WGF270JTCE",
+    "value": "27R",
+    "refs": [
+      "R10",
+      "R11"
+    ],
+    "dnp": false,
+    "file": "0402WGF270JTCE_C25100.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25100.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25741",
+    "mpn": "0402WGF1003TCE",
+    "value": "100k",
+    "refs": [
+      "R12",
+      "R16",
+      "R17",
+      "R18",
+      "R34",
+      "R35"
+    ],
+    "dnp": false,
+    "file": "0402WGF1003TCE_C25741.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25741.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25768",
+    "mpn": "0402WGF2202TCE",
+    "value": "22k",
+    "refs": [
+      "R13",
+      "R15"
+    ],
+    "dnp": false,
+    "file": "0402WGF2202TCE_C25768.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25768.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25779",
+    "mpn": "0402WGF3302TCE",
+    "value": "33k",
+    "refs": [
+      "R14"
+    ],
+    "dnp": false,
+    "file": "0402WGF3302TCE_C25779.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25779.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25764",
+    "mpn": "0402WGF2003TCE",
+    "value": "200k",
+    "refs": [
+      "R19"
+    ],
+    "dnp": false,
+    "file": "0402WGF2003TCE_C25764.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25764.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25771",
+    "mpn": "0402WGF2702TCE",
+    "value": "27k",
+    "refs": [
+      "R20"
+    ],
+    "dnp": false,
+    "file": "0402WGF2702TCE_C25771.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25771.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25900",
+    "mpn": "0402WGF4701TCE",
+    "value": "4.7k",
+    "refs": [
+      "R48",
+      "R49",
+      "R50"
+    ],
+    "dnp": false,
+    "file": "0402WGF4701TCE_C25900.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25900.pdf"
+    ]
+  },
+  {
+    "lcsc": "C25104",
+    "mpn": "0402WGF3300TCE",
+    "value": "330R",
+    "refs": [
+      "R52"
+    ],
+    "dnp": false,
+    "file": "0402WGF3300TCE_C25104.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C25104.pdf"
+    ]
+  },
+  {
+    "lcsc": "C720477",
+    "mpn": "TS-1088-AR02016",
+    "value": "RESET",
+    "refs": [
+      "SW1",
+      "SW2"
+    ],
+    "dnp": false,
+    "file": "TS-1088-AR02016_C720477.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C720477.pdf"
+    ]
+  },
+  {
+    "lcsc": "C41378174",
+    "mpn": "RP2354A",
+    "value": "RP2354A",
+    "refs": [
+      "U1"
+    ],
+    "dnp": false,
+    "file": "RP2354A_C41378174.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C41378174.pdf"
+    ]
+  },
+  {
+    "lcsc": "C3235557",
+    "mpn": "TPS2116DRLR",
+    "value": "TPS2116DRLR",
+    "refs": [
+      "U2"
+    ],
+    "dnp": false,
+    "file": "TPS2116DRLR_C3235557.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C3235557.pdf",
+      "https://www.ti.com/lit/ds/symlink/tps2116.pdf"
+    ]
+  },
+  {
+    "lcsc": "C141836",
+    "mpn": "TLV62569DBVR",
+    "value": "TLV62569DBVR",
+    "refs": [
+      "U3"
+    ],
+    "dnp": false,
+    "file": "TLV62569DBVR_C141836.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C141836.pdf",
+      "https://www.ti.com/lit/ds/symlink/tlv62569.pdf"
+    ]
+  },
+  {
+    "lcsc": "C919459",
+    "mpn": "TPS61023DRLR",
+    "value": "TPS61023DRLR",
+    "refs": [
+      "U4"
+    ],
+    "dnp": false,
+    "file": "TPS61023DRLR_C919459.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C919459.pdf",
+      "https://www.ti.com/lit/ds/symlink/tps61023.pdf"
+    ]
+  },
+  {
+    "lcsc": "C138714",
+    "mpn": "TPD4E05U06DQAR",
+    "value": "TPD4E05U06",
+    "refs": [
+      "U6",
+      "U7"
+    ],
+    "dnp": false,
+    "file": "TPD4E05U06DQAR_C138714.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C138714.pdf",
+      "https://www.ti.com/lit/ds/symlink/tpd4e05u06.pdf"
+    ]
+  },
+  {
+    "lcsc": "C2687116",
+    "mpn": "USBLC6-2SC6",
+    "value": "USBLC6-2SC6",
+    "refs": [
+      "U8"
+    ],
+    "dnp": false,
+    "file": "USBLC6-2SC6_C2687116.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C2687116.pdf",
+      "https://www.st.com/resource/en/datasheet/usblc6-2.pdf"
+    ]
+  },
+  {
+    "lcsc": "C5333729",
+    "mpn": "APS6404L-3SQR-SN",
+    "value": "APS6404L-3SQR-SN",
+    "refs": [
+      "U9"
+    ],
+    "dnp": true,
+    "file": "APS6404L-3SQR-SN_C5333729.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C5333729.pdf"
+    ]
+  },
+  {
+    "lcsc": "C2896793",
+    "mpn": "ZD24C64A-SSGMT",
+    "value": "ZD24C64A (fallback)",
+    "refs": [
+      "U10"
+    ],
+    "dnp": true,
+    "file": "ZD24C64A-SSGMT_C2896793.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C2896793.pdf"
+    ]
+  },
+  {
+    "lcsc": "C7829",
+    "mpn": "SN74LVC1G07DBVR",
+    "value": "SN74LVC1G07",
+    "refs": [
+      "U11"
+    ],
+    "dnp": false,
+    "file": "SN74LVC1G07DBVR_C7829.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C7829.pdf",
+      "https://www.ti.com/lit/ds/symlink/sn74lvc1g07.pdf"
+    ]
+  },
+  {
+    "lcsc": "C20625731",
+    "mpn": "ABM8-272-T3",
+    "value": "12MHz",
+    "refs": [
+      "Y1"
+    ],
+    "dnp": false,
+    "file": "ABM8-272-T3_C20625731.pdf",
+    "urls": [
+      "https://www.lcsc.com/datasheet/C20625731.pdf"
+    ]
+  },
+  {
+    "lcsc": "",
+    "mpn": "RP2350",
+    "value": "RP2350 / RP2354 datasheet (Raspberry Pi)",
+    "refs": [
+      "U1"
+    ],
+    "dnp": false,
+    "file": "RP2350_datasheet.pdf",
+    "urls": [
+      "https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf"
+    ]
+  },
+  {
+    "lcsc": "",
+    "mpn": "Hardware design with RP2350",
+    "value": "Raspberry Pi hardware design guide",
+    "refs": [
+      "U1"
+    ],
+    "dnp": false,
+    "file": "Hardware_design_with_RP2350.pdf",
+    "urls": [
+      "https://datasheets.raspberrypi.com/rp2350/hardware-design-with-rp2350.pdf"
+    ]
+  }
+]
