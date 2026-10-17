@@ -58,3 +58,25 @@ Each part is tried at `https://www.lcsc.com/datasheet/<LCSC#>.pdf` first, then t
 ## Updating
 
 If the schematic's parts change, regenerate `parts.json` from the schematic and re-run the script. Existing PDFs are kept unless you pass `--force`.
+
+## Getting the datasheets (if the PDFs are missing)
+
+The PDFs are not stored in git (`*.pdf` is ignored). To re-download them:
+
+1. **Script (easiest):** run `python fetch_datasheets.py` in this folder
+   (`--dry-run` to preview, `--force` to re-download). It reads `parts.json`
+   and tries each URL in order, only keeping real PDFs.
+2. **By hand from LCSC:** open `https://www.lcsc.com/product-detail/<LCSC#>.html`
+   (LCSC numbers are in the table above and in `parts.json`) and use the
+   "Datasheet" link. Save with the file name listed in the table.
+3. **Manufacturer fallbacks:**
+   - TI (TPS61023, TPS2116, TLV62569, TPD4E05U06, SN74LVC1G07): `https://www.ti.com/lit/ds/symlink/<part>.pdf`, e.g. `tps61023.pdf`
+   - ST (USBLC6-2SC6): https://www.st.com/resource/en/datasheet/usblc6-2.pdf
+   - Raspberry Pi RP2350 datasheet: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+   - Hardware design with RP2350: https://datasheets.raspberrypi.com/rp2350/hardware-design-with-rp2350.pdf
+
+Notes:
+- Direct `lcsc.com/datasheet/<C#>.pdf` links often show "document link is invalid";
+  use the product page link instead.
+- Many LCSC passives share one generic series PDF, so several files are identical copies.
+- Some networks (e.g. cloud sandboxes) block lcsc.com / ti.com; run the script from your own PC.
