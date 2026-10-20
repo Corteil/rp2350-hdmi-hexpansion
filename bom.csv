@@ -1,6 +1,6 @@
 Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boards,ExtUSD,DNP,Notes
 1,"C1,C2,C3,C4,C5,C6,C7,C10,C11,C12,C20,C32,C33",Decoupling,100nF,CL05B104KO5NNNC,C1525,C0402,13,Basic,0.006,0.078,,
-2,"C13,C14,C15",Regulator caps,4.7uF,CL05A475MP5NRNC,C23733,C0402,3,Basic,0.0192,0.0576,,
+2,C15,Regulator caps,4.7uF,CL05A475MP5NRNC,C23733,C0402,1,Basic,0.0192,0.0192,,"Pi reference size (0402). C13/C14 are 0603, see below"
 3,"C16,C21,C23,C25",Bulk / regulator caps,10uF,CL10A106KP8NNNC,C19702,C0603,4,Basic,0.0824,0.3296,,
 4,"C17,C18",Crystal load caps,15pF,0402CG150J500NT,C1548,C0402,2,Basic,0.0022,0.0044,,
 5,J3,SWD debug (RPi 3-pin),SWD,BM03B-SRSS-TB(LF)(SN),C160389,CONN-SMD-3P-P1.00_BM03B-SRSS-TB-LF-SN,1,Extended,0.2686,0.2686,,Vertical (top-entry) JST-SH
@@ -45,4 +45,5 @@ Item,Designator,Description,Value,MPN,LCSC,Footprint,Qty,JLC_Type,UnitUSD_10boar
 44,J4,Qwiic,Qwiic,SM04B-SRSS-TB(LF)(SN),C160404,CONN-SMD_4P-P1.00_SM04B-SRSS-TB-LF-SN,1,Extended,0.2262,0.2262,,
 45,JP1,Qwiic pull-up solder jumper,Qwiic pull-ups,,,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,1,,,,,"Bare copper jumper, cut to remove Qwiic pull-ups"
 46,"R48,R49,R50",Resistor,4.7k,0402WGF4701TCE,C25900,R0402,3,Basic,0.0011,0.0033,,
+47,"C13,C14","Regulator caps (0603, room for a trace between)",4.7uF,CL10A475KO8NNNC,C19666,C0603,2,,,,,Replaces 0402 C23733; price/JLC type not checked
 ,,"Totals per board: fitted, JLC-assembled parts only",,,,,80,,,5.11,,Unit prices at the 10-board quantity tier

@@ -18455,7 +18455,7 @@
 		)
 	)
 	(symbol
-		(lib_id "jlc:CL05A475MP5NRNC")
+		(lib_id "jlc:CL10A475KO8NNNC")
 		(at 189.23 193.04 0)
 		(unit 1)
 		(body_style 1)
@@ -18485,7 +18485,7 @@
 				)
 			)
 		)
-		(property "Footprint" "jlc:C0402"
+		(property "Footprint" "jlc:C0603"
 			(at 189.23 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -18496,7 +18496,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL05A475MP5NRNC_4-7uF-475-20-10V_C23733.html"
+		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10A475KO8NNNC_4.7uF-475-10-16V_C19666.html"
 			(at 189.23 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -18528,7 +18528,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL05A475MP5NRNC"
+		(property "MPN" "CL10A475KO8NNNC"
 			(at 189.23 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -18539,7 +18539,7 @@
 				)
 			)
 		)
-		(property "LCSC Part" "C23733"
+		(property "LCSC Part" "C19666"
 			(at 189.23 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -18561,7 +18561,7 @@
 				)
 			)
 		)
-		(property "ki_description" "4.7uF (475) ±20% 10V"
+		(property "ki_description" "4.7uF (475) ±10% 16V"
 			(at 189.23 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -24227,7 +24227,7 @@
 		)
 	)
 	(symbol
-		(lib_id "jlc:CL05A475MP5NRNC")
+		(lib_id "jlc:CL10A475KO8NNNC")
 		(at 219.71 193.04 0)
 		(unit 1)
 		(body_style 1)
@@ -24257,7 +24257,7 @@
 				)
 			)
 		)
-		(property "Footprint" "jlc:C0402"
+		(property "Footprint" "jlc:C0603"
 			(at 219.71 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -24268,7 +24268,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL05A475MP5NRNC_4-7uF-475-20-10V_C23733.html"
+		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10A475KO8NNNC_4.7uF-475-10-16V_C19666.html"
 			(at 219.71 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -24300,7 +24300,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL05A475MP5NRNC"
+		(property "MPN" "CL10A475KO8NNNC"
 			(at 219.71 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -24311,7 +24311,7 @@
 				)
 			)
 		)
-		(property "LCSC Part" "C23733"
+		(property "LCSC Part" "C19666"
 			(at 219.71 193.04 0)
 			(hide yes)
 			(show_name no)
@@ -24333,7 +24333,7 @@
 				)
 			)
 		)
-		(property "ki_description" "4.7uF (475) ±20% 10V"
+		(property "ki_description" "4.7uF (475) ±10% 16V"
 			(at 219.71 193.04 0)
 			(hide yes)
 			(show_name no)
