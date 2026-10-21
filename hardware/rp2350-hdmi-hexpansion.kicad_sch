@@ -12961,7 +12961,7 @@
 		)
 		(uuid "0b19034a-d68e-5c12-b1a5-7d8e228d59d2")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 96.52 289.56 0)
 		(effects
 			(font
@@ -13311,7 +13311,7 @@
 		)
 		(uuid "2c021f70-020c-5a66-9495-6f964f633ca4")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 118.11 318.77 0)
 		(effects
 			(font
@@ -13641,7 +13641,7 @@
 		)
 		(uuid "4657097c-8868-52f9-a087-3b9160846cdb")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 328.93 52.07 0)
 		(effects
 			(font
@@ -13731,7 +13731,7 @@
 		)
 		(uuid "485dec86-17bb-5353-9541-80ab6ac14e78")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 666.75 349.25 180)
 		(effects
 			(font
@@ -13901,7 +13901,7 @@
 		)
 		(uuid "532d5661-f8b4-55c2-81c5-c73c6c125184")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 328.93 52.07 0)
 		(effects
 			(font
@@ -14011,7 +14011,7 @@
 		)
 		(uuid "5a9e9652-d7fd-5c30-8991-2b7212b7a3c0")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 635 350.52 0)
 		(effects
 			(font
@@ -14761,7 +14761,7 @@
 		)
 		(uuid "a29ccaf0-dd02-5f43-bb5e-283853f25753")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 96.52 300.99 0)
 		(effects
 			(font
@@ -15211,7 +15211,7 @@
 		)
 		(uuid "beb25005-df31-5e0b-ba3d-0281ed5c077e")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 694.69 186.69 180)
 		(effects
 			(font
@@ -15221,7 +15221,7 @@
 		)
 		(uuid "bee65fa7-81db-5d1e-8c26-dc2c18519331")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 353.06 52.07 180)
 		(effects
 			(font
@@ -15501,7 +15501,7 @@
 		)
 		(uuid "d311d28b-f510-58d4-bcfc-2d282acbce1b")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 680.72 207.01 0)
 		(effects
 			(font
@@ -15761,7 +15761,7 @@
 		)
 		(uuid "ec847b7f-9361-5d1e-b01b-184ed32d1178")
 	)
-	(label "3V3_BADGE"
+	(label "+3V3"
 		(at 665.48 186.69 0)
 		(effects
 			(font
