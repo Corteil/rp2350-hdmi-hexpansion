@@ -13761,6 +13761,16 @@
 		)
 		(uuid "49af85a0-027b-5c77-9ddd-e43a2769d427")
 	)
+	(label "LS_A"
+		(at 100.33 347.32 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4a018013-cb28-454b-bd3f-215dfa79f144")
+	)
 	(label "SPI_CS"
 		(at 200.66 120.65 0)
 		(effects
@@ -15810,6 +15820,16 @@
 			(justify left bottom)
 		)
 		(uuid "f1e2cabf-831f-5756-a5b1-5ad7b93f3c2d")
+	)
+	(label "RUN"
+		(at 110.49 347.32 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "f25fbf0d-ff90-418e-866d-88464a2accb8")
 	)
 	(label "GND"
 		(at 116.84 95.25 0)
@@ -19147,10 +19167,10 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
+		(in_bom no)
+		(on_board no)
 		(in_pos_files yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "3b09607d-62df-5a46-8bb5-cc2825fd52f8")
 		(property "Reference" "U11"
 			(at 105.41 313.69 0)
@@ -19808,10 +19828,10 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
+		(in_bom no)
+		(on_board no)
 		(in_pos_files yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "47c46d60-3806-5e36-b0e8-eb2ac8cf0290")
 		(property "Reference" "C33"
 			(at 91.44 294.13 0)
@@ -22778,10 +22798,10 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
+		(in_bom no)
+		(on_board no)
 		(in_pos_files yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "826d4801-7fc1-523f-be4b-db2c067095d3")
 		(property "Reference" "R4"
 			(at 91.44 304.55 0)
@@ -25305,6 +25325,139 @@
 			(project "rp2350-hdmi-hexpansion"
 				(path "/fb9bfa6e-c44d-469c-aa90-8ec28bcdf17f"
 					(reference "C32")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "jlc:0402WGF1001TCE")
+		(at 105.41 347.32 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "b3dcc5ea-b843-4f7c-a078-1ab0fe05878b")
+		(property "Reference" "R53"
+			(at 109.22 111.51 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "1k"
+			(at 109.22 104.39 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "jlc:R0402"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_1KR-1001-1_C11702.html"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 109.22 107.95 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(厚声)"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "0402WGF1001TCE"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C11702"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_keywords" "Resistors"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_description" "1KΩ (1001) ±1%"
+			(at 109.22 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "c1c58955-9616-4212-bf4c-2a9ad1e50315")
+		)
+		(pin "2"
+			(uuid "b97d1e5e-be27-4c9f-a29a-687fb2c4b4a7")
+		)
+		(instances
+			(project "rp2350-hdmi-hexpansion"
+				(path "/fb9bfa6e-c44d-469c-aa90-8ec28bcdf17f"
+					(reference "R53")
 					(unit 1)
 				)
 			)
