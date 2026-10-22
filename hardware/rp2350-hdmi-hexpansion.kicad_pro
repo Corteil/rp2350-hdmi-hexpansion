@@ -139,7 +139,7 @@
         "min_text_thickness": 0.15,
         "min_through_hole_diameter": 0.2,
         "min_track_width": 0.09,
-        "min_via_annular_width": 0.125,
+        "min_via_annular_width": 0.1,
         "min_via_diameter": 0.45,
         "solder_mask_clearance": 0.0,
         "solder_mask_min_width": 0.1,
