@@ -54,6 +54,7 @@ schematic is drafted in `hardware/`; layout hasn't started (see
 | `firmware/mirror_debug/` | Bench diagnostic tool used to bring up the PIO-based SPI slave receiver protocol. |
 | `firmware/phase0-*/` | Individual bring-up experiments from early de-risking (HSTX/DVI basics, colour-channel fix, SPI speed sweep, EEPROM emulation, ctx rasterisation benchmark, microSD). Each has its own README. |
 | `hdmi-mirror-plan.md` | Implementation notes for switching to hazanjon's real `attach_mirror()` protocol (SPI mode, byte order, per-port pin overrides). Completed; kept for reference. |
+| `hdmi-stills-mode-plan.md` | Proposal (not built): a high-resolution stills mode and a second-screen mode, one new `TDHS` frame type. |
 | `HISTORY.md` | The full design journal — rationale, bench measurements, BOM, costing, risk register, phase plan. Read this for *why*, not *what's true now*. |
 | `hardware/` | KiCad 10 project for the hexpansion PCB (schematic v0.1 done, layout not started), `lib/jlc.*` (JLCPCB/LCSC symbols, footprints and 3D models), and `hexpansion_bom.xlsx`, the JLCPCB assembly BOM tracker. |
 | `tildagon-base/` | Tildagon KiCad symbol and footprint library (hexpansion edge connector etc.), used by `hardware/`. |
