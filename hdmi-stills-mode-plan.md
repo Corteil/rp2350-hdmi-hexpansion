@@ -1,6 +1,6 @@
 # Plan: high-resolution stills mode and second-screen mode
 
-Status: **proposal, nothing built yet.** Written while building the
+Status: **proposal for the RP2350 side (480×480 `TDHS`); the badge-side second screen is built and documented below.** Written while building the
 [Tildagon-gallery](https://github.com/Corteil/Tildagon-gallery) app, which would
 be the first user. The two ideas turned out to be one mode on the wire, so they
 are planned together.
@@ -72,30 +72,74 @@ animation.
   time.
 - A second flags bit for "no vignette" when the mask is on.
 
-## Badge side (a MicroPython app, no firmware change)
+## Badge side: how an app adds a second screen
 
-`attach_mirror()` can only forward the badge's own framebuffer, so an app that wants
-stills or a second screen does this instead:
+The badge fork firmware (`hazanjon/badge-2024-software`, branch `feature/hdmi-mirror`)
+already has an independent second screen, `display.Screen`, so **no badge firmware
+or raw SPI code is needed**. See hazanjon's
+[display_manager](https://github.com/hazanjon/display_manager) app for a full example.
+The gallery's `hdmi.py` is a small working wrapper.
 
-1. `display.detach_mirror(port)`.
-2. Drive the port with `machine.SPI` using the pins in `_PORT_OVERRIDE`
-   (`spi_frame_timing.py` already does this), mode 0, sending `TDHS`, flags and
-   the pixels. The first transfer after creating a new `SPI` object is corrupted
-   on the ESP32-S3 (see `phase0-a2-spi/README.md`), so send a throwaway
-   16-byte warm-up first.
-3. When it quits, call `display.attach_mirror(...)` again; the first `TDHD` frame
-   returns the RP2350 to mirror mode.
+```python
+import display
 
-Building the 480×480 frame on the badge is the gallery's job: its native
-`imgtool` module already resamples to RGB565 rows, so it needs one more output
-mode, "raw RGB565 into a buffer" (about 450 KB, in PSRAM).
+DRIVER = {"header": b"TDHD", "baudrate": 10_000_000}   # what the mirror uses
+
+# 1. Find the port that is mirroring (the HDMI hexpansion's slot).
+port = next(p for p in range(1, 7) if display.is_mirror_active(p))
+
+# 2. Take it off the mirror and open a second screen on it.
+display.detach_mirror(port)                            # 0 = all ports
+screen = display.Screen(port=port, width=240, height=240,
+                        baudrate=DRIVER["baudrate"], driver=DRIVER)
+
+# 3. Draw with an ordinary ctx (origin in the middle) and send the frame.
+ctx = screen.get_ctx()
+ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
+ctx.image("/gallery/kept/photo.jpg", -120, -90, 240, 180)
+screen.end_frame(ctx)          # the hexpansion holds this frame until the next
+
+# 4. When done, give the port back to the mirror.
+screen.deinit()
+display.attach_mirror(port=port, baudrate=DRIVER["baudrate"], driver=DRIVER)
+```
+
+Things learned building it:
+
+- **It works today.** `Screen` with the `TDHD` driver sends 240×240 frames the
+  current RP2350 firmware already accepts, so it can be tested before any
+  firmware change.
+- Always `detach_mirror` first, and always `deinit` + `attach_mirror` on exit
+  (including on errors), or the TV stays frozen on the app's last frame.
+- Only send a frame when the picture changes: the hexpansion holds the last one.
+- Guard the import (`try: import display`) and `hasattr(display, "Screen")` so the
+  app still runs on stock firmware and on a PC.
+- `ctx.image()` only takes a file path and decodes the whole file (PNG/GIF/JPEG), so
+  large pictures must be shrunk first. 240×240 is comfortable; 480×480 will need
+  the larger-frame path below.
+
+### Going to 480×480 stills
+
+Only the RP2350 side is new. On the badge, the same `display.Screen` call is used with
+a `TDHS` driver and `width=480, height=480`:
+
+```python
+STILLS = {"header": b"TDHS", "baudrate": 20_000_000}
+screen = display.Screen(port=port, width=480, height=480,
+                        baudrate=STILLS["baudrate"], driver=STILLS)
+```
+
+To confirm on the bench: that `Screen` accepts a 480×480 size and a flags byte
+(bit 0 = round mask) after the header, and that a 480×480 ctx fits the badge's RAM
+(460,800 bytes for RGB565; PSRAM should take it). If `Screen` can't take the flags
+byte, a one-line change to the fork's driver dict is the likely fix. The gallery then
+also needs `.view480` copies, which its "kept size" setting already makes.
 
 ## The hexpansion and an SD hexpansion can't be used together
 
 So the pictures can't come from the SD card in this mode. The gallery already
 keeps up to 10 resized copies in the badge's flash for exactly this case. Its
-"kept size" setting will become 240 px or 480 px, with 480 being the stills mode's
-native size.
+"kept size" setting offers 240, 480 or 720 px; 480 is the stills mode's native size.
 
 ## Bench plan
 
@@ -106,7 +150,8 @@ native size.
    running, and that a held still survives for minutes with no frames.
 3. Measure the transfer time and any visible wipe on the Pico 2 + DVI Sock bench
    rig and the Metro, at 10 and 20 MHz.
-4. Gallery: slideshow to the TV with the controls on the badge screen.
+4. Gallery: slideshow to the TV with the controls on the badge screen. (The 240×240
+   version over `TDHD` is built: Settings > HDMI screen. Test it first.)
 
 ## Open questions
 
